@@ -14,14 +14,14 @@ const (
 
 // Worker represents a registered worker instance in the system.
 type Worker struct {
-	ID           string       `json:"id"`
-	Hostname     string       `json:"hostname"`
-	QueueNames   []string     `json:"queue_names"`
-	Concurrency  int          `json:"concurrency"`
-	ActiveJobs   int          `json:"active_jobs"`
-	Status       WorkerStatus `json:"status"`
-	LastHeartbeat time.Time  `json:"last_heartbeat"`
-	RegisteredAt time.Time   `json:"registered_at"`
+	ID            string       `json:"id"`
+	Hostname      string       `json:"hostname"`
+	QueueNames    []string     `json:"queue_names"`
+	Concurrency   int          `json:"concurrency"`
+	ActiveJobs    int          `json:"active_jobs"`
+	Status        WorkerStatus `json:"status"`
+	LastHeartbeat time.Time    `json:"last_heartbeat"`
+	RegisteredAt  time.Time    `json:"registered_at"`
 }
 
 // IsAlive returns false if the worker has missed heartbeats beyond the TTL.
