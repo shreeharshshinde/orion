@@ -104,6 +104,7 @@ graph TD
     style K8S fill:#0f3460,color:#fff,stroke:#3b82f6
     style OBS fill:#2d2000,color:#fff,stroke:#f59e0b
 ```
+<img width="2468" height="2019" alt="image" src="https://github.com/user-attachments/assets/451b8db7-eb89-4ae0-84b8-86597aefd788" />
 
 ---
 
