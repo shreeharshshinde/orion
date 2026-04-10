@@ -198,7 +198,7 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 		msg := fmt.Sprintf("no executor for job type %s", job.Type)
 		logger.Error(msg)
 		_ = p.store.MarkJobFailed(ctx, job.ID, msg, p.nextRetryTime(job))
-		_ = task.ackFn(fmt.Errorf(msg))
+		_ = task.ackFn(fmt.Errorf("%s", msg))
 		return
 	}
 
