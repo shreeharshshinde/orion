@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shreeharsh-a/orion/internal/domain"
-	"github.com/shreeharsh-a/orion/internal/queue"
-	"github.com/shreeharsh-a/orion/internal/store"
-	"github.com/shreeharsh-a/orion/pkg/retry"
+	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/queue"
+	"github.com/shreeharshshinde/orion/internal/store"
+	"github.com/shreeharshshinde/orion/pkg/retry"
 )
 
 // Executor is the interface that performs actual job work.
