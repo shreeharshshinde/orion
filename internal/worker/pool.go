@@ -8,22 +8,25 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/shreeharshshinde/orion/internal/domain"
-	"github.com/shreeharshshinde/orion/internal/queue"
-	"github.com/shreeharshshinde/orion/internal/store"
-	"github.com/shreeharshshinde/orion/pkg/retry"
+	"github.com/google/uuid"
+	"github.com/shreeharsh-a/orion/internal/domain"
+	"github.com/shreeharsh-a/orion/internal/queue"
+	"github.com/shreeharsh-a/orion/internal/store"
+	"github.com/shreeharsh-a/orion/pkg/retry"
 )
 
 // Executor is the interface that performs actual job work.
-// Implementations: InlineExecutor (runs registered handlers),
-// KubernetesExecutor (launches K8s Jobs).
+// Implementations:
+//   - InlineExecutor  (Phase 3) — runs registered Go functions
+//   - KubernetesExecutor (Phase 4) — launches and waits for K8s Jobs
 type Executor interface {
 	Execute(ctx context.Context, job *domain.Job) error
 	// CanExecute returns true if this executor handles the given job type.
+	// The pool calls this to route each job to the correct executor.
 	CanExecute(jobType domain.JobType) bool
 }
 
-// WorkerConfig holds all configuration for the worker pool.
+// WorkerConfig holds all tunable configuration for the worker pool.
 type WorkerConfig struct {
 	WorkerID          string
 	QueueNames        []string
@@ -33,9 +36,16 @@ type WorkerConfig struct {
 	ShutdownTimeout   time.Duration
 }
 
-// Pool is a bounded worker pool that dequeues and executes jobs concurrently.
-// It respects backpressure: the job channel has capacity = Concurrency,
-// so the dequeue loop blocks naturally when all workers are busy.
+// Pool is a bounded goroutine pool that dequeues jobs from Redis and executes them.
+//
+// Architecture:
+//   - One dequeue goroutine per queue name (pulls from Redis Streams)
+//   - N worker goroutines (N = Concurrency, default 10)
+//   - One buffered jobCh channel connecting them (capacity = Concurrency)
+//
+// The buffered channel provides backpressure: when all workers are busy,
+// the dequeue goroutines block on send. Jobs stay in Redis (not in memory)
+// until a worker slot is available. Crash-safe: no in-flight jobs are lost.
 type Pool struct {
 	cfg       WorkerConfig
 	queue     queue.Queue
@@ -43,8 +53,8 @@ type Pool struct {
 	executors []Executor
 	logger    *slog.Logger
 
-	// jobCh is the internal dispatch channel.
-	// Capacity = cfg.Concurrency provides natural backpressure.
+	// jobCh is the backpressure boundary between dequeue goroutines and workers.
+	// Capacity = cfg.Concurrency — when full, dequeue goroutines block.
 	jobCh chan *jobTask
 
 	activeCount atomic.Int32
@@ -56,7 +66,7 @@ type jobTask struct {
 	ackFn queue.AckFunc
 }
 
-// NewPool creates a worker pool. Call Start to begin processing.
+// NewPool creates a Pool. Call Start() to begin processing jobs.
 func NewPool(cfg WorkerConfig, q queue.Queue, s store.Store, executors []Executor, logger *slog.Logger) *Pool {
 	return &Pool{
 		cfg:       cfg,
@@ -70,7 +80,7 @@ func NewPool(cfg WorkerConfig, q queue.Queue, s store.Store, executors []Executo
 
 // Start launches the worker goroutines and the dequeue loop.
 // Blocks until ctx is cancelled. On return, all in-flight jobs have completed
-// or the ShutdownTimeout has elapsed.
+// or ShutdownTimeout has elapsed.
 func (p *Pool) Start(ctx context.Context) error {
 	p.logger.Info("starting worker pool",
 		"worker_id", p.cfg.WorkerID,
@@ -88,25 +98,24 @@ func (p *Pool) Start(ctx context.Context) error {
 		return fmt.Errorf("registering worker: %w", err)
 	}
 
-	// Start N worker goroutines
+	// Launch N worker goroutines.
 	for i := 0; i < p.cfg.Concurrency; i++ {
 		p.wg.Add(1)
 		go p.runWorker(ctx, i)
 	}
 
-	// Background: send heartbeats every HeartbeatInterval
+	// Send heartbeats in the background.
 	go p.heartbeatLoop(ctx)
 
-	// Dequeue loop — runs in the calling goroutine, blocks until ctx cancelled
+	// Run the dequeue loop in the calling goroutine (blocks until ctx cancelled).
 	p.dequeueLoop(ctx)
 
-	// ctx cancelled: begin graceful drain
+	// ctx cancelled: drain remaining in-flight jobs.
 	return p.drain()
 }
 
-// dequeueLoop continuously pulls jobs from the queue and dispatches them
-// to the jobCh. Sending to jobCh blocks when all workers are busy,
-// which is the backpressure mechanism — jobs stay in Redis, not in memory.
+// dequeueLoop pulls jobs from every configured queue and dispatches them to jobCh.
+// Sending to jobCh blocks when all worker slots are occupied — natural backpressure.
 func (p *Pool) dequeueLoop(ctx context.Context) {
 	for _, queueName := range p.cfg.QueueNames {
 		go func(qName string) {
@@ -123,19 +132,17 @@ func (p *Pool) dequeueLoop(ctx context.Context) {
 						return
 					}
 					p.logger.Error("dequeue error", "queue", qName, "err", err)
-					time.Sleep(time.Second) // brief backoff on transient errors
+					time.Sleep(time.Second)
 					continue
 				}
 				if job == nil {
 					continue
 				}
 
-				// This send BLOCKS if all worker slots are occupied.
-				// That is intentional backpressure — we stop pulling from Redis
-				// until a worker slot frees up.
+				// This send blocks when jobCh is at capacity.
+				// Jobs stay in Redis PEL until a slot opens — never lost.
 				select {
 				case <-ctx.Done():
-					// Can't process it — NACK so Redis redelivers it
 					_ = ackFn(fmt.Errorf("worker shutting down"))
 					return
 				case p.jobCh <- &jobTask{job: job, ackFn: ackFn}:
@@ -145,7 +152,7 @@ func (p *Pool) dequeueLoop(ctx context.Context) {
 	}
 }
 
-// runWorker is a single worker goroutine. It reads from jobCh and executes jobs.
+// runWorker is a single worker goroutine. Reads tasks from jobCh and executes them.
 func (p *Pool) runWorker(ctx context.Context, id int) {
 	defer p.wg.Done()
 	logger := p.logger.With("worker_slot", id)
@@ -154,14 +161,14 @@ func (p *Pool) runWorker(ctx context.Context, id int) {
 		select {
 		case task, ok := <-p.jobCh:
 			if !ok {
-				return // channel closed during drain
+				return
 			}
 			p.activeCount.Add(1)
 			p.executeJob(ctx, task, logger)
 			p.activeCount.Add(-1)
 
 		case <-ctx.Done():
-			// Drain any remaining tasks already in the channel before exiting
+			// Drain any tasks already in the channel before exiting.
 			for {
 				select {
 				case task, ok := <-p.jobCh:
@@ -180,31 +187,65 @@ func (p *Pool) runWorker(ctx context.Context, id int) {
 }
 
 // executeJob runs a single job through the appropriate executor.
-// All state transitions and audit records are written here.
+// It owns all state transitions (MarkJobRunning, MarkJobCompleted, MarkJobFailed)
+// and writes the immutable execution audit record (RecordExecution).
+//
+// Phase 3 addition: RecordExecution calls capture each attempt in job_executions.
 func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logger) {
 	job := task.job
 	logger = logger.With("job_id", job.ID, "job_name", job.Name, "attempt", job.Attempt)
+	startedAt := time.Now()
 
-	// Transition: scheduled → running (CAS in PostgreSQL)
+	// ── Transition: scheduled → running ─────────────────────────────────────
+	// CAS in PostgreSQL: only succeeds if status is still 'scheduled'.
+	// If another worker raced us here (shouldn't happen), ErrStateConflict fires
+	// and we skip this job (NACK so Redis re-delivers it).
 	if err := p.store.MarkJobRunning(ctx, job.ID, p.cfg.WorkerID); err != nil {
 		logger.Error("failed to mark job running", "err", err)
 		_ = task.ackFn(err)
 		return
 	}
 
-	// Find the right executor for this job type
+	// ── Record execution start in audit log ──────────────────────────────────
+	// Write the first audit row immediately when the job starts running.
+	// This ensures even jobs that crash mid-execution have an audit record.
+	// ON CONFLICT DO NOTHING makes this idempotent on retry.
+	_ = p.store.RecordExecution(ctx, &domain.JobExecution{
+		ID:        uuid.New(),
+		JobID:     job.ID,
+		Attempt:   job.Attempt + 1, // DB attempt is 0-indexed before any failure; audit is 1-indexed
+		WorkerID:  p.cfg.WorkerID,
+		Status:    domain.JobStatusRunning,
+		StartedAt: &startedAt,
+	})
+
+	// ── Resolve executor ─────────────────────────────────────────────────────
+	// Phase 2: always nil → MarkJobFailed("no executor")
+	// Phase 3: InlineExecutor.CanExecute("inline") = true → Execute()
+	// Phase 4: KubernetesExecutor added for "k8s_job"
 	executor := p.resolveExecutor(job.Type)
 	if executor == nil {
-		msg := fmt.Sprintf("no executor for job type %s", job.Type)
+		msg := fmt.Sprintf("no executor registered for job type %q", job.Type)
 		logger.Error(msg)
+		finishedAt := time.Now()
 		_ = p.store.MarkJobFailed(ctx, job.ID, msg, p.nextRetryTime(job))
-		_ = task.ackFn(fmt.Errorf("%s", msg))
+		_ = p.store.RecordExecution(ctx, &domain.JobExecution{
+			ID:         uuid.New(),
+			JobID:      job.ID,
+			Attempt:    job.Attempt + 1,
+			WorkerID:   p.cfg.WorkerID,
+			Status:     domain.JobStatusFailed,
+			StartedAt:  &startedAt,
+			FinishedAt: &finishedAt,
+			Error:      msg,
+		})
+		_ = task.ackFn(fmt.Errorf(msg))
 		return
 	}
 
-	logger.Info("executing job")
+	logger.Info("executing job", "type", job.Type)
 
-	// Apply per-job deadline if configured
+	// ── Apply per-job deadline if the caller specified one ───────────────────
 	execCtx := ctx
 	if job.Deadline != nil {
 		var cancel context.CancelFunc
@@ -212,22 +253,50 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 		defer cancel()
 	}
 
+	// ── Execute ──────────────────────────────────────────────────────────────
 	err := executor.Execute(execCtx, job)
+	finishedAt := time.Now()
 
+	// ── Handle result ────────────────────────────────────────────────────────
 	if err != nil {
-		logger.Warn("job execution failed", "err", err)
+		logger.Warn("job execution failed",
+			"err", err,
+			"elapsed_ms", finishedAt.Sub(startedAt).Milliseconds(),
+		)
 		retryAt := p.nextRetryTime(job)
 		_ = p.store.MarkJobFailed(ctx, job.ID, err.Error(), retryAt)
-		_ = task.ackFn(err) // NACK: do not remove from Redis PEL
+		_ = p.store.RecordExecution(ctx, &domain.JobExecution{
+			ID:         uuid.New(),
+			JobID:      job.ID,
+			Attempt:    job.Attempt + 1,
+			WorkerID:   p.cfg.WorkerID,
+			Status:     domain.JobStatusFailed,
+			StartedAt:  &startedAt,
+			FinishedAt: &finishedAt,
+			Error:      err.Error(),
+		})
+		_ = task.ackFn(err) // NACK: message stays in Redis PEL for redelivery
 		return
 	}
 
-	logger.Info("job completed successfully")
+	logger.Info("job completed successfully",
+		"elapsed_ms", finishedAt.Sub(startedAt).Milliseconds(),
+	)
 	_ = p.store.MarkJobCompleted(ctx, job.ID)
-	_ = task.ackFn(nil) // ACK: remove from Redis PEL permanently
+	_ = p.store.RecordExecution(ctx, &domain.JobExecution{
+		ID:         uuid.New(),
+		JobID:      job.ID,
+		Attempt:    job.Attempt + 1,
+		WorkerID:   p.cfg.WorkerID,
+		Status:     domain.JobStatusCompleted,
+		StartedAt:  &startedAt,
+		FinishedAt: &finishedAt,
+	})
+	_ = task.ackFn(nil) // ACK: removes message from Redis PEL permanently ✓
 }
 
-// resolveExecutor finds the first executor that can handle the given job type.
+// resolveExecutor returns the first executor that handles the given job type,
+// or nil if no executor is registered for it.
 func (p *Pool) resolveExecutor(jobType domain.JobType) Executor {
 	for _, e := range p.executors {
 		if e.CanExecute(jobType) {
@@ -238,7 +307,7 @@ func (p *Pool) resolveExecutor(jobType domain.JobType) Executor {
 }
 
 // nextRetryTime computes the next retry timestamp using full-jitter backoff.
-// Returns nil if the job has exhausted its max retries.
+// Returns nil if the job has exhausted its max_retries.
 func (p *Pool) nextRetryTime(job *domain.Job) *time.Time {
 	if !job.IsRetryable() {
 		return nil
@@ -248,8 +317,8 @@ func (p *Pool) nextRetryTime(job *domain.Job) *time.Time {
 	return &t
 }
 
-// drain closes the job channel and waits for all in-flight jobs to complete,
-// up to ShutdownTimeout. Returns error if timeout exceeded.
+// drain closes jobCh and waits for all in-flight jobs to finish.
+// Returns an error if jobs do not complete within ShutdownTimeout.
 func (p *Pool) drain() error {
 	p.logger.Info("draining worker pool")
 	close(p.jobCh)
@@ -266,12 +335,12 @@ func (p *Pool) drain() error {
 		return nil
 	case <-time.After(p.cfg.ShutdownTimeout):
 		p.logger.Warn("worker pool drain timed out", "timeout", p.cfg.ShutdownTimeout)
-		return fmt.Errorf("shutdown timeout exceeded")
+		return fmt.Errorf("shutdown timeout exceeded after %s", p.cfg.ShutdownTimeout)
 	}
 }
 
-// heartbeatLoop periodically calls Heartbeat so the scheduler knows this worker is alive.
-// On context cancellation (shutdown), deregisters the worker from PostgreSQL.
+// heartbeatLoop periodically updates last_heartbeat in PostgreSQL so the
+// scheduler can detect alive workers. Deregisters the worker on clean exit.
 func (p *Pool) heartbeatLoop(ctx context.Context) {
 	ticker := time.NewTicker(p.cfg.HeartbeatInterval)
 	defer ticker.Stop()
@@ -288,7 +357,8 @@ func (p *Pool) heartbeatLoop(ctx context.Context) {
 	}
 }
 
-// ActiveCount returns the number of currently executing jobs.
+// ActiveCount returns the number of jobs currently being executed.
+// Used by metrics and health checks.
 func (p *Pool) ActiveCount() int {
 	return int(p.activeCount.Load())
 }
