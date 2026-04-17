@@ -99,7 +99,7 @@ orion/
         └── retry.go   ← you are here
 ```
 
-The retry package is genuinely reusable. Any Go service that needs retry logic could import `github.com/shreeharsh-a/orion/pkg/retry`. Putting it in `pkg/` signals this intent.
+The retry package is genuinely reusable. Any Go service that needs retry logic could import `github.com/shreeharshshinde/orion/pkg/retry`. Putting it in `pkg/` signals this intent.
 
 ## Next step
 Now we implement the **Redis queue** — the actual code that talks to Redis Streams using XADD, XREADGROUP, and XAUTOCLAIM.

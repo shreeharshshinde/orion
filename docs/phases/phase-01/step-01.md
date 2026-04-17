@@ -20,7 +20,7 @@ import "github.com/shreeharshshinde/orion/internal/domain"
 
 Go knows: *"this is inside my own project, look in the `internal/domain/` folder"*.
 
-The `github.com/shreeharsh-a/orion` prefix doesn't mean Go downloads it from GitHub during development — it's just the **unique namespace** for your module. When you eventually publish it, that path becomes the real download URL.
+The `github.com/shreeharshshinde/orion` prefix doesn't mean Go downloads it from GitHub during development — it's just the **unique namespace** for your module. When you eventually publish it, that path becomes the real download URL.
 
 ## Why these dependencies?
 

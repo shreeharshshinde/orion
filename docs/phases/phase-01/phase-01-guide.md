@@ -409,8 +409,8 @@ make test
 
 Expected output (Phase 1 has limited tests since no mock store exists yet):
 ```
-ok   github.com/shreeharsh-a/orion/pkg/retry      0.004s
-ok   github.com/shreeharsh-a/orion/internal/domain 0.003s
+ok   github.com/shreeharshshinde/orion/pkg/retry      0.004s
+ok   github.com/shreeharshshinde/orion/internal/domain 0.003s
 ```
 
 The scheduler, worker, and API packages will show `[no test files]` — that is expected. Phase 2 adds integration tests.

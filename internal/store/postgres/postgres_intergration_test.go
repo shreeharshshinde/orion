@@ -29,9 +29,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/shreeharsh-a/orion/internal/domain"
-	"github.com/shreeharsh-a/orion/internal/store"
-	"github.com/shreeharsh-a/orion/internal/store/postgres"
+	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/store"
+	"github.com/shreeharshshinde/orion/internal/store/postgres"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────

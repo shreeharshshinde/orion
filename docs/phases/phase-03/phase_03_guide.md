@@ -255,7 +255,7 @@ import (
     "sync"
     "time"
 
-    "github.com/shreeharsh-a/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/domain"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -503,7 +503,7 @@ import (
     "log/slog"
     "time"
 
-    "github.com/shreeharsh-a/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/domain"
 )
 
 // Noop is a handler that does nothing and always succeeds.
@@ -676,7 +676,7 @@ logger.Info("inline executor registered",
 ```go
 import (
     // ... existing imports ...
-    "github.com/shreeharsh-a/orion/internal/worker/handlers"
+    "github.com/shreeharshshinde/orion/internal/worker/handlers"
 )
 // Note: inline.go is in the same package (worker), no separate import needed
 ```
@@ -704,9 +704,9 @@ import (
     "testing"
     "time"
 
-    "github.com/shreeharsh-a/orion/internal/domain"
-    "github.com/shreeharsh-a/orion/internal/worker"
-    "github.com/shreeharsh-a/orion/internal/worker/handlers"
+    "github.com/shreeharshshinde/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/worker"
+    "github.com/shreeharshshinde/orion/internal/worker/handlers"
     "log/slog"
     "os"
 )

@@ -168,7 +168,7 @@ import (
     "context"
     "fmt"
 
-    "github.com/shreeharsh-a/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/domain"
 )
 
 func PreprocessDataset(ctx context.Context, job *domain.Job) error {

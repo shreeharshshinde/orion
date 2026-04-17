@@ -259,7 +259,7 @@ import (
     "k8s.io/apimachinery/pkg/api/resource"
     metav1  "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-    "github.com/shreeharsh-a/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/domain"
 )
 
 // jobNameForOrionJob returns a stable, unique Kubernetes Job name for a given
@@ -455,8 +455,8 @@ import (
     "k8s.io/client-go/rest"
     "k8s.io/client-go/tools/clientcmd"
 
-    "github.com/shreeharsh-a/orion/internal/config"
-    "github.com/shreeharsh-a/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/config"
+    "github.com/shreeharshshinde/orion/internal/domain"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────

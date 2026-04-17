@@ -199,7 +199,7 @@ ORION_DATABASE_DSN="postgres://user:pass@host:5432/db" \
 === RUN   TestRegisterAndHeartbeatWorker
 --- PASS: TestRegisterAndHeartbeatWorker (0.013s)
 PASS
-ok  github.com/shreeharsh-a/orion/internal/store/postgres 0.089s
+ok  github.com/shreeharshshinde/orion/internal/store/postgres 0.089s
 ```
 
 Each test is independent. Failures in one test do not affect others. Cleanup functions ensure no orphaned rows accumulate in the database.

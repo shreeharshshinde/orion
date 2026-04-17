@@ -245,7 +245,7 @@ This scans the Makefile for lines matching `target: ## Description` and prints t
 
 ```bash
 # ── First time setup ──────────────────────────────────────────────────
-git clone https://github.com/shreeharsh-a/orion
+git clone https://github.com/shreeharshshinde/orion
 cd orion
 make deps              # go mod download && go mod tidy
 
