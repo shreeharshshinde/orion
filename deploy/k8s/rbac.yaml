@@ -1,0 +1,108 @@
+# deploy/k8s/rbac.yaml
+# Kubernetes RBAC for the Orion Worker
+#
+# The worker process needs permission to create, watch, and delete Kubernetes
+# Jobs in any target namespace (training may land in "ml-training", "orion-jobs",
+# etc. based on kubernetes_spec.namespace). A ClusterRole covers all namespaces.
+#
+# Apply:  kubectl apply -f deploy/k8s/rbac.yaml
+#
+# Verify (must all print "yes"):
+#   kubectl auth can-i create jobs  --as=system:serviceaccount:orion-system:orion-worker -n orion-jobs
+#   kubectl auth can-i watch  jobs  --as=system:serviceaccount:orion-system:orion-worker -n ml-training
+#   kubectl auth can-i delete jobs  --as=system:serviceaccount:orion-system:orion-worker -n orion-jobs
+#   kubectl auth can-i get    pods  --as=system:serviceaccount:orion-system:orion-worker -n orion-jobs
+#
+# Verify (must print "no" — we don't manage pods directly):
+#   kubectl auth can-i create pods  --as=system:serviceaccount:orion-system:orion-worker -n orion-jobs
+
+---
+# Namespace for Orion infrastructure (API, Scheduler, Worker pods)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orion-system
+  labels:
+    app: orion
+    component: infrastructure
+
+---
+# Namespace for ML job pods — isolated from Orion infrastructure
+# Jobs land here by default (ORION_K8S_NAMESPACE=orion-jobs)
+# The kubernetes_spec.namespace field can override this per-job
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orion-jobs
+  labels:
+    app: orion
+    component: workloads
+
+---
+# ServiceAccount used by the Orion worker pod.
+# Referenced in the worker Deployment spec:
+#   spec.template.spec.serviceAccountName: orion-worker
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: orion-worker
+  namespace: orion-system
+  labels:
+    app: orion
+    component: worker
+
+---
+# ClusterRole grants permissions cluster-wide (across all namespaces).
+# We use ClusterRole because kubernetes_spec.namespace can point to any namespace.
+#
+# Principle of least privilege — only the exact verbs needed:
+#   create : submit a new batchv1.Job to Kubernetes
+#   get    : read current Job status (poll fallback in pollForCompletion)
+#   list   : required internally by the Watch API
+#   watch  : receive real-time Job status events (primary completion detection)
+#   delete : clean up the Job when context is cancelled (prevents zombie GPU pods)
+#
+# We do NOT grant:
+#   update/patch on jobs       — we never modify a running K8s Job
+#   create/delete/patch on pods — Kubernetes Job controller manages pods for us
+#   secrets                    — workers should not read cluster secrets
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: orion-job-manager
+  labels:
+    app: orion
+rules:
+  # Kubernetes Jobs — the primary resource Orion manages
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+
+  # Pods — read-only access for log retrieval and exit code inspection
+  # Orion reads pod logs for audit purposes (Phase 6 enhancement)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+  # Pod logs — capture container stdout/stderr for the execution audit trail
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+
+---
+# ClusterRoleBinding attaches the ClusterRole to the orion-worker ServiceAccount.
+# Any pod running as the orion-worker ServiceAccount inherits these permissions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: orion-job-manager-binding
+  labels:
+    app: orion
+subjects:
+  - kind: ServiceAccount
+    name: orion-worker
+    namespace: orion-system
+roleRef:
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+  name: orion-job-manager
