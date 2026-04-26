@@ -93,6 +93,29 @@ func (f *fakeStore) ListActiveWorkers(ctx context.Context, ttl time.Duration) ([
 }
 func (f *fakeStore) DeregisterWorker(ctx context.Context, id string) error { return nil }
 
+// PipelineStore interface stubs
+func (f *fakeStore) CreatePipeline(ctx context.Context, p *domain.Pipeline) (*domain.Pipeline, error) {
+	return nil, nil
+}
+func (f *fakeStore) GetPipeline(ctx context.Context, id uuid.UUID) (*domain.Pipeline, error) {
+	return nil, nil
+}
+func (f *fakeStore) ListPipelines(ctx context.Context, filter store.PipelineFilter) ([]*domain.Pipeline, error) {
+	return nil, nil
+}
+func (f *fakeStore) ListPipelinesByStatus(ctx context.Context, status domain.PipelineStatus, limit int) ([]*domain.Pipeline, error) {
+	return nil, nil
+}
+func (f *fakeStore) UpdatePipelineStatus(ctx context.Context, id uuid.UUID, status domain.PipelineStatus) error {
+	return nil
+}
+func (f *fakeStore) AddPipelineJob(ctx context.Context, pipelineID uuid.UUID, nodeID string, jobID uuid.UUID) error {
+	return nil
+}
+func (f *fakeStore) GetPipelineJobs(ctx context.Context, pipelineID uuid.UUID) ([]*store.PipelineJobStatus, error) {
+	return nil, nil
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
