@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/pipeline"
 	"github.com/shreeharshshinde/orion/internal/queue"
 	"github.com/shreeharshshinde/orion/internal/store"
 )
@@ -35,16 +36,19 @@ type Config struct {
 //  2. Polling for queued jobs and dispatching them to the queue broker
 //  3. Sweeping orphaned/stale jobs and requeuing them
 //  4. Promoting failed-but-retryable jobs when their next_retry_at has passed
+//  5. [Phase 5] Advancing all active pipelines on every schedule tick
 type Scheduler struct {
-	cfg    Config
-	db     *pgxpool.Pool // direct DB access for advisory locks
-	store  store.Store
-	queue  queue.Queue
-	logger *slog.Logger
+	cfg      Config
+	db       *pgxpool.Pool // direct DB access for advisory locks
+	store    store.Store
+	queue    queue.Queue
+	advancer *pipeline.Advancer // Phase 5: DAG advancement engine
+	logger   *slog.Logger
 }
 
 // New creates a Scheduler. The db pool is needed for advisory lock management.
-func New(cfg Config, db *pgxpool.Pool, s store.Store, q queue.Queue, logger *slog.Logger) *Scheduler {
+// advancer is the Phase 5 pipeline advancement engine — pass pipeline.NewAdvancer(store, logger).
+func New(cfg Config, db *pgxpool.Pool, s store.Store, q queue.Queue, adv *pipeline.Advancer, logger *slog.Logger) *Scheduler {
 	if cfg.BatchSize == 0 {
 		cfg.BatchSize = defaultBatchSize
 	}
@@ -54,7 +58,7 @@ func New(cfg Config, db *pgxpool.Pool, s store.Store, q queue.Queue, logger *slo
 	if cfg.OrphanInterval == 0 {
 		cfg.OrphanInterval = defaultOrphanInterval
 	}
-	return &Scheduler{cfg: cfg, db: db, store: s, queue: q, logger: logger}
+	return &Scheduler{cfg: cfg, db: db, store: s, queue: q, advancer: adv, logger: logger}
 }
 
 // Run starts the scheduler. It blocks until ctx is cancelled.
@@ -117,6 +121,10 @@ func (s *Scheduler) releaseLeaderLock(ctx context.Context) {
 
 // runAsLeader runs the scheduling loops while this instance holds the leader lock.
 // Returns when the lock is lost or ctx is cancelled.
+//
+// Three loops:
+//   - scheduleTicker (every 2s): dispatch queued jobs + promote retries + advance pipelines
+//   - orphanTicker   (every 30s): reclaim jobs whose worker went silent
 func (s *Scheduler) runAsLeader(ctx context.Context) {
 	defer s.releaseLeaderLock(ctx)
 
@@ -131,14 +139,29 @@ func (s *Scheduler) runAsLeader(ctx context.Context) {
 			return
 
 		case <-scheduleTicker.C:
+			// ── 1. Dispatch queued jobs → Redis ──────────────────────────
 			if err := s.scheduleQueuedJobs(ctx); err != nil {
 				s.logger.Error("schedule loop error", "err", err)
 			}
+
+			// ── 2. Promote failed → retrying → queued (backoff passed) ──
 			if err := s.promoteRetryableJobs(ctx); err != nil {
 				s.logger.Error("retry promotion error", "err", err)
 			}
 
+			// ── 3. Advance all active pipelines [Phase 5] ───────────────
+			// advancePipelines runs on the same 2-second tick as job
+			// dispatch. This gives a maximum 2-second latency between
+			// a node completing and the next node starting.
+			// The leader lock guarantees only one scheduler runs this.
+			if s.advancer != nil {
+				if err := s.advancer.AdvanceAll(ctx); err != nil {
+					s.logger.Error("pipeline advancement error", "err", err)
+				}
+			}
+
 		case <-orphanTicker.C:
+			// ── 4. Reclaim jobs whose worker went silent ─────────────────
 			if err := s.reclaimOrphanedJobs(ctx); err != nil {
 				s.logger.Error("orphan reclaim error", "err", err)
 			}
