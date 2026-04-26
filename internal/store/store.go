@@ -1,7 +1,8 @@
 // Package store defines the persistence interfaces for Orion.
 //
 // Architecture rule: NO SQL lives here. This package only defines contracts
-// (interfaces) and shared types. The actual SQL lives in store/postgres/db.go.
+// (interfaces) and shared types. The actual SQL lives in store/postgres/db.go
+// and store/postgres/pipeline.go.
 // This separation means you can swap PostgreSQL for any other database without
 // touching the scheduler, worker, or API handler — they all use this interface.
 package store
@@ -54,15 +55,79 @@ type WorkerStore interface {
 }
 
 // ============================================================
+// PipelineStore — Phase 5
+// ============================================================
+
+// PipelineStore manages the lifecycle of pipelines and their node-to-job mappings.
+//
+// Design note: pipeline SQL lives in store/postgres/pipeline.go, separate from
+// the job SQL in store/postgres/db.go. Both are in the same `postgres` package
+// and implement the Store interface together. The split keeps each file focused.
+type PipelineStore interface {
+	// CreatePipeline inserts a new pipeline in pending status.
+	// The DAGSpec is serialized as JSONB — no migration needed when spec shape changes.
+	CreatePipeline(ctx context.Context, p *domain.Pipeline) (*domain.Pipeline, error)
+
+	// GetPipeline retrieves a pipeline by ID. Returns ErrNotFound if absent.
+	GetPipeline(ctx context.Context, id uuid.UUID) (*domain.Pipeline, error)
+
+	// ListPipelines returns pipelines matching the filter, ordered by created_at DESC.
+	ListPipelines(ctx context.Context, filter PipelineFilter) ([]*domain.Pipeline, error)
+
+	// ListPipelinesByStatus returns pipelines in a specific status, ordered by
+	// created_at ASC (oldest first — FIFO fairness across concurrent pipelines).
+	// Called by the scheduler on every tick to find pipelines needing advancement.
+	ListPipelinesByStatus(ctx context.Context, status domain.PipelineStatus, limit int) ([]*domain.Pipeline, error)
+
+	// UpdatePipelineStatus transitions a pipeline to a new status.
+	// Automatically sets completed_at for terminal states (completed, failed, cancelled).
+	// Returns ErrNotFound if the pipeline does not exist.
+	UpdatePipelineStatus(ctx context.Context, id uuid.UUID, status domain.PipelineStatus) error
+
+	// AddPipelineJob links a created job to a pipeline node.
+	// ON CONFLICT DO NOTHING makes this idempotent — safe to call twice
+	// if the scheduler crashes between CreateJob and AddPipelineJob.
+	AddPipelineJob(ctx context.Context, pipelineID uuid.UUID, nodeID string, jobID uuid.UUID) error
+
+	// GetPipelineJobs returns all node-to-job mappings for a pipeline, joined
+	// with the current job status. One query instead of N+1 — the advancement
+	// algorithm reads this once per tick per pipeline.
+	GetPipelineJobs(ctx context.Context, pipelineID uuid.UUID) ([]*PipelineJobStatus, error)
+}
+
+// PipelineFilter controls which pipelines are returned by ListPipelines.
+// Nil pointer fields are ignored (not included in the WHERE clause).
+type PipelineFilter struct {
+	Status *domain.PipelineStatus
+	Limit  int
+	Offset int
+}
+
+// PipelineJobStatus is the result of joining pipeline_jobs with jobs.
+// It carries everything the advancement algorithm needs in a single query.
+//
+// The advancement algorithm reads this struct to:
+//   - Build the completed set (JobStatus == "completed" → node is done)
+//   - Detect failures (JobStatus == "dead" → cascade cancel downstream)
+//   - Know which nodes already have jobs (alreadyCreated guard)
+type PipelineJobStatus struct {
+	NodeID    string           `json:"node_id"`    // logical name within the DAG
+	JobID     uuid.UUID        `json:"job_id"`     // the actual job created for this node
+	JobName   string           `json:"job_name"`   // human-readable, e.g. "my-pipeline/preprocess"
+	JobStatus domain.JobStatus `json:"job_status"` // current status from the jobs table
+}
+
+// ============================================================
 // Store — composite interface
 // ============================================================
 
-// Store composes all three sub-interfaces.
+// Store composes all four sub-interfaces.
 // postgres.DB implements this. In tests, pass a fake/mock implementation.
 type Store interface {
 	JobStore
 	ExecutionStore
 	WorkerStore
+	PipelineStore // added Phase 5
 }
 
 // ============================================================
