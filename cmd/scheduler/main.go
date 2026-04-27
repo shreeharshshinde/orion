@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/shreeharshshinde/orion/internal/config"
 	"github.com/shreeharshshinde/orion/internal/observability"
@@ -41,12 +43,39 @@ func main() {
 		cancel() // triggers ctx.Done() everywhere
 	}()
 
-	// ── 4. PostgreSQL connection pool ─────────────────────────────────────────
-	// The scheduler needs the raw *pgxpool.Pool (not just the Store interface)
-	// because it runs advisory lock queries directly:
-	//   SELECT pg_try_advisory_lock($1)
-	// These must run on the same connection as the lock was acquired on,
-	// which requires direct pool access rather than the store abstraction.
+	// ── Prometheus registry + metrics [Phase 6] ───────────────────────────────
+	// Scheduler reports: cycle latency, jobs_submitted, advancer cycle duration,
+	// pipeline started/completed/failed, pipeline duration, pipeline nodes total.
+	reg := prometheus.NewRegistry()
+	metrics := observability.NewMetrics(reg)
+
+	metricsSrv := observability.MetricsServer(cfg.Observability.MetricsPort, reg)
+	go func() {
+		logger.Info("metrics server listening", "port", cfg.Observability.MetricsPort)
+		if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("metrics server error", "err", err)
+		}
+	}()
+	defer metricsSrv.Shutdown(context.Background())
+
+	// ── Tracing ───────────────────────────────────────────────────────────────
+	shutdownTracing, err := observability.SetupTracing(
+		ctx, "orion-scheduler",
+		cfg.Observability.ServiceVersion,
+		cfg.Observability.OTLPEndpoint,
+		cfg.Observability.TracingSampleRate,
+	)
+	if err != nil {
+		logger.Warn("tracing setup failed, continuing without traces", "err", err)
+	} else {
+		defer func() {
+			tCtx, tCancel := context.WithCancel(context.Background())
+			defer tCancel()
+			_ = shutdownTracing(tCtx)
+		}()
+	}
+
+	// ── PostgreSQL ────────────────────────────────────────────────────────────
 	poolCfg, err := pgxpool.ParseConfig(cfg.Database.DSN)
 	if err != nil {
 		logger.Error("invalid database DSN", "err", err)
@@ -90,55 +119,43 @@ func main() {
 		logger.Error("failed to connect to redis", "addr", cfg.Redis.Addr, "err", err)
 		os.Exit(1)
 	}
-	logger.Info("connected to redis", "addr", cfg.Redis.Addr)
+	logger.Info("connected to redis")
 
-	// redisqueue.New creates the Redis Streams consumer group on all queues.
-	// It uses XGROUP CREATE MKSTREAM which is idempotent (safe to call on restart).
-	queue, err := redisqueue.New(redisClient, logger)
+	// Phase 6: pass metrics to New() for queue depth polling
+	queue, err := redisqueue.New(redisClient, metrics, logger)
 	if err != nil {
 		logger.Error("failed to initialize redis queue", "err", err)
 		os.Exit(1)
 	}
 	defer queue.Close()
 
-	// ── 7. Pipeline Advancer [Phase 5] ────────────────────────────────────────
-	// The Advancer is the DAG advancement engine. It is passed to the scheduler
-	// and called on every schedule tick (every 2 seconds by default).
-	//
-	// The Advancer is stateless — it reads pipeline state from pgStore and
-	// creates jobs via pgStore. Reconstructing it on every restart is safe.
-	//
-	// Leader lock guarantee: AdvanceAll() is called inside runAsLeader(),
-	// which is only entered after acquiring the PostgreSQL advisory lock.
-	// Only one scheduler instance ever calls AdvanceAll() at a time.
-	adv := pipeline.NewAdvancer(pgStore, logger)
+	// Start queue depth poller — updates QueueDepth gauge every 5s
+	queue.StartQueueDepthPoller(ctx, []string{"orion:queue:high", "orion:queue:default", "orion:queue:low"})
+
+	// ── Pipeline Advancer [Phase 6 update] ───────────────────────────────────
+	// Pass metrics so the advancer emits pipeline counters and histograms.
+	adv := pipeline.NewAdvancer(pgStore, metrics, logger)
 	logger.Info("pipeline advancer ready")
 
-	// ── 8. Scheduler ──────────────────────────────────────────────────────────
-	// Phase 5 change: scheduler.New() now accepts *pipeline.Advancer as the
-	// fifth argument. The scheduler calls adv.AdvanceAll(ctx) on every
-	// schedule ticker tick alongside scheduleQueuedJobs and promoteRetryableJobs.
+	// ── Scheduler [Phase 6 update] ────────────────────────────────────────────
+	// Pass metrics as 6th argument (new in Phase 6).
 	sched := scheduler.New(
 		scheduler.Config{
 			BatchSize:        cfg.Scheduler.BatchSize,
 			ScheduleInterval: cfg.Scheduler.ScheduleInterval,
 			OrphanInterval:   cfg.Scheduler.OrphanInterval,
 		},
-		db,      // *pgxpool.Pool for advisory lock queries
-		pgStore, // store.Store for job state transitions + pipeline advancement
-		queue,   // queue.Queue for XADD to Redis
-		adv,     // *pipeline.Advancer for DAG advancement [Phase 5]
+		db,
+		pgStore,
+		queue,
+		adv,
+		metrics, // ← Phase 6
 		logger,
 	)
 
-	// ── 9. Run ────────────────────────────────────────────────────────────────
-	// scheduler.Run() blocks until ctx is cancelled.
-	// Internally it contends for the PostgreSQL advisory lock and only
-	// runs the dispatch loops when it becomes the leader.
 	logger.Info("starting scheduler",
 		"batch_size", cfg.Scheduler.BatchSize,
 		"schedule_interval", cfg.Scheduler.ScheduleInterval,
-		"orphan_interval", cfg.Scheduler.OrphanInterval,
 	)
 
 	if err := sched.Run(ctx); err != nil && err != context.Canceled {
