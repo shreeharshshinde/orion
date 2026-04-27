@@ -6,8 +6,12 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/observability"
 	"github.com/shreeharshshinde/orion/internal/pipeline"
 	"github.com/shreeharshshinde/orion/internal/queue"
 	"github.com/shreeharshshinde/orion/internal/store"
@@ -37,18 +41,30 @@ type Config struct {
 //  3. Sweeping orphaned/stale jobs and requeuing them
 //  4. Promoting failed-but-retryable jobs when their next_retry_at has passed
 //  5. [Phase 5] Advancing all active pipelines on every schedule tick
+// Phase 6: metrics field added — all metric calls are nil-guarded.
 type Scheduler struct {
 	cfg      Config
 	db       *pgxpool.Pool // direct DB access for advisory locks
 	store    store.Store
 	queue    queue.Queue
 	advancer *pipeline.Advancer // Phase 5: DAG advancement engine
+	metrics  *observability.Metrics // Phase 6
 	logger   *slog.Logger
 }
 
 // New creates a Scheduler. The db pool is needed for advisory lock management.
 // advancer is the Phase 5 pipeline advancement engine — pass pipeline.NewAdvancer(store, logger).
-func New(cfg Config, db *pgxpool.Pool, s store.Store, q queue.Queue, adv *pipeline.Advancer, logger *slog.Logger) *Scheduler {
+// Phase 6 change: accepts *observability.Metrics as the sixth argument.
+// m may be nil; all metric calls inside are nil-guarded.
+func New(
+	cfg Config,
+	db *pgxpool.Pool,
+	s store.Store,
+	q queue.Queue,
+	adv *pipeline.Advancer,
+	m *observability.Metrics,
+	logger *slog.Logger,
+) *Scheduler {
 	if cfg.BatchSize == 0 {
 		cfg.BatchSize = defaultBatchSize
 	}
@@ -58,12 +74,19 @@ func New(cfg Config, db *pgxpool.Pool, s store.Store, q queue.Queue, adv *pipeli
 	if cfg.OrphanInterval == 0 {
 		cfg.OrphanInterval = defaultOrphanInterval
 	}
-	return &Scheduler{cfg: cfg, db: db, store: s, queue: q, advancer: adv, logger: logger}
+	return &Scheduler{
+		cfg:      cfg,
+		db:       db,
+		store:    s,
+		queue:    q,
+		advancer: adv,
+		metrics:  m,
+		logger:   logger,
+	}
 }
 
-// Run starts the scheduler. It blocks until ctx is cancelled.
-// It will repeatedly attempt to acquire leader election, and only
-// schedule when it holds the lock. On lock loss, it backs off and retries.
+// Run blocks until ctx is cancelled, contending for leader election and
+// dispatching jobs when this instance holds the advisory lock.
 func (s *Scheduler) Run(ctx context.Context) error {
 	s.logger.Info("scheduler starting, contending for leader lock")
 	for {
@@ -125,6 +148,7 @@ func (s *Scheduler) releaseLeaderLock(ctx context.Context) {
 // Three loops:
 //   - scheduleTicker (every 2s): dispatch queued jobs + promote retries + advance pipelines
 //   - orphanTicker   (every 30s): reclaim jobs whose worker went silent
+// Phase 6 change: scheduleQueuedJobs now measures cycle latency and emits spans.
 func (s *Scheduler) runAsLeader(ctx context.Context) {
 	defer s.releaseLeaderLock(ctx)
 
@@ -171,44 +195,73 @@ func (s *Scheduler) runAsLeader(ctx context.Context) {
 
 // scheduleQueuedJobs reads queued jobs from PostgreSQL and pushes them
 // into the Redis queue. Jobs are ordered by priority DESC, created_at ASC.
+// Phase 6: wraps the full cycle in a span + measures latency via SchedulerCycleLatency.
 func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
-	status := domain.JobStatusQueued
+	// ── Span: entire dispatch cycle ───────────────────────────────────────────
+	ctx, span := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.dispatch_cycle")
+	defer span.End()
+
+	// ── Histogram: cycle latency ──────────────────────────────────────────────
+	cycleStart := time.Now()
+	defer func() {
+		elapsed := time.Since(cycleStart).Seconds()
+		if s.metrics != nil {
+			s.metrics.SchedulerCycleLatency.Observe(elapsed)
+		}
+		span.SetAttributes(attribute.Float64("cycle.elapsed_seconds", elapsed))
+	}()
+
+	statusQueued := domain.JobStatusQueued
 	jobs, err := s.store.ListJobs(ctx, store.JobFilter{
-		Status: &status,
+		Status: &statusQueued,
 		Limit:  s.cfg.BatchSize,
 	})
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("listing queued jobs: %w", err)
 	}
 
+	span.SetAttributes(attribute.Int("jobs.found", len(jobs)))
+
 	dispatched := 0
 	for _, job := range jobs {
-		// Transition to scheduled in PG before pushing to queue.
-		// If this fails (concurrent scheduler picked it up), skip.
-		err := s.store.TransitionJobState(ctx,
-			job.ID,
-			domain.JobStatusQueued,
-			domain.JobStatusScheduled,
+		// ── Child span: per-job dispatch ──────────────────────────────────────
+		_, jobSpan := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.dispatch_job") // No parent context link here — each job dispatch is a leaf span.
+
+		jobSpan.SetAttributes(
+			attribute.String("job.id", job.ID.String()),
+			attribute.String("job.type", string(job.Type)),
+			attribute.String("job.queue", job.QueueName),
+			attribute.Int("job.priority", int(job.Priority)),
 		)
-		if err != nil {
-			// State conflict is expected under concurrent schedulers — not an error
-			s.logger.Debug("state conflict scheduling job", "job_id", job.ID, "err", err)
+
+		if err := s.store.TransitionJobState(ctx,
+			job.ID, domain.JobStatusQueued, domain.JobStatusScheduled,
+		); err != nil {
+			s.logger.Debug("state conflict scheduling job", "job_id", job.ID)
+			jobSpan.End()
 			continue
 		}
 
 		if err := s.queue.Enqueue(ctx, job); err != nil {
-			// Roll back the transition if queue push fails
 			_ = s.store.TransitionJobState(ctx,
-				job.ID,
-				domain.JobStatusScheduled,
-				domain.JobStatusQueued,
+				job.ID, domain.JobStatusScheduled, domain.JobStatusQueued,
 			)
 			s.logger.Error("failed to enqueue job", "job_id", job.ID, "err", err)
+			jobSpan.SetStatus(codes.Error, err.Error())
+			jobSpan.End()
 			continue
 		}
+
+		// Counter: job successfully dispatched to Redis
+		if s.metrics != nil {
+			s.metrics.JobsSubmitted.WithLabelValues(job.QueueName, string(job.Type)).Inc()
+		}
+		jobSpan.End()
 		dispatched++
 	}
 
+	span.SetAttributes(attribute.Int("jobs.dispatched", dispatched))
 	if dispatched > 0 {
 		s.logger.Info("dispatched jobs to queue", "count", dispatched)
 	}
