@@ -16,9 +16,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/google/uuid"
 	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/observability"
 	"github.com/shreeharshshinde/orion/internal/store"
 )
 
@@ -27,15 +32,16 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Advancer advances all active pipelines on every scheduler tick.
-// It is safe to construct once and reuse across ticks — it is stateless.
+// Phase 6 adds: Prometheus metrics + OTel spans to every advancement step.
 type Advancer struct {
-	store  store.Store
-	logger *slog.Logger
+	store   store.Store
+	metrics *observability.Metrics // nil-safe: all metric calls are guarded
+	logger  *slog.Logger
 }
 
-// NewAdvancer creates an Advancer backed by the given store.
-func NewAdvancer(s store.Store, logger *slog.Logger) *Advancer {
-	return &Advancer{store: s, logger: logger}
+// NewAdvancer creates an Advancer. m may be nil in tests.
+func NewAdvancer(s store.Store, m *observability.Metrics, logger *slog.Logger) *Advancer {
+	return &Advancer{store: s, metrics: m, logger: logger}
 }
 
 // AdvanceAll advances every pipeline in pending or running status.
@@ -49,22 +55,38 @@ func NewAdvancer(s store.Store, logger *slog.Logger) *Advancer {
 // If one pipeline fails to advance, the error is logged and we continue
 // to the next pipeline. One broken pipeline must never block all others.
 func (a *Advancer) AdvanceAll(ctx context.Context) error {
+	// Span: covers the entire AdvanceAll call including all pipeline fetches
+	ctx, span := observability.Tracer("orion.pipeline").Start(ctx, "advancer.advance_all")
+	defer span.End()
+
+	// Histogram: measure how long one full advancement cycle takes
+	cycleStart := time.Now()
+	defer func() {
+		if a.metrics != nil {
+			a.metrics.AdvancerCycleDuration.Observe(time.Since(cycleStart).Seconds())
+		}
+	}()
+
 	// Collect both statuses in two queries rather than one OR query.
 	// OR queries can't use partial indexes efficiently; two queries each
 	// hitting a partial index are faster.
 	pending, err := a.store.ListPipelinesByStatus(ctx, domain.PipelineStatusPending, 50)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("listing pending pipelines: %w", err)
 	}
 
 	running, err := a.store.ListPipelinesByStatus(ctx, domain.PipelineStatusRunning, 50)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("listing running pipelines: %w", err)
 	}
 
 	toAdvance := make([]*domain.Pipeline, 0, len(pending)+len(running))
 	toAdvance = append(toAdvance, pending...)
 	toAdvance = append(toAdvance, running...)
+
+	span.SetAttributes(attribute.Int("pipelines.to_advance", len(toAdvance)))
 
 	for _, p := range toAdvance {
 		if advErr := a.advanceOne(ctx, p); advErr != nil {
@@ -100,7 +122,21 @@ func (a *Advancer) AdvanceAll(ctx context.Context) error {
 // Idempotency is guaranteed by step 6's guard: if the scheduler runs this
 // function twice in rapid succession, the second call finds all ready nodes
 // already in createdNodes and skips CreateJob for all of them.
+//
+// Phase 6: emits pipeline metrics at every state transition point.
 func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
+	// Child span per pipeline for per-pipeline latency tracking in Jaeger
+	_, span := observability.Tracer("orion.pipeline").Start(ctx, "advancer.advance_pipeline") // Note: we do NOT use ctx from span here to avoid span chaining issues with the
+	// store calls below — they create their own DB spans via startDBSpan.
+
+	span.SetAttributes(
+		attribute.String("pipeline.id", p.ID.String()),
+		attribute.String("pipeline.name", p.Name),
+		attribute.String("pipeline.status", string(p.Status)),
+		attribute.Int("pipeline.nodes", len(p.DAGSpec.Nodes)),
+	)
+	defer span.End()
+
 	a.logger.Debug("advancing pipeline",
 		"pipeline_id", p.ID,
 		"pipeline_name", p.Name,
@@ -112,6 +148,7 @@ func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
 	// ── Step 1: Load all current node→job statuses in one JOIN query ─────────
 	pipelineJobs, err := a.store.GetPipelineJobs(ctx, p.ID)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("loading pipeline jobs: %w", err)
 	}
 
@@ -139,7 +176,21 @@ func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
 				"failed_node", pj.NodeID,
 				"job_id", pj.JobID,
 			)
+			span.SetAttributes(attribute.String("pipeline.failed_node", pj.NodeID))
+			span.SetStatus(codes.Error, "node dead: "+pj.NodeID)
+
 			a.logCascadeCancellation(p, pj.NodeID, createdNodes)
+
+			// Metric: pipeline failure + duration
+			if a.metrics != nil {
+				a.metrics.PipelineFailed.WithLabelValues(p.Name).Inc()
+				if !p.CreatedAt.IsZero() {
+					a.metrics.PipelineDuration.WithLabelValues("failed").
+						Observe(time.Since(p.CreatedAt).Seconds())
+				}
+				a.metrics.PipelineNodesTotal.WithLabelValues(p.Name, "dead").Inc()
+			}
+
 			return a.store.UpdatePipelineStatus(ctx, p.ID, domain.PipelineStatusFailed)
 		}
 	}
@@ -149,9 +200,16 @@ func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
 	// Transition to running now so the API shows meaningful progress.
 	if p.Status == domain.PipelineStatusPending {
 		if err := a.store.UpdatePipelineStatus(ctx, p.ID, domain.PipelineStatusRunning); err != nil {
+			span.SetStatus(codes.Error, err.Error())
 			return fmt.Errorf("transitioning pipeline to running: %w", err)
 		}
 		p.Status = domain.PipelineStatusRunning
+
+		// Metric: pipeline started
+		if a.metrics != nil {
+			a.metrics.PipelineStarted.WithLabelValues(p.Name).Inc()
+		}
+
 		a.logger.Info("pipeline started",
 			"pipeline_id", p.ID,
 			"pipeline_name", p.Name,
@@ -164,6 +222,7 @@ func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
 	// whose ALL dependencies are in the completed set. On the first tick with
 	// an empty completed set, it returns all root nodes (nodes with no incoming edges).
 	readyNodeIDs := p.DAGSpec.ReadyNodes(completed)
+	span.SetAttributes(attribute.Int("pipeline.ready_nodes", len(readyNodeIDs)))
 
 	// ── Step 6: Create jobs for ready nodes ───────────────────────────────────
 	createdThisTick := 0
@@ -229,6 +288,11 @@ func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
 			continue
 		}
 
+		// Metric: node started
+		if a.metrics != nil {
+			a.metrics.PipelineNodesTotal.WithLabelValues(p.Name, "started").Inc()
+		}
+
 		createdThisTick++
 		a.logger.Info("created job for pipeline node",
 			"pipeline_id", p.ID,
@@ -241,6 +305,7 @@ func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
 	}
 
 	if createdThisTick > 0 {
+		span.SetAttributes(attribute.Int("pipeline.jobs_created", createdThisTick))
 		a.logger.Info("advanced pipeline wave",
 			"pipeline_id", p.ID,
 			"pipeline_name", p.Name,
@@ -258,6 +323,16 @@ func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
 			"pipeline_name", p.Name,
 			"total_nodes", len(p.DAGSpec.Nodes),
 		)
+
+		// Metric: completion counter + duration
+		if a.metrics != nil {
+			a.metrics.PipelineCompleted.WithLabelValues(p.Name).Inc()
+			if !p.CreatedAt.IsZero() {
+				a.metrics.PipelineDuration.WithLabelValues("completed").
+					Observe(time.Since(p.CreatedAt).Seconds())
+			}
+		}
+
 		return a.store.UpdatePipelineStatus(ctx, p.ID, domain.PipelineStatusCompleted)
 	}
 
@@ -288,10 +363,14 @@ func (a *Advancer) logCascadeCancellation(
 				"failed_node", failedNodeID,
 				"cancelled_node", nodeID,
 			)
+			if a.metrics != nil {
+				a.metrics.PipelineNodesTotal.WithLabelValues(p.Name, "cancelled").Inc()
+			}
 		}
 	}
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 // Graph helpers
 // ─────────────────────────────────────────────────────────────────────────────
