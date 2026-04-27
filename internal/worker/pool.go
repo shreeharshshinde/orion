@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -9,7 +10,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/observability"
 	"github.com/shreeharshshinde/orion/internal/queue"
 	"github.com/shreeharshshinde/orion/internal/store"
 	"github.com/shreeharshshinde/orion/pkg/retry"
@@ -51,12 +58,10 @@ type Pool struct {
 	queue     queue.Queue
 	store     store.Store
 	executors []Executor
+	metrics   *observability.Metrics // Phase 6: Prometheus metrics
 	logger    *slog.Logger
 
-	// jobCh is the backpressure boundary between dequeue goroutines and workers.
-	// Capacity = cfg.Concurrency — when full, dequeue goroutines block.
-	jobCh chan *jobTask
-
+	jobCh       chan *jobTask
 	activeCount atomic.Int32
 	wg          sync.WaitGroup
 }
@@ -67,12 +72,14 @@ type jobTask struct {
 }
 
 // NewPool creates a Pool. Call Start() to begin processing jobs.
-func NewPool(cfg WorkerConfig, q queue.Queue, s store.Store, executors []Executor, logger *slog.Logger) *Pool {
+// m may be nil in tests — all metric calls are nil-guarded.
+func NewPool(cfg WorkerConfig, q queue.Queue, s store.Store, executors []Executor, m *observability.Metrics, logger *slog.Logger) *Pool {
 	return &Pool{
 		cfg:       cfg,
 		queue:     q,
 		store:     s,
 		executors: executors,
+		metrics:   m,
 		logger:    logger,
 		jobCh:     make(chan *jobTask, cfg.Concurrency),
 	}
@@ -164,8 +171,10 @@ func (p *Pool) runWorker(ctx context.Context, id int) {
 				return
 			}
 			p.activeCount.Add(1)
+			p.setActiveJobsGauge()
 			p.executeJob(ctx, task, logger)
 			p.activeCount.Add(-1)
+			p.setActiveJobsGauge()
 
 		case <-ctx.Done():
 			// Drain any tasks already in the channel before exiting.
@@ -176,8 +185,10 @@ func (p *Pool) runWorker(ctx context.Context, id int) {
 						return
 					}
 					p.activeCount.Add(1)
+					p.setActiveJobsGauge()
 					p.executeJob(context.Background(), task, logger)
 					p.activeCount.Add(-1)
+					p.setActiveJobsGauge()
 				default:
 					return
 				}
@@ -187,33 +198,41 @@ func (p *Pool) runWorker(ctx context.Context, id int) {
 }
 
 // executeJob runs a single job through the appropriate executor.
-// It owns all state transitions (MarkJobRunning, MarkJobCompleted, MarkJobFailed)
-// and writes the immutable execution audit record (RecordExecution).
-//
-// Phase 3 addition: RecordExecution calls capture each attempt in job_executions.
+// Phase 6: adds OpenTelemetry span + Prometheus metrics to every execution path.
 func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logger) {
 	job := task.job
 	logger = logger.With("job_id", job.ID, "job_name", job.Name, "attempt", job.Attempt)
 	startedAt := time.Now()
 
-	// ── Transition: scheduled → running ─────────────────────────────────────
-	// CAS in PostgreSQL: only succeeds if status is still 'scheduled'.
-	// If another worker raced us here (shouldn't happen), ErrStateConflict fires
-	// and we skip this job (NACK so Redis re-delivers it).
+	// ── Span: wrap the full job execution ────────────────────────────────────
+	// This span links to the scheduler's dispatch_job span via the trace context
+	// propagated through the job payload (set by the scheduler when enqueueing).
+	ctx, span := observability.Tracer("orion.worker").Start(ctx, "worker.execute_job",
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			attribute.String("job.id", job.ID.String()),
+			attribute.String("job.name", job.Name),
+			attribute.String("job.type", string(job.Type)),
+			attribute.String("job.queue", job.QueueName),
+			attribute.Int("job.attempt", job.Attempt),
+			semconv.MessagingSystemKey.String("redis"),
+		),
+	)
+	defer span.End()
+
+	// ── Transition: scheduled → running ──────────────────────────────────────
 	if err := p.store.MarkJobRunning(ctx, job.ID, p.cfg.WorkerID); err != nil {
 		logger.Error("failed to mark job running", "err", err)
+		span.SetStatus(codes.Error, "MarkJobRunning failed: "+err.Error())
 		_ = task.ackFn(err)
 		return
 	}
 
-	// ── Record execution start in audit log ──────────────────────────────────
-	// Write the first audit row immediately when the job starts running.
-	// This ensures even jobs that crash mid-execution have an audit record.
-	// ON CONFLICT DO NOTHING makes this idempotent on retry.
+	// ── Audit: record execution start ─────────────────────────────────────────
 	_ = p.store.RecordExecution(ctx, &domain.JobExecution{
 		ID:        uuid.New(),
 		JobID:     job.ID,
-		Attempt:   job.Attempt + 1, // DB attempt is 0-indexed before any failure; audit is 1-indexed
+		Attempt:   job.Attempt + 1,
 		WorkerID:  p.cfg.WorkerID,
 		Status:    domain.JobStatusRunning,
 		StartedAt: &startedAt,
@@ -227,6 +246,7 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 	if executor == nil {
 		msg := fmt.Sprintf("no executor registered for job type %q", job.Type)
 		logger.Error(msg)
+		span.SetStatus(codes.Error, msg)
 		finishedAt := time.Now()
 		_ = p.store.MarkJobFailed(ctx, job.ID, msg, p.nextRetryTime(job))
 		_ = p.store.RecordExecution(ctx, &domain.JobExecution{
@@ -239,7 +259,11 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 			FinishedAt: &finishedAt,
 			Error:      msg,
 		})
-		_ = task.ackFn(fmt.Errorf(msg))
+		// Count as config_error failure
+		if p.metrics != nil {
+			p.metrics.JobsFailed.WithLabelValues(job.QueueName, string(job.Type), "config_error").Inc()
+		}
+		_ = task.ackFn(fmt.Errorf("%s", msg))
 		return
 	}
 
@@ -253,16 +277,46 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 		defer cancel()
 	}
 
-	// ── Execute ──────────────────────────────────────────────────────────────
+	// ── Execute ───────────────────────────────────────────────────────────────
 	err := executor.Execute(execCtx, job)
 	finishedAt := time.Now()
+	elapsed := finishedAt.Sub(startedAt).Seconds()
 
-	// ── Handle result ────────────────────────────────────────────────────────
+	// ── Handle result ─────────────────────────────────────────────────────────
 	if err != nil {
 		logger.Warn("job execution failed",
 			"err", err,
 			"elapsed_ms", finishedAt.Sub(startedAt).Milliseconds(),
 		)
+
+		// Classify failure reason for the metric label.
+		// reason is low-cardinality: 3 possible values.
+		reason := "handler_error"
+		if errors.Is(err, context.Canceled) {
+			reason = "cancelled"
+		} else if errors.Is(err, context.DeadlineExceeded) {
+			reason = "deadline_exceeded"
+		}
+
+		span.SetStatus(codes.Error, err.Error())
+		span.SetAttributes(
+			attribute.String("error.reason", reason),
+			attribute.Float64("job.elapsed_seconds", elapsed),
+		)
+
+		// Metrics: failure counters + duration histogram
+		if p.metrics != nil {
+			p.metrics.JobsFailed.WithLabelValues(job.QueueName, string(job.Type), reason).Inc()
+			p.metrics.JobDuration.WithLabelValues(job.QueueName, string(job.Type), "failed").Observe(elapsed)
+
+			// Is this the terminal failure? If so, count as dead.
+			if !job.IsRetryable() {
+				p.metrics.JobsDead.WithLabelValues(job.QueueName).Inc()
+			} else {
+				p.metrics.JobsRetried.WithLabelValues(job.QueueName).Inc()
+			}
+		}
+
 		retryAt := p.nextRetryTime(job)
 		_ = p.store.MarkJobFailed(ctx, job.ID, err.Error(), retryAt)
 		_ = p.store.RecordExecution(ctx, &domain.JobExecution{
@@ -279,9 +333,18 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 		return
 	}
 
+	// ── Success ───────────────────────────────────────────────────────────────
 	logger.Info("job completed successfully",
 		"elapsed_ms", finishedAt.Sub(startedAt).Milliseconds(),
 	)
+
+	span.SetAttributes(attribute.Float64("job.elapsed_seconds", elapsed))
+
+	if p.metrics != nil {
+		p.metrics.JobsCompleted.WithLabelValues(job.QueueName, string(job.Type)).Inc()
+		p.metrics.JobDuration.WithLabelValues(job.QueueName, string(job.Type), "completed").Observe(elapsed)
+	}
+
 	_ = p.store.MarkJobCompleted(ctx, job.ID)
 	_ = p.store.RecordExecution(ctx, &domain.JobExecution{
 		ID:         uuid.New(),
@@ -295,8 +358,15 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 	_ = task.ackFn(nil) // ACK: removes message from Redis PEL permanently ✓
 }
 
-// resolveExecutor returns the first executor that handles the given job type,
-// or nil if no executor is registered for it.
+// setActiveJobsGauge syncs the atomic counter to the Prometheus gauge.
+func (p *Pool) setActiveJobsGauge() {
+	if p.metrics != nil {
+		p.metrics.WorkerActiveJobs.WithLabelValues(p.cfg.WorkerID).Set(
+			float64(p.activeCount.Load()),
+		)
+	}
+}
+
 func (p *Pool) resolveExecutor(jobType domain.JobType) Executor {
 	for _, e := range p.executors {
 		if e.CanExecute(jobType) {
