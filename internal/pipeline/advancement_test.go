@@ -251,7 +251,7 @@ func getPipelineJobCount(fs *fakeStore, id uuid.UUID) int {
 
 func TestAdvanceAll_NoActivePipelines_DoesNothing(t *testing.T) {
 	fs := newFakeStore()
-	adv := pipeline.NewAdvancer(fs, testLogger())
+	adv := pipeline.NewAdvancer(fs, nil, testLogger())
 
 	if err := adv.AdvanceAll(context.Background()); err != nil {
 		t.Errorf("AdvanceAll with no pipelines should return nil, got: %v", err)
@@ -263,7 +263,7 @@ func TestAdvanceAll_NoActivePipelines_DoesNothing(t *testing.T) {
 
 func TestAdvanceAll_PendingPipeline_CreatesRootJobs(t *testing.T) {
 	fs := newFakeStore()
-	adv := pipeline.NewAdvancer(fs, testLogger())
+	adv := pipeline.NewAdvancer(fs, nil, testLogger())
 
 	dag := domain.DAGSpec{
 		Nodes: []domain.DAGNode{
@@ -293,7 +293,7 @@ func TestAdvanceAll_PendingPipeline_CreatesRootJobs(t *testing.T) {
 
 func TestAdvanceAll_LinearPipeline_CompletesInSteps(t *testing.T) {
 	fs := newFakeStore()
-	adv := pipeline.NewAdvancer(fs, testLogger())
+	adv := pipeline.NewAdvancer(fs, nil, testLogger())
 
 	dag := domain.DAGSpec{
 		Nodes: []domain.DAGNode{
@@ -350,7 +350,7 @@ func TestAdvanceAll_LinearPipeline_CompletesInSteps(t *testing.T) {
 
 func TestAdvanceAll_DiamondDAG_FanOutThenFanIn(t *testing.T) {
 	fs := newFakeStore()
-	adv := pipeline.NewAdvancer(fs, testLogger())
+	adv := pipeline.NewAdvancer(fs, nil, testLogger())
 
 	dag := domain.DAGSpec{
 		Nodes: []domain.DAGNode{
@@ -408,7 +408,7 @@ func TestAdvanceAll_DiamondDAG_FanOutThenFanIn(t *testing.T) {
 
 func TestAdvanceAll_FailedNode_PipelineMarkedFailed(t *testing.T) {
 	fs := newFakeStore()
-	adv := pipeline.NewAdvancer(fs, testLogger())
+	adv := pipeline.NewAdvancer(fs, nil, testLogger())
 
 	dag := domain.DAGSpec{
 		Nodes: []domain.DAGNode{
@@ -441,7 +441,7 @@ func TestAdvanceAll_FailedNode_PipelineMarkedFailed(t *testing.T) {
 
 func TestAdvanceAll_Idempotent_DoubleTickNoExtraJobs(t *testing.T) {
 	fs := newFakeStore()
-	adv := pipeline.NewAdvancer(fs, testLogger())
+	adv := pipeline.NewAdvancer(fs, nil, testLogger())
 
 	dag := domain.DAGSpec{
 		Nodes: []domain.DAGNode{
@@ -462,7 +462,7 @@ func TestAdvanceAll_Idempotent_DoubleTickNoExtraJobs(t *testing.T) {
 
 func TestAdvanceAll_MultiplePipelines_AllAdvanced(t *testing.T) {
 	fs := newFakeStore()
-	adv := pipeline.NewAdvancer(fs, testLogger())
+	adv := pipeline.NewAdvancer(fs, nil, testLogger())
 
 	dag1 := domain.DAGSpec{
 		Nodes: []domain.DAGNode{{ID: "n1", JobTemplate: domain.JobPayload{HandlerName: "noop"}}},
