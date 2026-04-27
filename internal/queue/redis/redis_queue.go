@@ -9,31 +9,35 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/observability"
 	"github.com/shreeharshshinde/orion/internal/queue"
 )
 
 const (
-	consumerGroup  = "orion-workers"
+	consumerGroup        = "orion-workers"
 	pendingSweepInterval = 30 * time.Second
+	depthPollInterval    = 5 * time.Second // how often to update QueueDepth gauge
 )
 
 // RedisQueue implements queue.Queue using Redis Streams.
 //
 // Architecture decision: Redis Streams with consumer groups give us:
-//  - At-least-once delivery via XACK
-//  - Pending entry list (PEL) for reclaiming un-acked messages
-//  - Consumer group semantics (each message delivered to one consumer)
+//   - At-least-once delivery via XACK
+//   - Pending entry list (PEL) for reclaiming un-acked messages
+//   - Consumer group semantics (each message delivered to one consumer)
 //
 // We do NOT use Redis Lists (LPUSH/BRPOP) because they offer no delivery
 // guarantee — a crashed worker drops the message permanently.
 type RedisQueue struct {
-	client *redis.Client
-	logger *slog.Logger
+	client  *redis.Client
+	metrics *observability.Metrics // Phase 6: nil-safe
+	logger  *slog.Logger
 }
 
 // New creates a RedisQueue and ensures consumer groups exist for all known queues.
-func New(client *redis.Client, logger *slog.Logger) (*RedisQueue, error) {
-	q := &RedisQueue{client: client, logger: logger}
+// Phase 6 change: accepts *observability.Metrics. Pass nil in tests.
+func New(client *redis.Client, m *observability.Metrics, logger *slog.Logger) (*RedisQueue, error) {
+	q := &RedisQueue{client: client, metrics: m, logger: logger}
 
 	knownQueues := []string{
 		queue.QueueDefault,
@@ -196,17 +200,9 @@ func (r *RedisQueue) Close() error {
 	return r.client.Close()
 }
 
-// streamForQueue maps logical queue names to Redis stream keys.
-func (r *RedisQueue) streamForQueue(name string) string {
-	switch name {
-	case "high":
-		return queue.QueueHigh
-	case "low":
-		return queue.QueueLow
-	default:
-		return queue.QueueDefault
-	}
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// StartQueueDepthPoller — Phase 6 addition
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ReclaimStalePending is a background task that periodically sweeps the PEL
 // for messages that have been in-flight longer than the visibility timeout
@@ -250,5 +246,63 @@ func (r *RedisQueue) reclaimForStream(ctx context.Context, streamName string, ti
 
 	if len(msgs) > 0 {
 		r.logger.Info("reclaimed stale pending messages", "stream", streamName, "count", len(msgs))
+	}
+}
+// QueueDepth Prometheus gauge every 5 seconds for all given queue names.
+//
+// Why poll instead of updating on every Enqueue/Dequeue?
+//
+//  1. Accuracy: polling reads the true current depth via XLEN regardless of
+//     whether messages were added by this process or another worker instance.
+//
+//  2. Simplicity: no need to thread gauge.Inc()/gauge.Dec() through every
+//     Enqueue and Dequeue call — especially tricky for Dequeue where the
+//     message may not be removed from the stream until XACK is called.
+//
+//  3. Correctness for PEL: unacknowledged messages are still in the stream.
+//     XLEN counts all messages (including PEL entries), which is exactly
+//     the "backlog" we want to show in Grafana.
+//
+// Call this in cmd/worker/main.go and cmd/scheduler/main.go after queue setup:
+//
+//	queue.StartQueueDepthPoller(ctx, []string{queue.QueueDefault, queue.QueueHigh, queue.QueueLow})
+func (r *RedisQueue) StartQueueDepthPoller(ctx context.Context, queueNames []string) {
+	if r.metrics == nil {
+		return // no-op if metrics are not configured
+	}
+
+	ticker := time.NewTicker(depthPollInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				for _, name := range queueNames {
+					length, err := r.client.XLen(ctx, r.streamForQueue(name)).Result()
+					if err != nil {
+						r.logger.Warn("queue depth poll failed",
+							"queue", name,
+							"err", err,
+						)
+						continue
+					}
+					r.metrics.QueueDepth.WithLabelValues(name).Set(float64(length))
+				}
+			}
+		}
+	}()
+}
+
+// streamForQueue maps logical queue names to Redis stream keys.
+func (r *RedisQueue) streamForQueue(name string) string {
+	switch name {
+	case queue.QueueHigh:
+		return "orion:queue:high"
+	case queue.QueueLow:
+		return "orion:queue:low"
+	default:
+		return "orion:queue:default"
 	}
 }
