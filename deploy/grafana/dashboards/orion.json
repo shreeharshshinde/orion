@@ -1,0 +1,308 @@
+{
+    "uid": "orion-main",
+    "title": "Orion ML Job Orchestrator",
+    "tags": [
+        "orion",
+        "ml"
+    ],
+    "timezone": "browser",
+    "refresh": "10s",
+    "schemaVersion": 38,
+    "version": 1,
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    },
+    "panels": [
+        {
+            "id": 1,
+            "title": "Job Throughput (jobs/sec)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 0
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum by (queue,type)(rate(orion_jobs_completed_total[1m]))",
+                    "legendFormat": "{{queue}}/{{type}}",
+                    "refId": "A"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "reqps"
+                }
+            }
+        },
+        {
+            "id": 2,
+            "title": "Error Rate (%)",
+            "type": "stat",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 0
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "100 * sum(rate(orion_jobs_failed_total[5m])) / clamp_min(sum(rate(orion_jobs_completed_total[5m]))+sum(rate(orion_jobs_failed_total[5m])),1)",
+                    "legendFormat": "Error %",
+                    "refId": "A"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percent",
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": 0
+                            },
+                            {
+                                "color": "yellow",
+                                "value": 5
+                            },
+                            {
+                                "color": "red",
+                                "value": 10
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "id": 3,
+            "title": "Queue Depth",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 0
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "orion_queue_depth",
+                    "legendFormat": "{{queue}}",
+                    "refId": "A"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                }
+            }
+        },
+        {
+            "id": 4,
+            "title": "Job Duration p50/p95/p99",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 8
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.50,sum by(le,type)(rate(orion_job_duration_seconds_bucket[5m])))",
+                    "legendFormat": "p50 {{type}}",
+                    "refId": "A"
+                },
+                {
+                    "expr": "histogram_quantile(0.95,sum by(le,type)(rate(orion_job_duration_seconds_bucket[5m])))",
+                    "legendFormat": "p95 {{type}}",
+                    "refId": "B"
+                },
+                {
+                    "expr": "histogram_quantile(0.99,sum by(le,type)(rate(orion_job_duration_seconds_bucket[5m])))",
+                    "legendFormat": "p99 {{type}}",
+                    "refId": "C"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            }
+        },
+        {
+            "id": 5,
+            "title": "Worker Utilization (%)",
+            "type": "gauge",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 8
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "100 * sum(orion_worker_active_jobs) / clamp_min(count(orion_worker_active_jobs),1)",
+                    "legendFormat": "Utilization",
+                    "refId": "A"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percent",
+                    "min": 0,
+                    "max": 100,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": 0
+                            },
+                            {
+                                "color": "yellow",
+                                "value": 70
+                            },
+                            {
+                                "color": "red",
+                                "value": 90
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "id": 6,
+            "title": "Scheduler + Advancer Latency p95",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 8
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.95,rate(orion_scheduler_cycle_duration_seconds_bucket[5m]))",
+                    "legendFormat": "Scheduler p95",
+                    "refId": "A"
+                },
+                {
+                    "expr": "histogram_quantile(0.95,rate(orion_advancer_cycle_duration_seconds_bucket[5m]))",
+                    "legendFormat": "Advancer p95",
+                    "refId": "B"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            }
+        },
+        {
+            "id": 7,
+            "title": "Pipeline Throughput (per min)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 16
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum(rate(orion_pipelines_started_total[5m]))*60",
+                    "legendFormat": "Started",
+                    "refId": "A"
+                },
+                {
+                    "expr": "sum(rate(orion_pipelines_completed_total[5m]))*60",
+                    "legendFormat": "Completed",
+                    "refId": "B"
+                },
+                {
+                    "expr": "sum(rate(orion_pipelines_failed_total[5m]))*60",
+                    "legendFormat": "Failed",
+                    "refId": "C"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                }
+            }
+        },
+        {
+            "id": 8,
+            "title": "Dead Jobs / Hour",
+            "type": "stat",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 16
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum(rate(orion_jobs_dead_total[1h]))*3600",
+                    "legendFormat": "Dead/hour",
+                    "refId": "A"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": 0
+                            },
+                            {
+                                "color": "red",
+                                "value": 1
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "id": 9,
+            "title": "DB Operation Latency p95",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 16
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.95,sum by(le,operation)(rate(orion_db_operation_duration_seconds_bucket[5m])))",
+                    "legendFormat": "{{operation}}",
+                    "refId": "A"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            }
+        }
+    ]
+}
