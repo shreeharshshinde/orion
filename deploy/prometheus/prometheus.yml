@@ -1,0 +1,42 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: "local"
+    env: "development"
+
+scrape_configs:
+  # API Server — http, db metrics
+  - job_name: "orion-api"
+    static_configs:
+      - targets: ["host.docker.internal:9091"]
+        labels:
+          service: "orion-api"
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # Scheduler — cycle latency, dispatch counters, pipeline metrics, queue depth
+  - job_name: "orion-scheduler"
+    static_configs:
+      - targets: ["host.docker.internal:9092"]
+        labels:
+          service: "orion-scheduler"
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # Worker — job duration, completed/failed/dead counters, active jobs gauge
+  - job_name: "orion-worker"
+    static_configs:
+      - targets: ["host.docker.internal:9093"]
+        labels:
+          service: "orion-worker"
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
