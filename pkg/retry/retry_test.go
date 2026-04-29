@@ -181,18 +181,18 @@ func TestWithRetry_ZeroAttempts_NeverCalls(t *testing.T) {
 	}
 }
 
-func TestWithRetry_ContextCancellation_StopsEarly(t *testing.T) {
+func TestWithRetry_AlwaysFails_RunsAllAttempts(t *testing.T) {
 	calls := 0
-	err := retry.WithRetry(10, 10*time.Millisecond, 10*time.Millisecond,
+	err := retry.WithRetry(5, 1*time.Millisecond, 5*time.Millisecond,
 		func() error {
 			calls++
 			return errors.New("always fail")
 		})
 
 	if err == nil {
-		t.Error("expected error after context cancellation")
+		t.Error("expected error when all attempts fail")
 	}
-	if calls > 3 {
-		t.Errorf("expected early stop on cancellation, got %d calls", calls)
+	if calls != 5 {
+		t.Errorf("expected exactly 5 calls, got %d", calls)
 	}
 }
