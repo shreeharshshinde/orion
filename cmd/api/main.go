@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,7 +13,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
+
 	"github.com/shreeharshshinde/orion/internal/api/handler"
+	grpcserver "github.com/shreeharshshinde/orion/internal/api/grpc"
 	"github.com/shreeharshshinde/orion/internal/config"
 	"github.com/shreeharshshinde/orion/internal/observability"
 	"github.com/shreeharshshinde/orion/internal/store/postgres"
@@ -30,13 +34,9 @@ func main() {
 	logger := observability.NewLogger(cfg.Service.LogLevel, "orion-api", cfg.Service.Environment)
 
 	// ── 3. Prometheus registry + metrics [Phase 6] ────────────────────────────
-	// Each binary creates its own isolated registry.
-	// The API reports: HTTP metrics + DB create/get latency.
 	reg := prometheus.NewRegistry()
 	metrics := observability.NewMetrics(reg)
 
-	// Start the /metrics endpoint on the dedicated metrics port (:9091).
-	// Prometheus scrapes this every 15s. Run in background — not critical path.
 	metricsSrv := observability.MetricsServer(cfg.Observability.MetricsPort, reg)
 	go func() {
 		logger.Info("metrics server listening", "port", cfg.Observability.MetricsPort)
@@ -91,7 +91,30 @@ func main() {
 	// ── 6. Store ──────────────────────────────────────────────────────────────
 	pgStore := postgres.New(db)
 
-	// ── 7. HTTP routes ────────────────────────────────────────────────────────
+	// ── 7. gRPC server [Phase 7] ──────────────────────────────────────────────
+	// InstrumentedStore wraps pgStore and publishes job events to the broadcaster
+	// on every state transition (running, completed, failed). The worker pool
+	// uses this store so events are emitted when jobs change state.
+	broadcaster := grpcserver.NewBroadcaster()
+	instrumentedStore := grpcserver.NewInstrumentedStore(pgStore, broadcaster)
+
+	grpcSrv := grpc.NewServer()
+	grpcserver.RegisterGRPCServer(grpcSrv, grpcserver.NewServer(instrumentedStore, broadcaster, logger))
+
+	grpcLis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Service.GRPCPort))
+	if err != nil {
+		logger.Error("failed to start gRPC listener", "err", err, "port", cfg.Service.GRPCPort)
+		os.Exit(1)
+	}
+	go func() {
+		logger.Info("gRPC server listening", "port", cfg.Service.GRPCPort)
+		if err := grpcSrv.Serve(grpcLis); err != nil {
+			logger.Error("gRPC server error", "err", err)
+		}
+	}()
+
+	// ── 8. HTTP routes ────────────────────────────────────────────────────────
+	// HTTP handlers use pgStore directly — they don't need event broadcasting.
 	mux := http.NewServeMux()
 
 	jobHandler := handler.NewJobHandler(pgStore, logger)
@@ -122,22 +145,12 @@ func main() {
 		_, _ = w.Write([]byte(`{"status":"ready"}`))
 	})
 
-	// ── 8. Apply observability middleware [Phase 6] ───────────────────────────
-	// Layer order (outer → inner):
-	//   TracingMiddleware → MetricsMiddleware → mux
-	//
-	// TracingMiddleware runs first so the trace context is available to
-	// MetricsMiddleware and all downstream handlers. The span is created
-	// at the edge of the system.
-	//
-	// MetricsMiddleware records duration and status code AFTER the handler
-	// runs (via the defer inside the middleware), so it captures the true
-	// final status including errors set by the handler.
+	// ── 9. Observability middleware [Phase 6] ─────────────────────────────────
 	instrumentedHandler := handler.TracingMiddleware(
 		handler.MetricsMiddleware(metrics, mux),
 	)
 
-	// ── 9. HTTP server ────────────────────────────────────────────────────────
+	// ── 10. HTTP server ───────────────────────────────────────────────────────
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Service.HTTPPort),
 		Handler:      instrumentedHandler,
@@ -163,7 +176,10 @@ func main() {
 	<-stop
 	logger.Info("shutdown signal received")
 
-	// Shutdown metrics server first (not critical path)
+	// Graceful shutdown: gRPC first (drains in-flight streams), then HTTP
+	grpcSrv.GracefulStop()
+	logger.Info("gRPC server stopped")
+
 	_ = metricsSrv.Shutdown(context.Background())
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
