@@ -92,11 +92,23 @@ migrate-create: ## Create a new migration (usage: make migrate-create NAME=add_s
 
 ## ─── Proto ───────────────────────────────────────────────────────────────────
 
-proto: ## Generate gRPC code from .proto files
-	@protoc \
-		--go_out=. --go_opt=paths=source_relative \
-		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		proto/**/*.proto
+# proto-gen: generate Go code from proto/orion/v1/jobs.proto using buf.
+# Requires: go install github.com/bufbuild/buf/cmd/buf@latest
+# Output:   proto/orion/v1/jobs.pb.go + jobs_grpc.pb.go
+.PHONY: proto-gen
+proto-gen: ## Generate gRPC Go code from .proto files (uses buf)
+	@cd proto && buf generate
+	@echo "Proto generated: proto/orion/v1/jobs.pb.go + jobs_grpc.pb.go"
+
+# grpc-check: verify the gRPC server is reachable and lists the expected service.
+# Requires: go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+.PHONY: grpc-check
+grpc-check: ## Verify gRPC server is running (requires running API server)
+	@grpcurl -plaintext localhost:9090 list
+	@echo "Expected: orion.v1.JobService"
+
+# Legacy alias kept for compatibility
+proto: proto-gen ## Alias for proto-gen
 
 ## ─── Run (local dev) ─────────────────────────────────────────────────────────
 
