@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package orion.v1;
+
+option go_package = "github.com/shreeharshshinde/orion/proto/orion/v1;orionv1";
+
+import "google/protobuf/timestamp.proto";
+
+// JobService is the primary gRPC service for Orion.
+// It exposes both unary RPCs (equivalent to the HTTP API) and server-streaming
+// RPCs for real-time job and pipeline event delivery.
+service JobService {
+  // SubmitJob creates a new job. Equivalent to POST /jobs.
+  rpc SubmitJob(SubmitJobRequest) returns (Job);
+
+  // GetJob retrieves a job by ID. Equivalent to GET /jobs/{id}.
+  rpc GetJob(GetJobRequest) returns (Job);
+
+  // WatchJob opens a server-streaming connection that receives one JobEvent
+  // for every status transition until the job reaches a terminal state
+  // (completed, dead, cancelled). The stream closes automatically at terminal.
+  rpc WatchJob(WatchJobRequest) returns (stream JobEvent);
+
+  // WatchPipeline opens a server-streaming connection for a pipeline.
+  // Receives one PipelineEvent for every pipeline status change.
+  // Stream closes when the pipeline reaches a terminal state.
+  rpc WatchPipeline(WatchPipelineRequest) returns (stream PipelineEvent);
+}
+
+// ─── Request messages ─────────────────────────────────────────────────────────
+
+message SubmitJobRequest {
+  string     name            = 1; // human-readable job name
+  string     type            = 2; // "inline" or "k8s_job"
+  string     queue_name      = 3; // "high", "default", "low"
+  int32      priority        = 4; // 1-10, default 5
+  int32      max_retries     = 5; // default 3
+  JobPayload payload         = 6;
+  string     idempotency_key = 7; // optional: prevents duplicate submissions
+}
+
+message GetJobRequest {
+  string job_id = 1; // UUID of the job
+}
+
+message WatchJobRequest {
+  string job_id = 1; // UUID of the job to watch
+}
+
+message WatchPipelineRequest {
+  string pipeline_id = 1; // UUID of the pipeline to watch
+}
+
+// ─── Core types ───────────────────────────────────────────────────────────────
+
+message Job {
+  string                    job_id        = 1;
+  string                    name          = 2;
+  string                    type          = 3;
+  string                    status        = 4;
+  string                    queue_name    = 5;
+  int32                     priority      = 6;
+  int32                     attempt       = 7;
+  int32                     max_retries   = 8;
+  string                    worker_id     = 9;
+  string                    error_message = 10;
+  google.protobuf.Timestamp created_at    = 11;
+  google.protobuf.Timestamp updated_at    = 12;
+  google.protobuf.Timestamp completed_at  = 13;
+  JobPayload                payload       = 14;
+}
+
+message JobPayload {
+  string              handler_name    = 1; // for inline jobs
+  map<string, string> args            = 2; // handler arguments
+  KubernetesSpec      kubernetes_spec = 3; // for k8s_job type
+}
+
+message KubernetesSpec {
+  string              image           = 1;
+  repeated string     command         = 2;
+  repeated string     args            = 3;
+  map<string, string> env_vars        = 4;
+  string              namespace       = 5;
+  ResourceRequest     resources       = 6;
+  string              service_account = 7;
+  int32               ttl_seconds     = 8;
+}
+
+message ResourceRequest {
+  string cpu    = 1; // e.g. "4" or "500m"
+  string memory = 2; // e.g. "16Gi"
+  int32  gpu    = 3; // nvidia.com/gpu count
+}
+
+message JobEvent {
+  string                    job_id          = 1;
+  string                    job_name        = 2;
+  string                    previous_status = 3;
+  string                    new_status      = 4;
+  string                    worker_id       = 5;
+  string                    error_message   = 6;
+  int32                     attempt         = 7;
+  google.protobuf.Timestamp timestamp       = 8;
+}
+
+message PipelineEvent {
+  string                    pipeline_id     = 1;
+  string                    pipeline_name   = 2;
+  string                    node_id         = 3; // which node changed (empty = overall)
+  string                    node_status     = 4; // new status of that node
+  string                    pipeline_status = 5; // overall pipeline status
+  google.protobuf.Timestamp timestamp       = 6;
+}
