@@ -796,3 +796,87 @@ func isUniqueViolation(err error) bool {
 		strings.Contains(msg, "unique_violation") ||
 		strings.Contains(msg, "duplicate key")
 }
+
+// ============================================================
+// QueueConfigStore implementation — Phase 8
+// ============================================================
+
+// ListQueueConfigs returns all rows from queue_config, ordered by queue_name.
+// Called by GET /queues and by the scheduler on each tick for live-reload.
+func (db *DB) ListQueueConfigs(ctx context.Context) ([]*store.QueueConfig, error) {
+	const q = `
+		SELECT queue_name, max_concurrent, weight, rate_per_sec, burst, enabled, updated_at
+		FROM queue_config
+		ORDER BY queue_name ASC`
+
+	rows, err := db.pool.Query(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("listing queue configs: %w", err)
+	}
+	defer rows.Close()
+
+	var configs []*store.QueueConfig
+	for rows.Next() {
+		c := &store.QueueConfig{}
+		if err := rows.Scan(
+			&c.QueueName, &c.MaxConcurrent, &c.Weight,
+			&c.RatePerSec, &c.Burst, &c.Enabled, &c.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scanning queue config row: %w", err)
+		}
+		configs = append(configs, c)
+	}
+	return configs, rows.Err()
+}
+
+// GetQueueConfig returns the configuration for a single queue by name.
+// Returns store.ErrNotFound if the queue_name does not exist.
+func (db *DB) GetQueueConfig(ctx context.Context, queueName string) (*store.QueueConfig, error) {
+	const q = `
+		SELECT queue_name, max_concurrent, weight, rate_per_sec, burst, enabled, updated_at
+		FROM queue_config
+		WHERE queue_name = $1`
+
+	c := &store.QueueConfig{}
+	err := db.pool.QueryRow(ctx, q, queueName).Scan(
+		&c.QueueName, &c.MaxConcurrent, &c.Weight,
+		&c.RatePerSec, &c.Burst, &c.Enabled, &c.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &store.StoreError{Code: "NOT_FOUND",
+				Message: "queue config not found: " + queueName}
+		}
+		return nil, fmt.Errorf("getting queue config %s: %w", queueName, err)
+	}
+	return c, nil
+}
+
+// UpsertQueueConfig creates or updates a queue configuration row.
+// Sets updated_at = NOW() automatically. Returns the updated row.
+func (db *DB) UpsertQueueConfig(ctx context.Context, cfg *store.QueueConfig) (*store.QueueConfig, error) {
+	const q = `
+		INSERT INTO queue_config (queue_name, max_concurrent, weight, rate_per_sec, burst, enabled, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, NOW())
+		ON CONFLICT (queue_name) DO UPDATE SET
+			max_concurrent = EXCLUDED.max_concurrent,
+			weight         = EXCLUDED.weight,
+			rate_per_sec   = EXCLUDED.rate_per_sec,
+			burst          = EXCLUDED.burst,
+			enabled        = EXCLUDED.enabled,
+			updated_at     = NOW()
+		RETURNING queue_name, max_concurrent, weight, rate_per_sec, burst, enabled, updated_at`
+
+	updated := &store.QueueConfig{}
+	err := db.pool.QueryRow(ctx, q,
+		cfg.QueueName, cfg.MaxConcurrent, cfg.Weight,
+		cfg.RatePerSec, cfg.Burst, cfg.Enabled,
+	).Scan(
+		&updated.QueueName, &updated.MaxConcurrent, &updated.Weight,
+		&updated.RatePerSec, &updated.Burst, &updated.Enabled, &updated.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("upserting queue config %s: %w", cfg.QueueName, err)
+	}
+	return updated, nil
+}
