@@ -92,6 +92,25 @@ type Metrics struct {
 	// The "operation" label uses the Go method name (e.g., "CreateJob", "MarkJobRunning")
 	// making it easy to correlate with code and identify slow queries.
 	DBOperationDuration *prometheus.HistogramVec // labels: operation
+
+	// ── Phase 8 metrics ───────────────────────────────────────────────────────
+
+	// QueueRateLimited counts jobs skipped by the scheduler due to token bucket exhaustion.
+	// A rising rate here means a queue is being throttled — check rate_per_sec config.
+	// PromQL: rate(orion_queue_rate_limited_total[1m]) by (queue)
+	QueueRateLimited *prometheus.CounterVec // labels: queue
+
+	// QueueConcurrentJobs tracks how many jobs from each queue are currently running.
+	// Compare against QueueConcurrencyLimit to see utilisation.
+	QueueConcurrentJobs *prometheus.GaugeVec // labels: queue
+
+	// QueueConcurrencyLimit reflects the configured max_concurrent per queue.
+	// Updated when queue_config is reloaded. Used for utilisation ratio panels.
+	QueueConcurrencyLimit *prometheus.GaugeVec // labels: queue
+
+	// QueueDispatchWeight reflects the configured dispatch weight per queue.
+	// Useful for confirming live config changes took effect.
+	QueueDispatchWeight *prometheus.GaugeVec // labels: queue
 }
 
 // NewMetrics creates and registers all Prometheus metrics with the given registerer.
@@ -220,6 +239,31 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "Histogram of PostgreSQL operation latencies by operation name.",
 			Buckets:   []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
 		}, []string{"operation"}),
+
+		// ── Phase 8 metrics ───────────────────────────────────────────────────
+		QueueRateLimited: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "orion",
+			Name:      "queue_rate_limited_total",
+			Help:      "Total jobs skipped by the scheduler due to token bucket exhaustion.",
+		}, []string{"queue"}),
+
+		QueueConcurrentJobs: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "orion",
+			Name:      "queue_concurrent_jobs",
+			Help:      "Current number of active (running) jobs per queue.",
+		}, []string{"queue"}),
+
+		QueueConcurrencyLimit: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "orion",
+			Name:      "queue_concurrency_limit",
+			Help:      "Configured max_concurrent slots per queue (from queue_config table).",
+		}, []string{"queue"}),
+
+		QueueDispatchWeight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "orion",
+			Name:      "queue_dispatch_weight",
+			Help:      "Configured dispatch weight per queue (0.0–1.0). Used by the fair scheduler.",
+		}, []string{"queue"}),
 	}
 
 	// Register every metric. MustRegister panics on duplicate registration —
@@ -245,6 +289,11 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.HTTPRequestsTotal,
 		m.HTTPRequestDuration,
 		m.DBOperationDuration,
+		// Phase 8
+		m.QueueRateLimited,
+		m.QueueConcurrentJobs,
+		m.QueueConcurrencyLimit,
+		m.QueueDispatchWeight,
 	)
 
 	return m
