@@ -11,13 +11,14 @@ import (
 // Values are loaded from environment variables with defaults.
 // In production, use Kubernetes secrets/configmaps injected as env vars.
 type Config struct {
-	Service     ServiceConfig
-	Database    DatabaseConfig
-	Redis       RedisConfig
-	Kubernetes  KubernetesConfig
+	Service       ServiceConfig
+	Database      DatabaseConfig
+	Redis         RedisConfig
+	Kubernetes    KubernetesConfig
 	Observability ObservabilityConfig
-	Scheduler   SchedulerConfig
-	Worker      WorkerPoolConfig
+	Scheduler     SchedulerConfig
+	Worker        WorkerPoolConfig
+	Queue         QueueConfig // Phase 8: per-queue rate limiting and fair scheduling
 }
 
 type ServiceConfig struct {
@@ -71,6 +72,37 @@ type WorkerPoolConfig struct {
 	ShutdownTimeout   time.Duration
 }
 
+// QueueLimitConfig holds rate limiting and concurrency settings for one queue.
+// All values are loaded from environment variables with safe defaults.
+// Dynamic overrides come from the queue_config PostgreSQL table (Phase 8).
+type QueueLimitConfig struct {
+	// MaxConcurrent is the maximum number of worker slots this queue can occupy.
+	// When this many jobs from this queue are running, no more are dispatched.
+	MaxConcurrent int
+
+	// Weight is the fraction of each scheduler batch allocated to this queue.
+	// Used by the weighted fair scheduler. Weights are relative proportions —
+	// they do not need to sum to 1.0.
+	Weight float64
+
+	// RatePerSec is the token bucket refill rate (jobs per second).
+	// Controls how fast jobs can be enqueued, independently of concurrency.
+	RatePerSec float64
+
+	// Burst is the maximum token accumulation in the token bucket.
+	// A queue with Burst=20 can dispatch 20 jobs instantly before rate limiting kicks in.
+	Burst int
+}
+
+// QueueConfig holds per-queue limits for all three standard Orion queues.
+// Loaded from ORION_QUEUE_* environment variables; overridable at runtime
+// via PUT /queues/{name} without a service restart.
+type QueueConfig struct {
+	High    QueueLimitConfig
+	Default QueueLimitConfig
+	Low     QueueLimitConfig
+}
+
 // Load reads configuration from environment variables.
 // All ORION_ prefixed env vars are recognized.
 func Load() (*Config, error) {
@@ -117,6 +149,30 @@ func Load() (*Config, error) {
 			VisibilityTimeout: getEnvDuration("ORION_WORKER_VISIBILITY_TIMEOUT", 5*time.Minute),
 			HeartbeatInterval: getEnvDuration("ORION_WORKER_HEARTBEAT_INTERVAL", 15*time.Second),
 			ShutdownTimeout:   getEnvDuration("ORION_WORKER_SHUTDOWN_TIMEOUT", 30*time.Second),
+		},
+	}
+
+	// Phase 8: queue limits default to fractions of worker concurrency.
+	// Computed after cfg is built so we can reference cfg.Worker.Concurrency.
+	c := cfg.Worker.Concurrency
+	cfg.Queue = QueueConfig{
+		High: QueueLimitConfig{
+			MaxConcurrent: getEnvInt("ORION_QUEUE_HIGH_MAX_CONCURRENT", c*8/10),
+			Weight:        getEnvFloat("ORION_QUEUE_HIGH_WEIGHT", 0.8),
+			RatePerSec:    getEnvFloat("ORION_QUEUE_HIGH_RATE_PER_SEC", 100.0),
+			Burst:         getEnvInt("ORION_QUEUE_HIGH_BURST", 20),
+		},
+		Default: QueueLimitConfig{
+			MaxConcurrent: getEnvInt("ORION_QUEUE_DEFAULT_MAX_CONCURRENT", c*6/10),
+			Weight:        getEnvFloat("ORION_QUEUE_DEFAULT_WEIGHT", 0.6),
+			RatePerSec:    getEnvFloat("ORION_QUEUE_DEFAULT_RATE_PER_SEC", 50.0),
+			Burst:         getEnvInt("ORION_QUEUE_DEFAULT_BURST", 10),
+		},
+		Low: QueueLimitConfig{
+			MaxConcurrent: getEnvInt("ORION_QUEUE_LOW_MAX_CONCURRENT", c*2/10),
+			Weight:        getEnvFloat("ORION_QUEUE_LOW_WEIGHT", 0.2),
+			RatePerSec:    getEnvFloat("ORION_QUEUE_LOW_RATE_PER_SEC", 10.0),
+			Burst:         getEnvInt("ORION_QUEUE_LOW_BURST", 5),
 		},
 	}
 
