@@ -116,6 +116,17 @@ func (f *fakeStore) GetPipelineJobs(ctx context.Context, pipelineID uuid.UUID) (
 	return nil, nil
 }
 
+// QueueConfigStore stubs — Phase 8 (not exercised by handler tests)
+func (f *fakeStore) ListQueueConfigs(_ context.Context) ([]*store.QueueConfig, error) {
+	return nil, nil
+}
+func (f *fakeStore) GetQueueConfig(_ context.Context, _ string) (*store.QueueConfig, error) {
+	return nil, store.ErrNotFound
+}
+func (f *fakeStore) UpsertQueueConfig(_ context.Context, cfg *store.QueueConfig) (*store.QueueConfig, error) {
+	return cfg, nil
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
