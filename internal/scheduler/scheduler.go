@@ -41,21 +41,26 @@ type Config struct {
 //  3. Sweeping orphaned/stale jobs and requeuing them
 //  4. Promoting failed-but-retryable jobs when their next_retry_at has passed
 //  5. [Phase 5] Advancing all active pipelines on every schedule tick
+//
 // Phase 6: metrics field added — all metric calls are nil-guarded.
+// Phase 8: rateLimiter and queueAllocations added for fair scheduling.
 type Scheduler struct {
-	cfg      Config
-	db       *pgxpool.Pool // direct DB access for advisory locks
-	store    store.Store
-	queue    queue.Queue
-	advancer *pipeline.Advancer // Phase 5: DAG advancement engine
-	metrics  *observability.Metrics // Phase 6
-	logger   *slog.Logger
+	cfg              Config
+	db               *pgxpool.Pool // direct DB access for advisory locks
+	store            store.Store
+	queue            queue.Queue
+	advancer         *pipeline.Advancer      // Phase 5: DAG advancement engine
+	metrics          *observability.Metrics  // Phase 6
+	rateLimiter      *QueueRateLimiter       // Phase 8: token bucket per queue
+	queueAllocations map[string]QueueAllocation // Phase 8: weighted dispatch config
+	logger           *slog.Logger
 }
 
 // New creates a Scheduler. The db pool is needed for advisory lock management.
 // advancer is the Phase 5 pipeline advancement engine — pass pipeline.NewAdvancer(store, logger).
 // Phase 6 change: accepts *observability.Metrics as the sixth argument.
-// m may be nil; all metric calls inside are nil-guarded.
+// Phase 8 change: accepts *QueueRateLimiter and map[string]QueueAllocation.
+// m, rateLimiter, and queueAllocations may be nil; all calls are nil-guarded.
 func New(
 	cfg Config,
 	db *pgxpool.Pool,
@@ -63,6 +68,8 @@ func New(
 	q queue.Queue,
 	adv *pipeline.Advancer,
 	m *observability.Metrics,
+	rateLimiter *QueueRateLimiter,
+	queueAllocations map[string]QueueAllocation,
 	logger *slog.Logger,
 ) *Scheduler {
 	if cfg.BatchSize == 0 {
@@ -75,13 +82,15 @@ func New(
 		cfg.OrphanInterval = defaultOrphanInterval
 	}
 	return &Scheduler{
-		cfg:      cfg,
-		db:       db,
-		store:    s,
-		queue:    q,
-		advancer: adv,
-		metrics:  m,
-		logger:   logger,
+		cfg:              cfg,
+		db:               db,
+		store:            s,
+		queue:            q,
+		advancer:         adv,
+		metrics:          m,
+		rateLimiter:      rateLimiter,
+		queueAllocations: queueAllocations,
+		logger:           logger,
 	}
 }
 
@@ -193,15 +202,19 @@ func (s *Scheduler) runAsLeader(ctx context.Context) {
 	}
 }
 
-// scheduleQueuedJobs reads queued jobs from PostgreSQL and pushes them
-// into the Redis queue. Jobs are ordered by priority DESC, created_at ASC.
-// Phase 6: wraps the full cycle in a span + measures latency via SchedulerCycleLatency.
+// scheduleQueuedJobs reads queued jobs from PostgreSQL and pushes them into Redis.
+//
+// Phase 8 change: replaces the single ListJobs call with FairQueue.FetchReadyJobs,
+// which issues one query per queue with a weight-proportional limit. This prevents
+// any single queue from monopolising the dispatch batch.
+//
+// Dispatch order within the batch: highest-weight queue first.
+// Rate limiter: each job is checked against the token bucket before dispatch.
+// Skipped jobs remain in 'queued' status and are picked up on the next tick.
 func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
-	// ── Span: entire dispatch cycle ───────────────────────────────────────────
 	ctx, span := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.dispatch_cycle")
 	defer span.End()
 
-	// ── Histogram: cycle latency ──────────────────────────────────────────────
 	cycleStart := time.Now()
 	defer func() {
 		elapsed := time.Since(cycleStart).Seconds()
@@ -211,23 +224,44 @@ func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
 		span.SetAttributes(attribute.Float64("cycle.elapsed_seconds", elapsed))
 	}()
 
-	statusQueued := domain.JobStatusQueued
-	jobs, err := s.store.ListJobs(ctx, store.JobFilter{
-		Status: &statusQueued,
-		Limit:  s.cfg.BatchSize,
-	})
+	// ── Phase 8: weighted fair allocation ────────────────────────────────────
+	// Fall back to a single unfiltered query when no allocations are configured
+	// (e.g. in tests that don't wire Phase 8 components).
+	var jobs []*domain.Job
+	var err error
+
+	if len(s.queueAllocations) > 0 && s.rateLimiter != nil {
+		allocations := ComputeAllocations(s.queueAllocations, s.cfg.BatchSize)
+		fairQ := NewFairQueue(allocations, s.rateLimiter, s.store, s.logger)
+		jobs, err = fairQ.FetchReadyJobs(ctx)
+	} else {
+		statusQueued := domain.JobStatusQueued
+		jobs, err = s.store.ListJobs(ctx, store.JobFilter{
+			Status: &statusQueued,
+			Limit:  s.cfg.BatchSize,
+		})
+	}
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return fmt.Errorf("listing queued jobs: %w", err)
+		return fmt.Errorf("fetching ready jobs: %w", err)
 	}
 
 	span.SetAttributes(attribute.Int("jobs.found", len(jobs)))
 
 	dispatched := 0
-	for _, job := range jobs {
-		// ── Child span: per-job dispatch ──────────────────────────────────────
-		_, jobSpan := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.dispatch_job") // No parent context link here — each job dispatch is a leaf span.
+	rateLimited := 0
 
+	for _, job := range jobs {
+		// ── Rate limiter check ────────────────────────────────────────────────
+		if s.rateLimiter != nil && !s.rateLimiter.Allow(job.QueueName) {
+			rateLimited++
+			if s.metrics != nil {
+				s.metrics.QueueRateLimited.WithLabelValues(job.QueueName).Inc()
+			}
+			continue // job stays queued; picked up next tick when tokens refill
+		}
+
+		_, jobSpan := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.dispatch_job")
 		jobSpan.SetAttributes(
 			attribute.String("job.id", job.ID.String()),
 			attribute.String("job.type", string(job.Type)),
@@ -253,7 +287,6 @@ func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
 			continue
 		}
 
-		// Counter: job successfully dispatched to Redis
 		if s.metrics != nil {
 			s.metrics.JobsSubmitted.WithLabelValues(job.QueueName, string(job.Type)).Inc()
 		}
@@ -261,9 +294,13 @@ func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
 		dispatched++
 	}
 
-	span.SetAttributes(attribute.Int("jobs.dispatched", dispatched))
-	if dispatched > 0 {
-		s.logger.Info("dispatched jobs to queue", "count", dispatched)
+	span.SetAttributes(
+		attribute.Int("jobs.dispatched", dispatched),
+		attribute.Int("jobs.rate_limited", rateLimited),
+	)
+	if dispatched > 0 || rateLimited > 0 {
+		s.logger.Info("scheduler cycle complete",
+			"dispatched", dispatched, "rate_limited", rateLimited)
 	}
 	return nil
 }
