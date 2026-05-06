@@ -118,16 +118,48 @@ type PipelineJobStatus struct {
 }
 
 // ============================================================
+// QueueConfigStore — Phase 8
+// ============================================================
+
+// QueueConfig is the runtime configuration for one queue.
+// Stored in the queue_config PostgreSQL table; reloaded by the scheduler
+// on each tick and exposed via the /queues REST API.
+type QueueConfig struct {
+	QueueName     string    `json:"queue_name"`
+	MaxConcurrent int       `json:"max_concurrent"`
+	Weight        float64   `json:"weight"`
+	RatePerSec    float64   `json:"rate_per_sec"`
+	Burst         int       `json:"burst"`
+	Enabled       bool      `json:"enabled"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// QueueConfigStore manages per-queue rate limiting and scheduling configuration.
+type QueueConfigStore interface {
+	// ListQueueConfigs returns all queue configurations (enabled and disabled).
+	ListQueueConfigs(ctx context.Context) ([]*QueueConfig, error)
+
+	// GetQueueConfig returns the configuration for a single queue.
+	// Returns ErrNotFound if the queue_name does not exist.
+	GetQueueConfig(ctx context.Context, queueName string) (*QueueConfig, error)
+
+	// UpsertQueueConfig creates or updates a queue configuration row.
+	// Sets updated_at = NOW() automatically.
+	UpsertQueueConfig(ctx context.Context, cfg *QueueConfig) (*QueueConfig, error)
+}
+
+// ============================================================
 // Store — composite interface
 // ============================================================
 
-// Store composes all four sub-interfaces.
+// Store composes all sub-interfaces.
 // postgres.DB implements this. In tests, pass a fake/mock implementation.
 type Store interface {
 	JobStore
 	ExecutionStore
 	WorkerStore
-	PipelineStore // added Phase 5
+	PipelineStore      // added Phase 5
+	QueueConfigStore   // added Phase 8
 }
 
 // ============================================================
