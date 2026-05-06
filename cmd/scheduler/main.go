@@ -137,8 +137,32 @@ func main() {
 	adv := pipeline.NewAdvancer(pgStore, metrics, logger)
 	logger.Info("pipeline advancer ready")
 
-	// ── Scheduler [Phase 6 update] ────────────────────────────────────────────
-	// Pass metrics as 6th argument (new in Phase 6).
+	// ── Phase 8: rate limiter + weighted fair queue allocations ──────────────
+	// RateLimiter: one token bucket per queue, seeded from config.
+	// queueAllocations: weight map used by ComputeAllocations each tick.
+	rateLimiter := scheduler.NewQueueRateLimiter(map[string]scheduler.BucketConfig{
+		"orion:queue:high":    {RatePerSec: cfg.Queue.High.RatePerSec, Burst: cfg.Queue.High.Burst},
+		"orion:queue:default": {RatePerSec: cfg.Queue.Default.RatePerSec, Burst: cfg.Queue.Default.Burst},
+		"orion:queue:low":     {RatePerSec: cfg.Queue.Low.RatePerSec, Burst: cfg.Queue.Low.Burst},
+	})
+	queueAllocations := map[string]scheduler.QueueAllocation{
+		"orion:queue:high":    {QueueName: "orion:queue:high", Weight: cfg.Queue.High.Weight},
+		"orion:queue:default": {QueueName: "orion:queue:default", Weight: cfg.Queue.Default.Weight},
+		"orion:queue:low":     {QueueName: "orion:queue:low", Weight: cfg.Queue.Low.Weight},
+	}
+
+	// Publish initial concurrency limit and weight gauges so Grafana shows
+	// configured values even before any jobs are dispatched.
+	if metrics != nil {
+		for name, alloc := range queueAllocations {
+			metrics.QueueDispatchWeight.WithLabelValues(name).Set(alloc.Weight)
+		}
+		metrics.QueueConcurrencyLimit.WithLabelValues("orion:queue:high").Set(float64(cfg.Queue.High.MaxConcurrent))
+		metrics.QueueConcurrencyLimit.WithLabelValues("orion:queue:default").Set(float64(cfg.Queue.Default.MaxConcurrent))
+		metrics.QueueConcurrencyLimit.WithLabelValues("orion:queue:low").Set(float64(cfg.Queue.Low.MaxConcurrent))
+	}
+
+	// ── Scheduler [Phase 8 update] ────────────────────────────────────────────
 	sched := scheduler.New(
 		scheduler.Config{
 			BatchSize:        cfg.Scheduler.BatchSize,
@@ -149,7 +173,9 @@ func main() {
 		pgStore,
 		queue,
 		adv,
-		metrics, // ← Phase 6
+		metrics,          // Phase 6
+		rateLimiter,      // Phase 8
+		queueAllocations, // Phase 8
 		logger,
 	)
 

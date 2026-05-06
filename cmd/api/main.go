@@ -13,12 +13,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 
 	"github.com/shreeharshshinde/orion/internal/api/handler"
 	grpcserver "github.com/shreeharshshinde/orion/internal/api/grpc"
 	"github.com/shreeharshshinde/orion/internal/config"
 	"github.com/shreeharshshinde/orion/internal/observability"
+	redisqueue "github.com/shreeharshshinde/orion/internal/queue/redis"
+	"github.com/shreeharshshinde/orion/internal/scheduler"
 	"github.com/shreeharshshinde/orion/internal/store/postgres"
 )
 
@@ -91,6 +94,29 @@ func main() {
 	// ── 6. Store ──────────────────────────────────────────────────────────────
 	pgStore := postgres.New(db)
 
+	// ── 6a. Redis client + queue (for /queues/{name}/stats depth reporting) ──
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     cfg.Redis.Addr,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+		PoolSize: cfg.Redis.PoolSize,
+	})
+	redisQ, err := redisqueue.New(redisClient, metrics, logger)
+	if err != nil {
+		logger.Warn("redis queue init failed, /queues stats will show depth=0", "err", err)
+		redisQ = nil
+	}
+	if redisQ != nil {
+		defer redisQ.Close()
+	}
+
+	// ── 6b. Rate limiter (shared with queue handler for /stats token reporting) ─
+	rateLimiter := scheduler.NewQueueRateLimiter(map[string]scheduler.BucketConfig{
+		"orion:queue:high":    {RatePerSec: cfg.Queue.High.RatePerSec, Burst: cfg.Queue.High.Burst},
+		"orion:queue:default": {RatePerSec: cfg.Queue.Default.RatePerSec, Burst: cfg.Queue.Default.Burst},
+		"orion:queue:low":     {RatePerSec: cfg.Queue.Low.RatePerSec, Burst: cfg.Queue.Low.Burst},
+	})
+
 	// ── 7. gRPC server [Phase 7] ──────────────────────────────────────────────
 	// InstrumentedStore wraps pgStore and publishes job events to the broadcaster
 	// on every state transition (running, completed, failed). The worker pool
@@ -128,6 +154,17 @@ func main() {
 	mux.HandleFunc("GET /pipelines", pipelineHandler.ListPipelines)
 	mux.HandleFunc("GET /pipelines/{id}", pipelineHandler.GetPipeline)
 	mux.HandleFunc("GET /pipelines/{id}/jobs", pipelineHandler.GetPipelineJobs)
+
+	// ── Phase 8: queue config routes ─────────────────────────────────────────
+	// GET  /queues                  → list all queue configurations
+	// GET  /queues/{name}           → get config for one queue
+	// PUT  /queues/{name}           → update queue config (live reload, no restart)
+	// GET  /queues/{name}/stats     → real-time depth + token availability
+	queueHandler := handler.NewQueueHandler(pgStore, rateLimiter, redisQ, logger)
+	mux.HandleFunc("GET /queues", queueHandler.ListQueues)
+	mux.HandleFunc("GET /queues/{name}", queueHandler.GetQueue)
+	mux.HandleFunc("PUT /queues/{name}", queueHandler.UpdateQueue)
+	mux.HandleFunc("GET /queues/{name}/stats", queueHandler.GetQueueStats)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
