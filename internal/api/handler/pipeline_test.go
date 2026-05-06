@@ -147,6 +147,17 @@ func (f *pipelineFakeStore) ListActiveWorkers(_ context.Context, _ time.Duration
 }
 func (f *pipelineFakeStore) DeregisterWorker(_ context.Context, _ string) error { return nil }
 
+// QueueConfigStore stubs — Phase 8 (not exercised by pipeline handler tests)
+func (f *pipelineFakeStore) ListQueueConfigs(_ context.Context) ([]*store.QueueConfig, error) {
+	return nil, nil
+}
+func (f *pipelineFakeStore) GetQueueConfig(_ context.Context, _ string) (*store.QueueConfig, error) {
+	return nil, store.ErrNotFound
+}
+func (f *pipelineFakeStore) UpsertQueueConfig(_ context.Context, cfg *store.QueueConfig) (*store.QueueConfig, error) {
+	return cfg, nil
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Test helper — minimal valid DAG
 // ─────────────────────────────────────────────────────────────────────────────
