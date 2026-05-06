@@ -121,6 +121,17 @@ func (f *fakeStore) GetPipelineJobs(_ context.Context, pipelineID uuid.UUID) ([]
 	return f.pipelineJobs[pipelineID], nil
 }
 
+// QueueConfigStore stubs — Phase 8 (not exercised by pipeline advancement tests)
+func (f *fakeStore) ListQueueConfigs(_ context.Context) ([]*store.QueueConfig, error) {
+	return nil, nil
+}
+func (f *fakeStore) GetQueueConfig(_ context.Context, _ string) (*store.QueueConfig, error) {
+	return nil, store.ErrNotFound
+}
+func (f *fakeStore) UpsertQueueConfig(_ context.Context, cfg *store.QueueConfig) (*store.QueueConfig, error) {
+	return cfg, nil
+}
+
 // ── Minimal JobStore ───────────────────────────────────────────────────────────
 
 func (f *fakeStore) CreateJob(_ context.Context, job *domain.Job) (*domain.Job, error) {
