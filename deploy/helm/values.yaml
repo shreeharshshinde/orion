@@ -1,0 +1,142 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Global settings
+# ─────────────────────────────────────────────────────────────────────────────
+global:
+  env: production
+  logLevel: info
+  imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# API Server
+# ─────────────────────────────────────────────────────────────────────────────
+api:
+  replicaCount: 3
+  image:
+    repository: ghcr.io/shreeharshshinde/orion/orion-api
+    tag: ""          # defaults to Chart.AppVersion
+    pullPolicy: IfNotPresent
+  httpPort: 8080
+  grpcPort: 9090
+  metricsPort: 9091
+  service:
+    type: ClusterIP
+    annotations: {}
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  autoscaling:
+    enabled: false
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Scheduler
+# ─────────────────────────────────────────────────────────────────────────────
+scheduler:
+  replicaCount: 3       # 3 pods; only 1 active via PG advisory lock
+  image:
+    repository: ghcr.io/shreeharshshinde/orion/orion-scheduler
+    tag: ""
+    pullPolicy: IfNotPresent
+  metricsPort: 9092
+  batchSize: 50
+  intervalSeconds: "2s"
+  orphanIntervalSeconds: "30s"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Worker
+# ─────────────────────────────────────────────────────────────────────────────
+worker:
+  replicaCount: 5
+  image:
+    repository: ghcr.io/shreeharshshinde/orion/orion-worker
+    tag: ""
+    pullPolicy: IfNotPresent
+  metricsPort: 9093
+  concurrency: 10
+  shutdownTimeoutSeconds: 60
+  k8sJobNamespace: orion-jobs
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 50
+    targetQueueDepthPerWorker: "5"
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Database (PostgreSQL)
+# ─────────────────────────────────────────────────────────────────────────────
+database:
+  dsn: ""
+  existingSecret: ""
+  maxConns: 25
+  minConns: 2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Redis
+# ─────────────────────────────────────────────────────────────────────────────
+redis:
+  addr: "redis-master:6379"
+  password: ""
+  existingSecret: ""
+  db: 0
+  poolSize: 10
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Queue rate limiting (Phase 8)
+# ─────────────────────────────────────────────────────────────────────────────
+queues:
+  high:
+    maxConcurrent: 8
+    weight: "0.8"
+    ratePerSec: 100
+    burst: 20
+  default:
+    maxConcurrent: 6
+    weight: "0.6"
+    ratePerSec: 50
+    burst: 10
+  low:
+    maxConcurrent: 2
+    weight: "0.2"
+    ratePerSec: 10
+    burst: 5
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Observability (Phase 6)
+# ─────────────────────────────────────────────────────────────────────────────
+observability:
+  otlpEndpoint: "jaeger-collector:4317"
+  tracingSampleRate: "0.1"
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    additionalLabels: {}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Kubernetes job namespace (for Phase 4 GPU pods)
+# ─────────────────────────────────────────────────────────────────────────────
+jobNamespace:
+  create: true
+  name: orion-jobs
