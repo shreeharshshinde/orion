@@ -1,0 +1,17 @@
+apiVersion: v2
+name: orion
+description: Production-grade distributed ML job orchestrator
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - ml
+  - jobs
+  - orchestrator
+  - kubernetes
+maintainers:
+  - name: Shreeharsh Shinde
+    email: shindeshreeharsh157@gmail.com
+home: https://github.com/shreeharshshinde/orion
+sources:
+  - https://github.com/shreeharshshinde/orion
