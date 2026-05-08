@@ -1,0 +1,49 @@
+{{- if .Values.worker.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "orion.fullname" . }}-worker-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "orion.fullname" . }}-worker
+  minReplicas: {{ .Values.worker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.worker.autoscaling.maxReplicas }}
+  metrics:
+    # Scale on Prometheus metric: total queue depth / workers
+    # Requires prometheus-adapter installed in the cluster
+    - type: External
+      external:
+        metric:
+          name: orion_queue_depth_per_worker
+          selector:
+            matchLabels:
+              namespace: {{ .Release.Namespace }}
+        target:
+          type: AverageValue
+          averageValue: {{ .Values.worker.autoscaling.targetQueueDepthPerWorker }}
+    # Fallback: scale on CPU utilization
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+{{- end }}
