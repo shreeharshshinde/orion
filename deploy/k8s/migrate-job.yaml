@@ -1,0 +1,65 @@
+# deploy/k8s/migrate-job.yaml
+# One-time Kubernetes Job to run database migrations.
+#
+# Usage:
+#   kubectl apply -f deploy/k8s/migrate-job.yaml -n <namespace>
+#   kubectl wait --for=condition=complete job/orion-migrate --timeout=120s -n <namespace>
+#   kubectl delete -f deploy/k8s/migrate-job.yaml -n <namespace>
+#
+# The job uses golang-migrate to apply all pending SQL migrations from
+# internal/store/migrations/ which must be baked into the image or
+# mounted via a ConfigMap/volume.
+#
+# For production, build a dedicated migrate image or use an initContainer
+# in the API deployment that runs migrations before the API starts.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: orion-migrate
+  labels:
+    app.kubernetes.io/name: orion
+    app.kubernetes.io/component: migrate
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: orion
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: migrate
+          # Use the API image — it contains the compiled binary which
+          # can be invoked with a -migrate flag, or use a dedicated
+          # migrate image with golang-migrate installed.
+          # Replace with your actual registry/image:tag.
+          image: ghcr.io/shreeharshshinde/orion/orion-api:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /orion-api
+            - -migrate
+          env:
+            - name: ORION_DATABASE_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: orion-secrets
+                  key: ORION_DATABASE_DSN
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
