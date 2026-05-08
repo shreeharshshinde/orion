@@ -1,0 +1,69 @@
+{{- if .Values.jobNamespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.jobNamespace.name }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+{{- end }}
+# ServiceAccount for the API server (no K8s Job permissions needed)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "orion.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+---
+# ServiceAccount for the scheduler (no K8s Job permissions needed)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "orion.fullname" . }}-scheduler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+---
+# ServiceAccount for the worker (needs to create/watch/delete K8s Jobs)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "orion.fullname" . }}-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+---
+# ClusterRole: permissions to manage K8s Jobs across namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "orion.fullname" . }}-job-manager
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "orion.fullname" . }}-job-manager-binding
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "orion.fullname" . }}-worker
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+  name: {{ include "orion.fullname" . }}-job-manager
