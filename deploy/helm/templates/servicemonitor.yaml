@@ -1,0 +1,22 @@
+{{- if .Values.observability.serviceMonitor.enabled }}
+# Requires prometheus-operator (kube-prometheus-stack) installed.
+# Tells Prometheus to scrape all three Orion services automatically.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "orion.fullname" . }}
+  namespace: {{ .Values.observability.serviceMonitor.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+    {{- with .Values.observability.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "orion.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+{{- end }}
