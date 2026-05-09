@@ -123,10 +123,56 @@ run-worker: ## Run a worker locally
 
 ## ─── Docker ──────────────────────────────────────────────────────────────────
 
+REGISTRY ?= ghcr.io/shreeharshshinde/orion
+
 docker-build: ## Build all service Docker images
-	@docker build -f deploy/docker/Dockerfile.api -t orion-api:$(VERSION) .
-	@docker build -f deploy/docker/Dockerfile.scheduler -t orion-scheduler:$(VERSION) .
-	@docker build -f deploy/docker/Dockerfile.worker -t orion-worker:$(VERSION) .
+	@docker build -f deploy/docker/Dockerfile.api --build-arg VERSION=$(VERSION) -t orion-api:$(VERSION) .
+	@docker build -f deploy/docker/Dockerfile.scheduler --build-arg VERSION=$(VERSION) -t orion-scheduler:$(VERSION) .
+	@docker build -f deploy/docker/Dockerfile.worker --build-arg VERSION=$(VERSION) -t orion-worker:$(VERSION) .
+
+docker-push: docker-build ## Build and push all images to registry
+	@docker tag orion-api:$(VERSION) $(REGISTRY)/orion-api:$(VERSION)
+	@docker tag orion-scheduler:$(VERSION) $(REGISTRY)/orion-scheduler:$(VERSION)
+	@docker tag orion-worker:$(VERSION) $(REGISTRY)/orion-worker:$(VERSION)
+	@docker push $(REGISTRY)/orion-api:$(VERSION)
+	@docker push $(REGISTRY)/orion-scheduler:$(VERSION)
+	@docker push $(REGISTRY)/orion-worker:$(VERSION)
+	@echo "Pushed $(REGISTRY)/*:$(VERSION)"
+
+## ─── Helm ────────────────────────────────────────────────────────────────────
+
+HELM_CHART   := ./deploy/helm
+HELM_RELEASE ?= orion
+HELM_NS      ?= ml-platform
+
+helm-lint: ## Lint the Helm chart
+	@helm lint $(HELM_CHART)
+
+helm-template: ## Render Helm templates to stdout (dry-run)
+	@helm template $(HELM_RELEASE) $(HELM_CHART) \
+		--set database.dsn="postgres://orion:orion@postgres:5432/orion" \
+		--namespace $(HELM_NS)
+
+helm-install: ## Install Orion via Helm (requires DB_DSN env var)
+	@helm install $(HELM_RELEASE) $(HELM_CHART) \
+		--namespace $(HELM_NS) \
+		--create-namespace \
+		--set database.dsn="$(DB_DSN)" \
+		--set redis.addr="$(REDIS_ADDR)"
+
+helm-upgrade: ## Upgrade an existing Helm release
+	@helm upgrade $(HELM_RELEASE) $(HELM_CHART) \
+		--namespace $(HELM_NS) \
+		--reuse-values \
+		--set api.image.tag=$(VERSION) \
+		--set scheduler.image.tag=$(VERSION) \
+		--set worker.image.tag=$(VERSION)
+
+helm-uninstall: ## Uninstall the Helm release
+	@helm uninstall $(HELM_RELEASE) --namespace $(HELM_NS)
+
+helm-status: ## Show Helm release status
+	@helm status $(HELM_RELEASE) --namespace $(HELM_NS)
 
 ## ─── Utility ─────────────────────────────────────────────────────────────────
 
