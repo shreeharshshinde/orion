@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --background: 200 100% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --muted: 196 70% 95%;
+  --muted-foreground: 215 16% 47%;
+  --primary: 199 95% 39%;
+  --primary-foreground: 0 0% 100%;
+  --border: 197 52% 88%;
+  --input: 197 52% 88%;
+  --ring: 188 86% 43%;
+  --success: 160 84% 39%;
+  --warning: 38 92% 50%;
+  --danger: 0 84% 60%;
+  --aqua: 188 86% 43%;
+}
+
+.dark {
+  --background: 204 73% 9%;
+  --foreground: 195 100% 95%;
+  --card: 202 66% 13%;
+  --card-foreground: 195 100% 95%;
+  --muted: 201 64% 17%;
+  --muted-foreground: 198 35% 66%;
+  --primary: 195 91% 48%;
+  --primary-foreground: 204 73% 9%;
+  --border: 199 61% 23%;
+  --input: 199 61% 23%;
+  --ring: 188 86% 43%;
+  --success: 160 84% 39%;
+  --warning: 38 92% 50%;
+  --danger: 0 84% 60%;
+  --aqua: 188 86% 43%;
+}
+
+* {
+  border-color: hsl(var(--border));
+  transition-property: color, background-color, border-color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at top left, rgba(6, 182, 212, 0.12), transparent 40rem),
+    radial-gradient(ellipse at bottom right, rgba(2, 132, 199, 0.06), transparent 40rem),
+    hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark body {
+  background:
+    radial-gradient(ellipse at top left, rgba(6, 182, 212, 0.14), transparent 40rem),
+    radial-gradient(ellipse at bottom right, rgba(2, 132, 199, 0.08), transparent 40rem),
+    hsl(var(--background));
+}
+
+::selection {
+  background: rgba(6, 182, 212, 0.22);
+}
+
+/* Smooth table row transitions */
+tbody tr {
+  transition: background-color 120ms ease;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
