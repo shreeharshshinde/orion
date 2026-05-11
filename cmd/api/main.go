@@ -148,6 +148,10 @@ func main() {
 	mux.HandleFunc("GET /jobs", jobHandler.ListJobs)
 	mux.HandleFunc("GET /jobs/{id}", jobHandler.GetJob)
 	mux.HandleFunc("GET /jobs/{id}/executions", jobHandler.GetExecutions)
+	mux.HandleFunc("POST /jobs/{id}/cancel", jobHandler.CancelJob)
+
+	workerHandler := handler.NewWorkerHandler(pgStore, logger)
+	mux.HandleFunc("GET /workers", workerHandler.ListWorkers)
 
 	pipelineHandler := handler.NewPipelineHandler(pgStore, logger)
 	mux.HandleFunc("POST /pipelines", pipelineHandler.CreatePipeline)
