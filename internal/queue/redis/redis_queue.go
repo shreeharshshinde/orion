@@ -295,6 +295,65 @@ func (r *RedisQueue) StartQueueDepthPoller(ctx context.Context, queueNames []str
 	}()
 }
 
+// StartScheduledSweeper promotes jobs from the sorted set orion:queue:scheduled
+// into their target Redis stream when their scheduled_at time has arrived.
+//
+// The sorted set score is the Unix timestamp of scheduled_at. Every second we
+// call ZRANGEBYSCORE with max=NOW, unmarshal each member as a domain.Job,
+// XADD it to the correct stream, then ZREM it from the sorted set.
+//
+// Call in a goroutine: go q.StartScheduledSweeper(ctx)
+func (r *RedisQueue) StartScheduledSweeper(ctx context.Context) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			r.sweepScheduled(ctx)
+		}
+	}
+}
+
+func (r *RedisQueue) sweepScheduled(ctx context.Context) {
+	now := float64(time.Now().Unix())
+
+	members, err := r.client.ZRangeByScore(ctx, queue.QueueScheduled, &redis.ZRangeBy{
+		Min: "-inf",
+		Max: fmt.Sprintf("%f", now),
+	}).Result()
+	if err != nil || len(members) == 0 {
+		return
+	}
+
+	for _, member := range members {
+		var job domain.Job
+		if err := json.Unmarshal([]byte(member), &job); err != nil {
+			r.logger.Error("scheduled sweeper: failed to unmarshal job", "err", err)
+			// Remove malformed entry so it doesn't block forever
+			_ = r.client.ZRem(ctx, queue.QueueScheduled, member)
+			continue
+		}
+
+		streamName := r.streamForQueue(job.QueueName)
+		if err := r.client.XAdd(ctx, &redis.XAddArgs{
+			Stream: streamName,
+			Values: map[string]any{
+				"job_id":  job.ID.String(),
+				"payload": member,
+			},
+		}).Err(); err != nil {
+			r.logger.Error("scheduled sweeper: failed to enqueue job", "job_id", job.ID, "err", err)
+			continue
+		}
+
+		_ = r.client.ZRem(ctx, queue.QueueScheduled, member)
+		r.logger.Info("promoted scheduled job", "job_id", job.ID, "queue", job.QueueName)
+	}
+}
+
 // streamForQueue maps logical queue names to Redis stream keys.
 func (r *RedisQueue) streamForQueue(name string) string {
 	switch name {
