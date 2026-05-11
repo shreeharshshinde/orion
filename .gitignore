@@ -1,0 +1,25 @@
+# Compiled binaries
+/api
+/scheduler
+/worker
+/build/
+
+# Test artifacts
+coverage.out
+coverage.html
+
+# Environment
+.env
+.env.local
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Go
+vendor/
