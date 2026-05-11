@@ -236,9 +236,45 @@ func (h *JobHandler) GetExecutions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Validation
-// ─────────────────────────────────────────────────────────────────────────────
+// CancelJob handles POST /jobs/{id}/cancel.
+// Valid from queued or scheduled status only — running jobs cannot be cancelled via API.
+func (h *JobHandler) CancelJob(w http.ResponseWriter, r *http.Request) {
+	id, err := parseJobID(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid job ID: must be a UUID")
+		return
+	}
+
+	job, err := h.store.GetJob(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "job not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	if !job.CanTransitionTo(domain.JobStatusCancelled) {
+		writeError(w, http.StatusConflict, "job cannot be cancelled from status: "+string(job.Status))
+		return
+	}
+
+	if err := h.store.TransitionJobState(r.Context(), id, job.Status, domain.JobStatusCancelled); err != nil {
+		if errors.Is(err, store.ErrStateConflict) {
+			writeError(w, http.StatusConflict, "job status changed concurrently, please retry")
+			return
+		}
+		h.logger.Error("failed to cancel job", "id", id, "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	job.Status = domain.JobStatusCancelled
+	writeJSON(w, http.StatusOK, job)
+}
+
+
 
 func validateSubmitRequest(req *SubmitJobRequest) error {
 	if req.Name == "" {
