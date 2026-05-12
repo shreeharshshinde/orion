@@ -1,5 +1,7 @@
 <div align="center">
 
+<img width="400"  alt="Orion-Icon" src="https://github.com/user-attachments/assets/667e235d-8703-4fbd-82cd-e14223d93c24" />
+
 # Orion
 
 **Distributed ML job orchestrator for Kubernetes**
