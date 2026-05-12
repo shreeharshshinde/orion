@@ -1,12 +1,43 @@
-# Orion — Distributed ML Job Orchestrator
+<div align="center">
 
-Orion is a production-grade distributed job orchestration platform written in Go. It schedules, executes, and monitors machine learning workloads on Kubernetes.
+<img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go Version">
+<img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square" alt="License">
+<img src="https://img.shields.io/badge/Kubernetes-compatible-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Kubernetes">
+<img src="https://img.shields.io/badge/OpenTelemetry-instrumented-f5a800?style=flat-square&logo=opentelemetry&logoColor=white" alt="OpenTelemetry">
+<img src="https://img.shields.io/badge/gRPC-streaming-244c5a?style=flat-square&logo=grpc" alt="gRPC">
+<img src="https://img.shields.io/badge/status-beta-orange?style=flat-square" alt="Status">
 
-Designed to demonstrate senior-level backend engineering: distributed systems, Go concurrency, observability, and cloud-native architecture.
+# Orion
+
+**Distributed ML Job Orchestrator for Kubernetes**
+
+Orion schedules, executes, and monitors machine learning workloads on Kubernetes.  
+Priority queues · At-least-once delivery · DAG pipelines · Full observability stack.
+
+[Getting Started](#getting-started) · [Architecture](#architecture) · [API Reference](#api-reference) · [Deployment](#deployment) · [Contributing](CONTRIBUTING.md)
+
+</div>
 
 ---
 
-## System Architecture
+## Overview
+
+Orion is a cloud-native job orchestration platform built for ML infrastructure teams. It provides a durable, observable execution layer between your training pipelines and Kubernetes — handling scheduling, retries, backpressure, and real-time status streaming so your application code doesn't have to.
+
+**Core capabilities:**
+
+- **Priority scheduling** — three queues (`high`, `default`, `low`) with weighted dispatch and per-queue rate limiting
+- **At-least-once delivery** — Redis Streams consumer groups with Pending Entry List (PEL) tracking; no job is silently dropped
+- **Kubernetes-native execution** — launches K8s Jobs via `client-go`; supports GPU resource requests, custom namespaces, and service accounts
+- **DAG pipelines** — define multi-step workflows with dependency graphs; automatic topological advancement and cascade-cancel on failure
+- **Real-time streaming** — gRPC `WatchJob` / `WatchPipeline` driven by PostgreSQL `LISTEN/NOTIFY`; zero polling overhead
+- **Full observability** — OpenTelemetry traces on every layer, Prometheus metrics, structured `slog` JSON logs with `trace_id` correlation
+- **Idempotent submission** — clients retry safely; duplicate submissions return the original job
+- **Graceful shutdown** — `SIGTERM` drains in-flight jobs before exit; no mid-execution kills
+
+---
+
+## Architecture
 
 ```mermaid
 graph TD
@@ -35,19 +66,17 @@ graph TD
         QD["orion:queue:default"]
         QL["orion:queue:low"]
         QDL["orion:queue:dead"]
-        QS[("orion:queue:scheduled\nSorted Set")]
     end
 
     subgraph WP ["Worker Pool"]
         DQ["Dequeue Loop"]
         CH["jobCh (buffered)"]
         W1["Worker 1"]
-        W2["Worker 2"]
-        WN["Worker N"]
+        W2["Worker N"]
 
         subgraph EX ["Executor Interface"]
-            IE["InlineExecutor\n(Go handler)"]
-            KE["KubernetesExecutor\n(client-go)"]
+            IE["InlineExecutor"]
+            KE["KubernetesExecutor"]
         end
     end
 
@@ -57,32 +86,30 @@ graph TD
     end
 
     subgraph OBS ["Observability"]
-        PR["Prometheus\n:9091/metrics"]
-        JG["Jaeger\n:16686"]
-        GR["Grafana\n:3000"]
-        OT["OpenTelemetry\nCollector"]
+        PR["Prometheus :9091"]
+        JG["Jaeger :16686"]
+        GR["Grafana :3000"]
+        OT["OpenTelemetry Collector"]
     end
 
     Client -->|"POST /jobs"| AH
     AH --> AV
     AV -->|"INSERT job"| JT
-    AH -->|"200 job_id"| Client
+    AH -->|"201 job_id"| Client
 
     LE -->|"pg_try_advisory_lock"| DB
     SD -->|"SELECT queued jobs"| JT
-    SD -->|"UPDATE status=scheduled"| JT
+    SD -->|"UPDATE status=scheduled (CAS)"| JT
     SD -->|"XADD"| QD
     OR -->|"reclaim stale running jobs"| JT
     RP -->|"promote failed → queued"| JT
 
-    DQ -->|"XREADGROUP"| QD
-    DQ -->|"XREADGROUP"| QH
-    DQ -->|"XREADGROUP"| QL
+    DQ -->|"XREADGROUP"| QD & QH & QL
     DQ --> CH
-    CH --> W1 & W2 & WN
+    CH --> W1 & W2
 
-    W1 & W2 & WN --> IE
-    W1 & W2 & WN --> KE
+    W1 & W2 --> IE
+    W1 & W2 --> KE
     KE -->|"Create Job"| KJ
     KJ --> KP
 
@@ -90,9 +117,7 @@ graph TD
     W2 -->|"Heartbeat"| WT
 
     WP -->|"metrics"| PR
-    API -->|"traces"| OT
-    WP -->|"traces"| OT
-    SCH -->|"traces"| OT
+    API & WP & SCH -->|"spans"| OT
     OT --> JG
     PR --> GR
 
@@ -104,289 +129,219 @@ graph TD
     style K8S fill:#0f3460,color:#fff,stroke:#3b82f6
     style OBS fill:#2d2000,color:#fff,stroke:#f59e0b
 ```
-<img width="2468" height="2019" alt="image" src="https://github.com/user-attachments/assets/451b8db7-eb89-4ae0-84b8-86597aefd788" />
 
----
+<img width="2468" height="2019" alt="Orion architecture diagram" src="https://github.com/user-attachments/assets/451b8db7-eb89-4ae0-84b8-86597aefd788" />
 
-## Job Lifecycle State Machine
+### Job Lifecycle
 
 ```mermaid
 stateDiagram-v2
     direction LR
-
     [*] --> queued : submit job
-
-    queued --> scheduled : scheduler dispatches\n(CAS lock acquired)
+    queued --> scheduled : scheduler dispatches (CAS)
     queued --> cancelled : client cancels
-
     scheduled --> running : worker claims job
-    scheduled --> queued : scheduler rollback\n(enqueue failure)
+    scheduled --> queued : scheduler rollback
     scheduled --> cancelled : client cancels
-
     running --> completed : execution success
-    running --> failed : execution error\nor deadline exceeded
-
-    failed --> retrying : attempt < max_retries\n& next_retry_at elapsed
+    running --> failed : error or deadline exceeded
+    failed --> retrying : attempt < max_retries
     failed --> dead : attempt >= max_retries
-
-    retrying --> queued : re-enqueued\nwith backoff delay
-
+    retrying --> queued : re-enqueued with backoff
     completed --> [*]
     dead --> [*]
     cancelled --> [*]
+```
 
-    note right of running
-        Worker heartbeats every 15s.
-        Scheduler reclaims orphans
-        after 2x TTL with no heartbeat.
-    end note
+State transitions are **atomic CAS operations** (`UPDATE WHERE status = expected`). Concurrent schedulers and workers cannot double-claim a job.
 
-    note right of failed
-        Retry delay uses full-jitter
-        exponential backoff.
-        Max delay: 30 minutes.
-    end note
+### Retry & Backoff
+
+Failed jobs use **full-jitter exponential backoff**: `delay = random(0, min(cap, base × 2^attempt))`. This prevents thundering herds during retry storms. Dead jobs (exhausted retries) are moved to `orion:queue:dead` for manual inspection or replay.
+
+### Backpressure
+
+The worker pool's `jobCh` channel capacity equals `Concurrency`. When all workers are busy, the dequeue goroutine blocks on send — stopping Redis reads. No jobs are prefetched beyond what can be immediately executed.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+| Requirement | Version |
+|-------------|---------|
+| Go | 1.22+ |
+| Docker + Compose | v2+ |
+| `golang-migrate` | latest |
+
+```bash
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+```
+
+### Quickstart
+
+```bash
+# 1. Clone
+git clone https://github.com/shreeharshshinde/orion.git && cd orion
+
+# 2. Start infrastructure (Postgres, Redis, Jaeger, Prometheus, Grafana)
+make infra-up
+
+# 3. Apply schema migrations
+make migrate-up
+
+# 4. Run services (three terminals)
+make run-api
+make run-scheduler
+make run-worker
+```
+
+### Submit Your First Job
+
+```bash
+curl -X POST http://localhost:8080/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "train-resnet",
+    "type": "k8s_job",
+    "queue_name": "high",
+    "priority": 8,
+    "max_retries": 3,
+    "idempotency_key": "run-2026-001",
+    "payload": {
+      "kubernetes_spec": {
+        "image": "pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime",
+        "command": ["python", "train.py", "--epochs", "50"],
+        "namespace": "orion-jobs",
+        "resources": { "cpu": "4000m", "memory": "16Gi", "gpu": 1 }
+      }
+    }
+  }'
+```
+
+Watch it in real time via gRPC streaming:
+
+```bash
+grpcurl -plaintext -d '{"job_id": "<job_id>"}' \
+  localhost:9090 orion.v1.JobService/WatchJob
 ```
 
 ---
 
-## Request Flow: Job Submission
+## API Reference
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Client
-    participant API as API Server
-    participant PG as PostgreSQL
-    participant SCH as Scheduler
-    participant RD as Redis Streams
-    participant WK as Worker Pool
-    participant K8S as Kubernetes
+### HTTP REST
 
-    Client->>+API: POST /jobs {payload, idempotency_key}
-    API->>PG: SELECT job WHERE idempotency_key = ?
-    alt key already exists
-        PG-->>API: existing job row
-        API-->>Client: 200 OK {job_id, status}
-    else new job
-        API->>PG: INSERT job (status=queued)
-        PG-->>API: job row
-        API-->>-Client: 201 Created {job_id}
-    end
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/jobs` | Submit a job (idempotent) |
+| `GET` | `/jobs` | List jobs with filters |
+| `GET` | `/jobs/{id}` | Get job by ID |
+| `GET` | `/jobs/{id}/executions` | Get execution history |
+| `POST` | `/jobs/{id}/cancel` | Cancel a queued or running job |
+| `POST` | `/pipelines` | Create a DAG pipeline |
+| `GET` | `/pipelines/{id}` | Get pipeline status |
+| `GET` | `/pipelines/{id}/jobs` | Get pipeline node statuses |
+| `GET` | `/queues` | List queue configurations |
+| `PUT` | `/queues/{name}` | Update queue config (live reload) |
+| `GET` | `/queues/{name}/stats` | Queue depth + rate limiter state |
+| `GET` | `/healthz` | Liveness probe |
+| `GET` | `/readyz` | Readiness probe (checks DB) |
 
-    loop every 2s
-        SCH->>PG: SELECT jobs WHERE status=queued ORDER BY priority DESC
-        SCH->>PG: UPDATE status=scheduled WHERE status=queued (CAS)
-        SCH->>RD: XADD orion:queue:default {job}
-    end
+### gRPC
 
-    WK->>RD: XREADGROUP (blocks until message)
-    RD-->>WK: job message + delivery tag
-    WK->>PG: UPDATE status=running, worker_id=?, started_at=NOW()
-    WK->>PG: INSERT job_executions (attempt, worker_id)
+Service definition: [`proto/orion/v1/jobs.proto`](proto/orion/v1/jobs.proto)
 
-    alt type = k8s_job
-        WK->>K8S: Create Job (client-go)
-        K8S-->>WK: Job running / completed
-    else type = inline
-        WK->>WK: Execute registered handler
-    end
+| RPC | Type | Description |
+|-----|------|-------------|
+| `SubmitJob` | Unary | Submit a job |
+| `GetJob` | Unary | Get job by ID |
+| `WatchJob` | Server-streaming | Stream status events until terminal state |
+| `WatchPipeline` | Server-streaming | Stream pipeline events until terminal state |
 
-    alt success
-        WK->>PG: UPDATE status=completed, completed_at=NOW()
-        WK->>RD: XACK (remove from PEL)
-    else failure
-        WK->>PG: UPDATE status=failed, error_message=?, attempt++
-        note over WK: NACK — message stays in PEL\nfor visibility timeout
-    end
-```
+`WatchJob` is driven by PostgreSQL `LISTEN/NOTIFY` — every `TransitionJobState` call fires `pg_notify('orion_job_events', ...)`, which the in-process notifier receives and fans out to subscribers. No polling.
 
 ---
 
-## Worker Pool Concurrency Model
+## DAG Pipelines
 
-```mermaid
-graph LR
-    subgraph DQ ["Dequeue Goroutines (per queue)"]
-        D1["Queue: high\nXREADGROUP"]
-        D2["Queue: default\nXREADGROUP"]
-        D3["Queue: low\nXREADGROUP"]
-    end
+Define multi-step workflows as a directed acyclic graph. Orion advances nodes topologically, launching each job only when all its dependencies have completed.
 
-    CH["jobCh\nbuffered channel\ncap = Concurrency\n\n← backpressure boundary"]
-
-    subgraph WP ["Worker Goroutines"]
-        W1["Worker 1"]
-        W2["Worker 2"]
-        W3["Worker 3"]
-        WN["Worker N"]
-    end
-
-    subgraph EX ["Executor"]
-        IE["InlineExecutor"]
-        KE["KubernetesExecutor"]
-    end
-
-    D1 -->|"send blocks when full"| CH
-    D2 -->|"send blocks when full"| CH
-    D3 -->|"send blocks when full"| CH
-
-    CH -->|"receive"| W1 & W2 & W3 & WN
-
-    W1 & W2 & W3 & WN --> IE
-    W1 & W2 & W3 & WN --> KE
-
-    style CH fill:#7f1d1d,color:#fff,stroke:#ef4444
-    style DQ fill:#1a3d2b,color:#fff,stroke:#4caf50
-    style WP fill:#1e3a5f,color:#fff,stroke:#4a90d9
-    style EX fill:#3b1f5e,color:#fff,stroke:#a855f7
+```json
+{
+  "name": "resnet-training-pipeline",
+  "dag_spec": {
+    "nodes": [
+      { "id": "preprocess", "job_template": { "name": "preprocess-data", "type": "k8s_job" } },
+      { "id": "train",      "job_template": { "name": "train-resnet",    "type": "k8s_job" }, "depends_on": ["preprocess"] },
+      { "id": "evaluate",   "job_template": { "name": "evaluate-model",  "type": "k8s_job" }, "depends_on": ["train"] }
+    ]
+  }
+}
 ```
 
-> **Backpressure:** `jobCh` capacity equals `Concurrency`. When all workers are busy, sending blocks the dequeue goroutine, which stops pulling from Redis. No jobs are prefetched beyond what can be immediately worked on.
+If any node reaches `dead` status, downstream nodes are cascade-cancelled and the pipeline transitions to `failed`.
 
 ---
 
-## Retry & Backoff Strategy
+## Observability
 
-```mermaid
-flowchart TD
-    F["Job fails\n(execution error)"] --> IC{"attempt < max_retries?"}
+| Signal | Tool | Endpoint |
+|--------|------|----------|
+| Metrics | Prometheus + Grafana | `:9090` / `:3000` |
+| Traces | OpenTelemetry → Jaeger | `:16686` |
+| Logs | `slog` JSON (stdout) | — |
 
-    IC -->|No| DL["Move to Dead Letter\nstatus = dead\nXADD orion:queue:dead"]
-    IC -->|Yes| CA["Calculate next_retry_at\nFull-Jitter Backoff\n\ndelay = random(0, min(cap, base × 2^attempt))"]
+**Key metrics:**
 
-    CA --> ST["UPDATE jobs\nstatus = failed\nnext_retry_at = NOW() + delay\nattempt++"]
+| Metric | Type | Description |
+|--------|------|-------------|
+| `orion_jobs_submitted_total` | Counter | Jobs submitted, by queue and type |
+| `orion_job_duration_seconds` | Histogram | End-to-end job execution time |
+| `orion_queue_depth` | Gauge | Pending messages per queue |
+| `orion_worker_active_jobs` | Gauge | In-flight jobs per worker |
+| `orion_scheduler_cycle_duration_seconds` | Histogram | Scheduler dispatch loop latency |
 
-    ST --> PL["Scheduler polls every 2s:\nSELECT WHERE status=failed\nAND next_retry_at <= NOW()"]
-
-    PL --> RT["Transition:\nfailed → retrying → queued"]
-    RT --> EQ["Re-enqueue to Redis\nwith same priority"]
-    EQ --> RN["Worker picks up\nand executes again"]
-    RN --> F
-
-    DL --> NF["Dead jobs visible in\nGrafana + dead-letter stream\nfor manual inspection / replay"]
-
-    style F fill:#7f1d1d,color:#fff,stroke:#ef4444
-    style DL fill:#3b1f1f,color:#fff,stroke:#ef4444
-    style CA fill:#1a3d2b,color:#fff,stroke:#4caf50
-    style NF fill:#2d2000,color:#fff,stroke:#f59e0b
-```
+Every log line carries `trace_id`, `span_id`, `job_id`, and `worker_id` for correlation across signals.
 
 ---
 
-## Database Schema
+## Deployment
 
-```mermaid
-erDiagram
-    jobs {
-        uuid id PK
-        varchar idempotency_key UK
-        varchar name
-        varchar type
-        varchar queue_name
-        smallint priority
-        varchar status
-        jsonb payload
-        smallint max_retries
-        smallint attempt
-        varchar worker_id FK
-        text error_message
-        timestamptz scheduled_at
-        timestamptz deadline
-        timestamptz next_retry_at
-        timestamptz started_at
-        timestamptz completed_at
-        timestamptz created_at
-        timestamptz updated_at
-    }
+### Helm (Kubernetes)
 
-    job_executions {
-        uuid id PK
-        uuid job_id FK
-        smallint attempt
-        varchar worker_id
-        varchar status
-        timestamptz started_at
-        timestamptz finished_at
-        int exit_code
-        text logs_ref
-        text error
-        timestamptz created_at
-    }
-
-    workers {
-        varchar id PK
-        varchar hostname
-        text[] queue_names
-        int concurrency
-        int active_jobs
-        varchar status
-        timestamptz last_heartbeat
-        timestamptz registered_at
-    }
-
-    pipelines {
-        uuid id PK
-        varchar name
-        varchar status
-        jsonb dag_spec
-        timestamptz created_at
-        timestamptz updated_at
-        timestamptz completed_at
-    }
-
-    pipeline_jobs {
-        uuid pipeline_id FK
-        uuid job_id FK
-        varchar node_id
-        uuid[] depends_on
-    }
-
-    jobs ||--o{ job_executions : "has many attempts"
-    workers ||--o{ jobs : "executes"
-    pipelines ||--o{ pipeline_jobs : "contains nodes"
-    pipeline_jobs ||--|| jobs : "maps to"
+```bash
+helm install orion ./deploy/helm \
+  --namespace ml-platform \
+  --create-namespace \
+  --set database.dsn="postgres://orion:orion@postgres:5432/orion" \
+  --set redis.addr="redis:6379"
 ```
 
----
+See [`deploy/helm/`](deploy/helm/) for full values reference.
 
-## Observability Stack
+### Docker Compose (local / CI)
 
-```mermaid
-graph LR
-    subgraph Services ["Services"]
-        API["API Server"]
-        SCH["Scheduler"]
-        WK["Worker Pool"]
-    end
-
-    subgraph Metrics ["Metrics Pipeline"]
-        PR["Prometheus :9091\n\norion_jobs_submitted_total\norion_job_duration_seconds\norion_queue_depth\norion_worker_active_jobs\norion_scheduler_cycle_duration_seconds"]
-        GR["Grafana :3000\nDashboards & Alerts"]
-    end
-
-    subgraph Traces ["Tracing Pipeline"]
-        OT["OpenTelemetry SDK\n(per service)"]
-        JA["Jaeger :16686\nTrace Explorer"]
-    end
-
-    subgraph Logs ["Structured Logging"]
-        SL["slog JSON\ntrace_id + span_id\njob_id + worker_id\non every log line"]
-    end
-
-    API & SCH & WK -->|"counters / gauges / histograms"| PR
-    PR --> GR
-
-    API & SCH & WK -->|"spans"| OT
-    OT -->|"OTLP gRPC :4317"| JA
-
-    API & SCH & WK --> SL
-
-    style Metrics fill:#1a3d2b,color:#fff,stroke:#4caf50
-    style Traces fill:#1e3a5f,color:#fff,stroke:#4a90d9
-    style Logs fill:#2d2000,color:#fff,stroke:#f59e0b
-    style Services fill:#3b1f5e,color:#fff,stroke:#a855f7
+```bash
+make infra-up      # start all infrastructure
+make migrate-up    # apply schema
+make build         # compile all binaries
 ```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ORION_DATABASE_DSN` | — | PostgreSQL connection string |
+| `ORION_REDIS_ADDR` | `localhost:6379` | Redis address |
+| `ORION_HTTP_PORT` | `8080` | API server HTTP port |
+| `ORION_GRPC_PORT` | `9090` | API server gRPC port |
+| `ORION_WORKER_CONCURRENCY` | `10` | Max concurrent jobs per worker |
+| `ORION_OTLP_ENDPOINT` | `localhost:4317` | OpenTelemetry collector gRPC endpoint |
+| `ORION_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
+
+Full reference: [`.env.example`](.env.example)
 
 ---
 
@@ -399,112 +354,72 @@ orion/
 │   ├── scheduler/        # Scheduler entrypoint
 │   └── worker/           # Worker entrypoint
 ├── internal/
-│   ├── api/handler/      # HTTP handlers, DTOs
-│   ├── config/           # Environment-driven config
-│   ├── domain/           # Job, Worker, Pipeline types (zero external deps)
-│   ├── observability/    # OTel setup, Prometheus, structured logging
+│   ├── api/
+│   │   ├── grpc/         # gRPC server, Broadcaster, PG Notifier
+│   │   └── handler/      # HTTP handlers, middleware, DTOs
+│   ├── config/           # Environment-driven config (no viper, stdlib only)
+│   ├── domain/           # Core types: Job, Worker, Pipeline (zero deps)
+│   ├── k8s/              # Kubernetes Job launcher (client-go)
+│   ├── observability/    # OTel setup, Prometheus registry, slog
+│   ├── pipeline/         # DAG advancement engine
 │   ├── queue/            # Queue interface + Redis Streams implementation
-│   ├── scheduler/        # Dispatch loop, leader election, orphan reclaim
+│   ├── scheduler/        # Dispatch loop, leader election, orphan reclaimer
 │   ├── store/            # Store interface + PostgreSQL implementation
 │   │   └── migrations/   # SQL migration files (golang-migrate)
-│   ├── worker/           # Bounded worker pool, executor interface
-│   └── k8s/              # Kubernetes Job launcher (client-go)
+│   └── worker/           # Bounded worker pool, executor interface
 ├── pkg/
-│   └── retry/            # Exportable full-jitter backoff utilities
-├── proto/                # .proto definitions + generated gRPC code
+│   └── retry/            # Exportable full-jitter backoff (no internal deps)
+├── proto/orion/v1/       # .proto definitions + generated gRPC stubs
 ├── deploy/
-│   ├── helm/             # Helm chart for Kubernetes deployment
-│   └── docker/           # Per-service Dockerfiles
+│   ├── helm/             # Helm chart
+│   ├── docker/           # Per-service Dockerfiles
+│   ├── grafana/          # Dashboard + datasource provisioning
+│   └── prometheus/       # Scrape config
 ├── docs/
-│   └── adr/              # Architecture Decision Records
+│   ├── adr/              # Architecture Decision Records (ADR-001 – ADR-007)
+│   └── phases/           # Per-phase implementation notes
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── SECURITY.md
 ├── docker-compose.yml
 └── Makefile
 ```
 
 ---
 
-## Getting Started
+## Design Decisions
 
-### Prerequisites
-- Go 1.22+
-- Docker + Docker Compose
-- `golang-migrate` for schema migrations
+Seven Architecture Decision Records document the key choices. Summaries:
 
-### Local Development
-
-```bash
-# Start all infrastructure (Postgres, Redis, Jaeger, Prometheus, Grafana)
-make infra-up
-
-# Apply schema migrations
-make migrate-up
-
-# Run each service in a separate terminal
-make run-api
-make run-scheduler
-make run-worker
-```
-
-### Submit a Job
-
-```bash
-curl -X POST http://localhost:8080/jobs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "train-mnist",
-    "type": "k8s_job",
-    "queue_name": "default",
-    "priority": 7,
-    "max_retries": 3,
-    "idempotency_key": "run-2024-001",
-    "payload": {
-      "kubernetes_spec": {
-        "image": "pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime",
-        "command": ["python", "train.py"],
-        "namespace": "orion-jobs",
-        "resources": { "cpu": "2000m", "memory": "4Gi" }
-      }
-    }
-  }'
-```
-
-### Observability Endpoints
-
-| Service    | URL                                 |
-|------------|-------------------------------------|
-| API Server | http://localhost:8080               |
-| Prometheus | http://localhost:9090               |
-| Grafana    | http://localhost:3000 (admin/admin) |
-| Jaeger UI  | http://localhost:16686              |
+| ADR | Decision |
+|-----|----------|
+| [ADR-001](docs/adr/ADR-001-queue-design.md) | Redis Streams with consumer groups for at-least-once delivery |
+| [ADR-002](docs/adr/ADR-002-leader-election.md) | PostgreSQL advisory locks for scheduler leader election |
+| [ADR-003](docs/adr/ADR-003-cas-state-transitions.md) | CAS `UPDATE WHERE status = expected` for safe concurrent transitions |
+| [ADR-004](docs/adr/ADR-004-buffered-jobch-backpressure.md) | Buffered `jobCh` channel as the backpressure boundary |
+| [ADR-005](docs/adr/ADR-005-kubernetes-interface-testability.md) | Executor interface for K8s testability without a live cluster |
+| [ADR-006](docs/adr/ADR-006-k8s-backofflimit-restartpolicy.md) | K8s Job `backoffLimit=0` + `restartPolicy=Never` — Orion owns retries |
+| [ADR-007](docs/adr/ADR-007-jsonb-payload-dagspec.md) | JSONB for job payload and DAG spec — schema-free evolution |
 
 ---
 
-## Key Engineering Decisions
+## Contributing
 
-See `docs/adr/` for full Architecture Decision Records:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style, testing, and PR guidelines.
 
-- **ADR-001**: Redis Streams with consumer groups for at-least-once delivery
-- **ADR-002**: PostgreSQL advisory locks for scheduler leader election
-
-## Design Principles
-
-1. **State transitions are atomic CAS operations** — `UPDATE WHERE status = expected_status` prevents concurrent mutation from multiple workers or schedulers
-2. **Queue interface is abstract** — Redis can be swapped for NATS JetStream or Kafka without touching worker or scheduler logic
-3. **Full-jitter backoff** — `random(0, min(cap, base × 2^attempt))` prevents thundering herds during retry storms
-4. **Append-only execution log** — `job_executions` rows are never mutated; each attempt gets its own immutable record
-5. **Idempotency keys** — clients retry job submissions safely; duplicate submissions return the original job
-6. **Graceful shutdown** — `SIGTERM` stops accepting new work, drains in-flight jobs, then exits cleanly
+```bash
+make check              # fmt + vet + lint + unit tests
+make test-integration   # spins Docker infra, runs integration suite
+```
 
 ---
 
-## Development Roadmap
+## Security
 
-- [x] Phase 1: Domain types, interfaces, project structure
-- [ ] Phase 2: PostgreSQL store implementation (`internal/store/postgres/`)
-- [ ] Phase 3: Redis queue full implementation + PEL sweeper
-- [ ] Phase 4: Worker pool + inline executor
-- [ ] Phase 5: Kubernetes executor via client-go
-- [ ] Phase 6: Scheduler + leader election wiring
-- [ ] Phase 7: Observability instrumentation (spans on every layer)
-- [ ] Phase 8: DAG pipeline support
-- [ ] Phase 9: Helm chart + production hardening
+See [SECURITY.md](SECURITY.md) for the vulnerability disclosure policy and operator hardening guidance.
+
+---
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).
