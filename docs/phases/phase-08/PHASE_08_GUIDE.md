@@ -508,8 +508,8 @@ import (
     "context"
     "log/slog"
 
-    "github.com/shreeharsh-a/orion/internal/domain"
-    "github.com/shreeharsh-a/orion/internal/store"
+    "github.com/shreeharshshinde/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/store"
 )
 
 // QueueAllocation holds the dispatch plan for one scheduler tick.

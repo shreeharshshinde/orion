@@ -295,7 +295,7 @@ syntax = "proto3";
 
 package orion.v1;
 
-option go_package = "github.com/shreeharsh-a/orion/proto/orion/v1;orionv1";
+option go_package = "github.com/shreeharshshinde/orion/proto/orion/v1;orionv1";
 
 import "google/protobuf/timestamp.proto";
 
@@ -444,7 +444,7 @@ package grpc
 import (
     "sync"
 
-    orionv1 "github.com/shreeharsh-a/orion/proto/orion/v1"
+    orionv1 "github.com/shreeharshshinde/orion/proto/orion/v1"
 )
 
 // Broadcaster is a thread-safe, in-memory fan-out hub for job events.
@@ -558,10 +558,10 @@ import (
     "log/slog"
 
     "github.com/google/uuid"
-    "github.com/shreeharsh-a/orion/internal/domain"
-    "github.com/shreeharsh-a/orion/internal/observability"
-    "github.com/shreeharsh-a/orion/internal/store"
-    orionv1 "github.com/shreeharsh-a/orion/proto/orion/v1"
+    "github.com/shreeharshshinde/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/observability"
+    "github.com/shreeharshshinde/orion/internal/store"
+    orionv1 "github.com/shreeharshshinde/orion/proto/orion/v1"
 )
 
 const (

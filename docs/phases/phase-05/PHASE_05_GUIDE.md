@@ -367,8 +367,8 @@ import (
 
     "github.com/google/uuid"
     "github.com/jackc/pgx/v5"
-    "github.com/shreeharsh-a/orion/internal/domain"
-    "github.com/shreeharsh-a/orion/internal/store"
+    "github.com/shreeharshshinde/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/store"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -715,8 +715,8 @@ import (
     "log/slog"
 
     "github.com/google/uuid"
-    "github.com/shreeharsh-a/orion/internal/domain"
-    "github.com/shreeharsh-a/orion/internal/store"
+    "github.com/shreeharshshinde/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/store"
 )
 
 // Advancer holds the dependencies needed to advance pipelines.
@@ -1001,8 +1001,8 @@ import (
     "net/http"
 
     "github.com/google/uuid"
-    "github.com/shreeharsh-a/orion/internal/domain"
-    "github.com/shreeharsh-a/orion/internal/store"
+    "github.com/shreeharshshinde/orion/internal/domain"
+    "github.com/shreeharshshinde/orion/internal/store"
 )
 
 // PipelineHandler handles HTTP requests for pipeline CRUD operations.
@@ -1266,7 +1266,7 @@ The orphan ticker runs every 30 seconds — too slow for responsive pipeline exe
 
 ```go
 // Add to imports:
-// "github.com/shreeharsh-a/orion/internal/api/handler"
+// "github.com/shreeharshshinde/orion/internal/api/handler"
 
 // After job handler registration, add pipeline routes:
 pipelineHandler := handler.NewPipelineHandler(pgStore, logger)
@@ -1282,7 +1282,7 @@ mux.HandleFunc("GET /pipelines/{id}/jobs",    pipelineHandler.GetPipelineJobs)
 
 ```go
 // Add import:
-// "github.com/shreeharsh-a/orion/internal/pipeline"
+// "github.com/shreeharshshinde/orion/internal/pipeline"
 
 // After store creation:
 advancer := pipeline.NewAdvancer(pgStore, logger)

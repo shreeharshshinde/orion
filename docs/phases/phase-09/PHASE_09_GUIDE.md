@@ -257,7 +257,7 @@ ENTRYPOINT ["/orion-worker"]
 ```bash
 # Set version from git tag or SHA
 VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
-REGISTRY=ghcr.io/shreeharsh-a/orion
+REGISTRY=ghcr.io/shreeharshshinde/orion
 
 docker build -f deploy/docker/Dockerfile.api \
   --build-arg VERSION=$VERSION \
@@ -294,9 +294,9 @@ keywords:
   - kubernetes
 maintainers:
   - name: Shreeharsh Ambhore
-home: https://github.com/shreeharsh-a/orion
+home: https://github.com/shreeharshshinde/orion
 sources:
-  - https://github.com/shreeharsh-a/orion
+  - https://github.com/shreeharshshinde/orion
 ```
 
 ### `_helpers.tpl` — Shared name and label helpers
@@ -734,7 +734,7 @@ global:
   env: production
   logLevel: info
   imagePullSecrets: []
-  imageRegistry: ghcr.io/shreeharsh-a/orion
+  imageRegistry: ghcr.io/shreeharshshinde/orion
 
 nameOverride: ""
 fullnameOverride: ""
@@ -745,7 +745,7 @@ fullnameOverride: ""
 api:
   replicaCount: 3
   image:
-    repository: ghcr.io/shreeharsh-a/orion/orion-api
+    repository: ghcr.io/shreeharshshinde/orion/orion-api
     tag: ""          # defaults to Chart.AppVersion
     pullPolicy: IfNotPresent
   httpPort: 8080
@@ -773,7 +773,7 @@ api:
 scheduler:
   replicaCount: 3       # 3 pods; only 1 active via PG advisory lock
   image:
-    repository: ghcr.io/shreeharsh-a/orion/orion-scheduler
+    repository: ghcr.io/shreeharshshinde/orion/orion-scheduler
     tag: ""
     pullPolicy: IfNotPresent
   metricsPort: 9092
@@ -794,7 +794,7 @@ scheduler:
 worker:
   replicaCount: 5          # initial replica count
   image:
-    repository: ghcr.io/shreeharsh-a/orion/orion-worker
+    repository: ghcr.io/shreeharshshinde/orion/orion-worker
     tag: ""
     pullPolicy: IfNotPresent
   metricsPort: 9093

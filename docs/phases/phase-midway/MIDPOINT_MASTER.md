@@ -752,12 +752,12 @@ $PSQL "SELECT id, status, last_heartbeat FROM workers;"
 ```bash
 # Unit tests (no infrastructure needed)
 go test -race ./... -count=1
-# ok  github.com/shreeharsh-a/orion/internal/domain         0.003s
-# ok  github.com/shreeharsh-a/orion/internal/api/handler    0.005s
-# ok  github.com/shreeharsh-a/orion/internal/worker         0.012s
-# ok  github.com/shreeharsh-a/orion/internal/worker/k8s     0.018s
-# ok  github.com/shreeharsh-a/orion/internal/store/postgres  0.004s
-# ok  github.com/shreeharsh-a/orion/pkg/retry               0.003s
+# ok  github.com/shreeharshshinde/orion/internal/domain         0.003s
+# ok  github.com/shreeharshshinde/orion/internal/api/handler    0.005s
+# ok  github.com/shreeharshshinde/orion/internal/worker         0.012s
+# ok  github.com/shreeharshshinde/orion/internal/worker/k8s     0.018s
+# ok  github.com/shreeharshshinde/orion/internal/store/postgres  0.004s
+# ok  github.com/shreeharshshinde/orion/pkg/retry               0.003s
 
 # Integration tests (requires running postgres)
 go test -tags=integration -race ./internal/store/postgres/... -v

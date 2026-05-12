@@ -254,7 +254,7 @@ mux.HandleFunc("GET /pipelines/{id}/jobs",  pipelineHandler.GetPipelineJobs)
 
 Two additions:
 
-**New import:** `"github.com/shreeharsh-a/orion/internal/pipeline"`
+**New import:** `"github.com/shreeharshshinde/orion/internal/pipeline"`
 
 **New block before `scheduler.New()`:**
 
