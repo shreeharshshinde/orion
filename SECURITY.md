@@ -15,8 +15,8 @@ Older versions receive no security fixes. Please upgrade to the latest release.
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Report vulnerabilities by emailing **security@orion-project.dev** (or the
-maintainer directly via the email in their GitHub profile). Include:
+Report vulnerabilities by opening a [GitHub Security Advisory](https://github.com/shreeharshshinde/orion/security/advisories/new)
+(preferred) or emailing the maintainer directly via the email on their GitHub profile. Include:
 
 - A description of the vulnerability and its potential impact.
 - Steps to reproduce or a proof-of-concept (if safe to share).
