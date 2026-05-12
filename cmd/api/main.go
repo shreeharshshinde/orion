@@ -124,6 +124,13 @@ func main() {
 	broadcaster := grpcserver.NewBroadcaster()
 	instrumentedStore := grpcserver.NewInstrumentedStore(pgStore, broadcaster)
 
+	// PG LISTEN/NOTIFY notifier: receives pg_notify('orion_job_events', ...) fired
+	// by TransitionJobState and publishes to the broadcaster. This replaces the
+	// 500ms poll ticker in WatchJob, dropping streaming DB load to near-zero.
+	notifier := grpcserver.NewNotifier(cfg.Database.DSN, broadcaster, logger)
+	notifierCtx, notifierCancel := context.WithCancel(ctx)
+	go notifier.Run(notifierCtx)
+
 	grpcSrv := grpc.NewServer()
 	grpcserver.RegisterGRPCServer(grpcSrv, grpcserver.NewServer(instrumentedStore, broadcaster, logger))
 
@@ -216,6 +223,9 @@ func main() {
 
 	<-stop
 	logger.Info("shutdown signal received")
+
+	// Stop the PG notifier first so no new events are published during drain.
+	notifierCancel()
 
 	// Graceful shutdown: gRPC first (drains in-flight streams), then HTTP
 	grpcSrv.GracefulStop()
