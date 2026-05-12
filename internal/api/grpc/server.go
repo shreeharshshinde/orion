@@ -19,12 +19,6 @@ import (
 	orionv1 "github.com/shreeharshshinde/orion/proto/orion/v1"
 )
 
-const (
-	// pollInterval is how often WatchJob polls the DB when no broadcaster event
-	// arrives. Phase 8 replaces this with PG LISTEN/NOTIFY for sub-10ms latency.
-	pollInterval = 500 * time.Millisecond
-)
-
 // Server implements orionv1.JobServiceServer.
 type Server struct {
 	orionv1.UnimplementedJobServiceServer
@@ -124,11 +118,13 @@ func (s *Server) GetJob(ctx context.Context, req *orionv1.GetJobRequest) (*orion
 // WatchJob streams job status events until the job reaches a terminal state
 // or the client disconnects.
 //
-// Event delivery (Phase 7 — broadcaster + polling fallback):
+// Event delivery (PG LISTEN/NOTIFY driven):
 //  1. Send current status as synthetic first event.
-//  2. Subscribe to broadcaster for real-time events (fast path: <1ms).
-//  3. Poll DB every 500ms as fallback for missed broadcast events.
-//  4. Close stream on terminal state or client disconnect.
+//  2. Subscribe to broadcaster; the Notifier feeds it from PG LISTEN/NOTIFY.
+//  3. Close stream on terminal state or client disconnect.
+//
+// No DB polling: every status change fires pg_notify inside TransitionJobState,
+// which the Notifier receives and publishes to the broadcaster in <1 ms.
 func (s *Server) WatchJob(req *orionv1.WatchJobRequest, stream grpc.ServerStreamingServer[orionv1.JobEvent]) error {
 	ctx := stream.Context()
 
@@ -165,11 +161,6 @@ func (s *Server) WatchJob(req *orionv1.WatchJobRequest, stream grpc.ServerStream
 	ch, unsubscribe := s.broadcaster.Subscribe(id.String())
 	defer unsubscribe() // CRITICAL: prevents goroutine/channel leak
 
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
-
-	lastStatus := job.Status
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -185,34 +176,6 @@ func (s *Server) WatchJob(req *orionv1.WatchJobRequest, stream grpc.ServerStream
 			}
 			if isTerminalStatus(event.NewStatus) {
 				return nil
-			}
-			lastStatus = domain.JobStatus(event.NewStatus)
-
-		case <-ticker.C:
-			// Polling fallback: catch status changes missed by broadcaster
-			current, err := s.store.GetJob(ctx, id)
-			if err != nil {
-				s.logger.Warn("gRPC WatchJob: poll error", "job_id", id, "err", err)
-				continue
-			}
-			if current.Status != lastStatus {
-				event := &orionv1.JobEvent{
-					JobId:          id.String(),
-					JobName:        current.Name,
-					PreviousStatus: string(lastStatus),
-					NewStatus:      string(current.Status),
-					WorkerId:       current.WorkerID,
-					ErrorMessage:   current.ErrorMessage,
-					Attempt:        int32(current.Attempt),
-					Timestamp:      timestamppb.Now(),
-				}
-				if err := stream.Send(event); err != nil {
-					return err
-				}
-				lastStatus = current.Status
-				if current.IsTerminal() {
-					return nil
-				}
 			}
 		}
 	}

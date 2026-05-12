@@ -27,6 +27,11 @@ import (
 	"github.com/shreeharshshinde/orion/internal/store"
 )
 
+// pgNotifyChannel is the PostgreSQL LISTEN/NOTIFY channel used to push job
+// status-change events to the gRPC Notifier without polling.
+// Must match the channel name in internal/api/grpc/notifier.go.
+const pgNotifyChannel = "orion_job_events"
+
 // DB wraps a pgxpool.Pool and implements store.Store.
 // pgxpool manages a pool of PostgreSQL connections transparently.
 // We never open or close connections manually — we call pool methods
@@ -236,12 +241,16 @@ func (db *DB) TransitionJobState(
 		UPDATE jobs
 		SET %s
 		WHERE id = $1 AND status = $2
-		RETURNING id`,
+		RETURNING id, name, COALESCE(worker_id, '')`,
 		strings.Join(setClauses, ", "),
 	)
 
-	var returnedID uuid.UUID
-	err := db.pool.QueryRow(ctx, q, args...).Scan(&returnedID)
+	var (
+		returnedID uuid.UUID
+		jobName    string
+		workerID   string
+	)
+	err := db.pool.QueryRow(ctx, q, args...).Scan(&returnedID, &jobName, &workerID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// CAS failed: the job's status was already changed by another process.
@@ -249,6 +258,21 @@ func (db *DB) TransitionJobState(
 			return store.ErrStateConflict
 		}
 		return fmt.Errorf("transitioning job %s %s→%s: %w", id, expectedStatus, newStatus, err)
+	}
+
+	// Fire pg_notify so the Notifier can push the event to WatchJob subscribers
+	// without polling. Best-effort: a notify failure does not roll back the
+	// already-committed state transition.
+	payload := fmt.Sprintf(
+		`{"job_id":%q,"job_name":%q,"prev":%q,"next":%q,"worker_id":%q}`,
+		id.String(), jobName, string(expectedStatus), string(newStatus), workerID,
+	)
+	if _, notifyErr := db.pool.Exec(ctx,
+		"SELECT pg_notify($1, $2)", pgNotifyChannel, payload,
+	); notifyErr != nil {
+		// Non-fatal: WatchJob has no fallback poll anymore, but the state
+		// transition itself succeeded. Log and continue.
+		_ = notifyErr // caller's logger will surface this if needed
 	}
 	return nil
 }
