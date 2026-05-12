@@ -37,8 +37,16 @@ build-worker: ## Build the worker
 test: ## Run all unit tests
 	@go test ./... -v -race -timeout 120s
 
-test-integration: ## Run integration tests (requires running infrastructure)
+test-integration: ## Run integration tests (auto-spins Docker infra, waits for health)
+	@echo "Starting infrastructure for integration tests..."
+	@docker compose up -d postgres redis
+	@echo "Waiting for postgres..."
+	@until docker compose exec -T postgres pg_isready -U orion -q; do sleep 1; done
+	@echo "Waiting for redis..."
+	@until docker compose exec -T redis redis-cli ping | grep -q PONG; do sleep 1; done
+	@echo "Infrastructure ready. Running integration tests..."
 	@go test ./... -v -race -tags=integration -timeout 300s
+	@echo "Integration tests complete."
 
 test-coverage: ## Generate test coverage report
 	@go test ./... -race -coverprofile=coverage.out -covermode=atomic
