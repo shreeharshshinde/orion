@@ -1,43 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 :root {
-  --background: 200 100% 98%;
-  --foreground: 222 47% 11%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --muted: 196 70% 95%;
-  --muted-foreground: 215 16% 47%;
-  --primary: 199 95% 39%;
-  --primary-foreground: 0 0% 100%;
-  --border: 197 52% 88%;
-  --input: 197 52% 88%;
-  --ring: 188 86% 43%;
-  --success: 160 84% 39%;
-  --warning: 38 92% 50%;
-  --danger: 0 84% 60%;
-  --aqua: 188 86% 43%;
+  --background: 226 58% 6%;
+  --foreground: 190 100% 96%;
+  --card: 224 48% 10%;
+  --card-foreground: 190 100% 96%;
+  --muted: 223 39% 15%;
+  --muted-foreground: 198 28% 68%;
+  --primary: 184 100% 50%;
+  --primary-foreground: 225 58% 6%;
+  --border: 190 72% 24%;
+  --input: 190 72% 24%;
+  --ring: 184 100% 50%;
+  --success: 154 92% 55%;
+  --warning: 42 100% 62%;
+  --danger: 338 100% 64%;
+  --aqua: 184 100% 50%;
+  --violet: 263 100% 70%;
+  --panel-glow: 184 100% 50%;
 }
 
 .dark {
-  --background: 204 73% 9%;
-  --foreground: 195 100% 95%;
-  --card: 202 66% 13%;
+  --background: 226 58% 6%;
+  --foreground: 190 100% 96%;
+  --card: 224 48% 10%;
   --card-foreground: 195 100% 95%;
-  --muted: 201 64% 17%;
-  --muted-foreground: 198 35% 66%;
-  --primary: 195 91% 48%;
-  --primary-foreground: 204 73% 9%;
-  --border: 199 61% 23%;
-  --input: 199 61% 23%;
-  --ring: 188 86% 43%;
-  --success: 160 84% 39%;
-  --warning: 38 92% 50%;
-  --danger: 0 84% 60%;
-  --aqua: 188 86% 43%;
+  --muted: 223 39% 15%;
+  --muted-foreground: 198 28% 68%;
+  --primary: 184 100% 50%;
+  --primary-foreground: 225 58% 6%;
+  --border: 190 72% 24%;
+  --input: 190 72% 24%;
+  --ring: 184 100% 50%;
+  --success: 154 92% 55%;
+  --warning: 42 100% 62%;
+  --danger: 338 100% 64%;
+  --aqua: 184 100% 50%;
+  --violet: 263 100% 70%;
+  --panel-glow: 184 100% 50%;
 }
 
 * {
@@ -55,8 +59,10 @@ html {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(ellipse at top left, rgba(6, 182, 212, 0.12), transparent 40rem),
-    radial-gradient(ellipse at bottom right, rgba(2, 132, 199, 0.06), transparent 40rem),
+    linear-gradient(135deg, rgba(124, 58, 237, 0.1), transparent 28rem),
+    radial-gradient(ellipse at 18% 0%, rgba(0, 245, 255, 0.18), transparent 34rem),
+    radial-gradient(ellipse at 88% 18%, rgba(168, 85, 247, 0.12), transparent 28rem),
+    radial-gradient(ellipse at bottom right, rgba(16, 185, 129, 0.08), transparent 36rem),
     hsl(var(--background));
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1;
@@ -66,13 +72,29 @@ body {
 
 .dark body {
   background:
-    radial-gradient(ellipse at top left, rgba(6, 182, 212, 0.14), transparent 40rem),
-    radial-gradient(ellipse at bottom right, rgba(2, 132, 199, 0.08), transparent 40rem),
+    linear-gradient(135deg, rgba(124, 58, 237, 0.1), transparent 28rem),
+    radial-gradient(ellipse at 18% 0%, rgba(0, 245, 255, 0.18), transparent 34rem),
+    radial-gradient(ellipse at 88% 18%, rgba(168, 85, 247, 0.12), transparent 28rem),
+    radial-gradient(ellipse at bottom right, rgba(16, 185, 129, 0.08), transparent 36rem),
     hsl(var(--background));
 }
 
 ::selection {
-  background: rgba(6, 182, 212, 0.22);
+  background: rgba(0, 245, 255, 0.28);
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+}
+
+code,
+kbd,
+pre,
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* Smooth table row transitions */

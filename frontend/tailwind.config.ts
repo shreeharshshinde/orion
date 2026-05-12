@@ -30,10 +30,17 @@ const config: Config = {
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
         danger: "hsl(var(--danger))",
-        aqua: "hsl(var(--aqua))"
+        aqua: "hsl(var(--aqua))",
+        violet: "hsl(var(--violet))"
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        display: ["Space Grotesk", "Inter", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"]
       },
       boxShadow: {
-        soft: "0 18px 60px rgba(2, 132, 199, 0.12)"
+        soft: "0 18px 60px rgba(0, 245, 255, 0.14)",
+        neon: "0 0 24px rgba(0, 245, 255, 0.22), 0 0 56px rgba(124, 58, 237, 0.14)"
       }
     }
   },
