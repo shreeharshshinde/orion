@@ -17,10 +17,10 @@ export default function HomePage() {
       <section className="mx-auto grid min-h-[88vh] max-w-7xl gap-10 px-6 py-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
         <div>
           <Badge tone="aqua">Distributed ML job orchestration</Badge>
-          <h1 className="mt-5 text-5xl font-semibold tracking-normal text-slate-950 sm:text-6xl">
+          <h1 className="mt-5 font-display text-5xl font-semibold tracking-normal text-foreground sm:text-6xl">
             Orion
           </h1>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
+          <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
             A polished control plane for scheduling, executing, and observing ML workloads on
             Kubernetes with queues, workers, pipelines, metrics, and traces in one place.
           </p>
@@ -45,15 +45,15 @@ export default function HomePage() {
           </div>
         </div>
 
-        <Card className="overflow-hidden p-0 shadow-soft">
-          <div className="border-b bg-cyan-50/70 px-5 py-4">
+        <Card className="overflow-hidden p-0 shadow-neon">
+          <div className="border-b bg-primary/10 px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/40 bg-primary/20 text-primary shadow-neon">
                 <Boxes className="h-5 w-5" />
               </div>
               <div>
-                <p className="font-semibold">Live operations preview</p>
-                <p className="text-sm text-muted-foreground">Aqua console theme · backend-ready</p>
+                <p className="font-display font-semibold">Live operations preview</p>
+                <p className="text-sm text-muted-foreground">Neon console theme · backend-ready</p>
               </div>
             </div>
           </div>
@@ -61,12 +61,12 @@ export default function HomePage() {
             {capabilities.map((item) => {
               const Icon = item.icon;
               return (
-                <div className="flex gap-4 rounded-lg border bg-white p-4" key={item.title}>
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-cyan-50 text-cyan-700">
+                <div className="flex gap-4 rounded-lg border bg-muted/40 p-4" key={item.title}>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
                     <Icon className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="font-semibold">{item.title}</h2>
+                    <h2 className="font-display font-semibold">{item.title}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">{item.text}</p>
                   </div>
                 </div>
