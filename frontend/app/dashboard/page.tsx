@@ -17,13 +17,13 @@ export default function DashboardPage() {
 
       {/* Incident strip */}
       {incidents.length > 0 && (
-        <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm shadow-neon">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div>
-            <span className="font-medium text-amber-800">
+            <span className="font-medium text-warning">
               {incidents.length} job{incidents.length > 1 ? "s" : ""} need attention:
             </span>{" "}
-            <span className="text-amber-700">
+            <span className="text-muted-foreground">
               {incidents.map((j) => j.name).join(", ")}
             </span>
           </div>
@@ -74,7 +74,7 @@ export default function DashboardPage() {
             <h2 className="font-semibold">Recent jobs</h2>
             <span className="text-xs text-muted-foreground">mock data · API mapped</span>
           </div>
-          <div className="overflow-hidden rounded-md border">
+          <div className="overflow-hidden rounded-md border bg-background/40">
             <table className="w-full text-left text-sm">
               <thead className="bg-muted/60 text-muted-foreground">
                 <tr>
@@ -84,7 +84,7 @@ export default function DashboardPage() {
                   <th className="px-4 py-2.5 font-medium">Updated</th>
                 </tr>
               </thead>
-              <tbody className="divide-y bg-card">
+              <tbody className="divide-y bg-card/50">
                 {jobs.map((job) => (
                   <tr className="hover:bg-muted/30" key={job.id}>
                     <td className="px-4 py-3">
@@ -140,7 +140,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             {pipelines.map((pipeline) => (
               <div
-                className="flex items-center justify-between rounded-md border bg-muted/20 p-3 hover:bg-muted/40"
+                className="flex items-center justify-between rounded-md border bg-muted/25 p-3 hover:bg-primary/10"
                 key={pipeline.id}
               >
                 <div>
