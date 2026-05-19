@@ -156,6 +156,7 @@ func main() {
 	mux.HandleFunc("GET /jobs/{id}", jobHandler.GetJob)
 	mux.HandleFunc("GET /jobs/{id}/executions", jobHandler.GetExecutions)
 	mux.HandleFunc("POST /jobs/{id}/cancel", jobHandler.CancelJob)
+	mux.HandleFunc("DELETE /jobs/{id}", jobHandler.DeleteJob)
 
 	workerHandler := handler.NewWorkerHandler(pgStore, logger)
 	mux.HandleFunc("GET /workers", workerHandler.ListWorkers)
