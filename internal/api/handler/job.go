@@ -276,6 +276,41 @@ func (h *JobHandler) CancelJob(w http.ResponseWriter, r *http.Request) {
 
 
 
+// DeleteJob handles DELETE /jobs/{id}.
+// Hard-deletes the job and its execution history. Admin use only.
+// Returns 409 if the job is currently running (cannot delete active jobs).
+func (h *JobHandler) DeleteJob(w http.ResponseWriter, r *http.Request) {
+	id, err := parseJobID(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid job ID: must be a UUID")
+		return
+	}
+
+	job, err := h.store.GetJob(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "job not found")
+			return
+		}
+		h.logger.Error("failed to get job", "id", id, "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	if job.Status == domain.JobStatusRunning || job.Status == domain.JobStatusScheduled {
+		writeError(w, http.StatusConflict, "cannot delete a job with status: "+string(job.Status))
+		return
+	}
+
+	if err := h.store.DeleteJob(r.Context(), id); err != nil {
+		h.logger.Error("failed to delete job", "id", id, "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func validateSubmitRequest(req *SubmitJobRequest) error {
 	if req.Name == "" {
 		return errors.New("name is required")
