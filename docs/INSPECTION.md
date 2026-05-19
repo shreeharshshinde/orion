@@ -211,8 +211,10 @@
 
 ### Critical Missing Pieces
 
-**1. `DELETE /jobs/{id}` and `POST /jobs/{id}/cancel` HTTP endpoints**  
+**1. `DELETE /jobs/{id}` and `POST /jobs/{id}/cancel` HTTP endpoints** — ✅ RESOLVED  
 `store.DeleteJob` is implemented in postgres but there is no HTTP handler for it. `JobStatusCancelled` exists in the domain but there is no API endpoint to trigger a cancellation. The `CancelJob` RPC exists in gRPC but the HTTP REST API has no equivalent.
+
+> **Solution:** `POST /jobs/{id}/cancel` was already present but undocumented. Added `DeleteJob` handler to `internal/api/handler/job.go` — guards against deleting `running`/`scheduled` jobs (409 Conflict), returns 204 No Content on success. Both routes registered in `cmd/api/main.go`. Six unit tests added in `internal/api/handler/job_test.go`.
 
 **2. Scheduled job promotion (sorted set sweeper)**  
 `Enqueue` correctly writes future-scheduled jobs to `orion:queue:scheduled` (a Redis sorted set). However, there is no goroutine that reads from this sorted set and moves jobs to the appropriate stream when `scheduled_at` arrives. Jobs submitted with a future `scheduled_at` will sit in the sorted set forever and never execute.
