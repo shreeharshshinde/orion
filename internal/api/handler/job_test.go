@@ -29,6 +29,7 @@ type fakeStore struct {
 	getJobByIdempotencyFn func(ctx context.Context, key string) (*domain.Job, error)
 	listJobsFn            func(ctx context.Context, filter store.JobFilter) ([]*domain.Job, error)
 	getExecutionsFn       func(ctx context.Context, jobID uuid.UUID) ([]*domain.JobExecution, error)
+	deleteJobFn           func(ctx context.Context, id uuid.UUID) error
 }
 
 func (f *fakeStore) CreateJob(ctx context.Context, job *domain.Job) (*domain.Job, error) {
@@ -82,7 +83,12 @@ func (f *fakeStore) MarkJobFailed(ctx context.Context, id uuid.UUID, msg string,
 func (f *fakeStore) ReclaimOrphanedJobs(ctx context.Context, d time.Duration) (int, error) {
 	return 0, nil
 }
-func (f *fakeStore) DeleteJob(ctx context.Context, id uuid.UUID) error { return nil }
+func (f *fakeStore) DeleteJob(ctx context.Context, id uuid.UUID) error {
+	if f.deleteJobFn != nil {
+		return f.deleteJobFn(ctx, id)
+	}
+	return nil
+}
 func (f *fakeStore) RecordExecution(ctx context.Context, exec *domain.JobExecution) error {
 	return nil
 }
@@ -507,5 +513,93 @@ func TestAllRoutes_SetJSONContentType(t *testing.T) {
 	ct := rr.Header().Get("Content-Type")
 	if ct != "application/json" {
 		t.Errorf("expected Content-Type: application/json, got %q", ct)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /jobs/{id} — DeleteJob
+// ─────────────────────────────────────────────────────────────────────────────
+
+func deleteJob(t *testing.T, h *handler.JobHandler, id string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodDelete, "/jobs/"+id, nil)
+	req.SetPathValue("id", id)
+	rr := httptest.NewRecorder()
+	h.DeleteJob(rr, req)
+	return rr
+}
+
+func TestDeleteJob_Completed_Returns204(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, id uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusCompleted}, nil
+		},
+	}, testLogger())
+
+	rr := deleteJob(t, h, jobID.String())
+	if rr.Code != http.StatusNoContent {
+		t.Errorf("expected 204, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDeleteJob_NotFound_Returns404(t *testing.T) {
+	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	rr := deleteJob(t, h, uuid.New().String())
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestDeleteJob_InvalidUUID_Returns400(t *testing.T) {
+	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	rr := deleteJob(t, h, "not-a-uuid")
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestDeleteJob_RunningJob_Returns409(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusRunning}, nil
+		},
+	}, testLogger())
+
+	rr := deleteJob(t, h, jobID.String())
+	if rr.Code != http.StatusConflict {
+		t.Errorf("expected 409 for running job, got %d", rr.Code)
+	}
+}
+
+func TestDeleteJob_ScheduledJob_Returns409(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusScheduled}, nil
+		},
+	}, testLogger())
+
+	rr := deleteJob(t, h, jobID.String())
+	if rr.Code != http.StatusConflict {
+		t.Errorf("expected 409 for scheduled job, got %d", rr.Code)
+	}
+}
+
+func TestDeleteJob_StoreError_Returns500(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusFailed}, nil
+		},
+		deleteJobFn: func(_ context.Context, _ uuid.UUID) error {
+			return errors.New("db error")
+		},
+	}, testLogger())
+
+	rr := deleteJob(t, h, jobID.String())
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 on store error, got %d", rr.Code)
 	}
 }
