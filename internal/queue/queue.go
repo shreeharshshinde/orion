@@ -37,6 +37,12 @@ type Queue interface {
 
 	// Close shuts down the queue connection gracefully.
 	Close() error
+
+	// StartScheduledSweeper promotes jobs from the scheduled sorted set into
+	// their target streams when their scheduled_at time arrives.
+	// Must be called only by the leader scheduler to avoid double-promotion.
+	// Blocks until ctx is cancelled.
+	StartScheduledSweeper(ctx context.Context)
 }
 
 // QueueNames contains the well-known queue identifiers.

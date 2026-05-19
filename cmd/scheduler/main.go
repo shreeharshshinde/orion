@@ -132,9 +132,6 @@ func main() {
 	// Start queue depth poller — updates QueueDepth gauge every 5s
 	queue.StartQueueDepthPoller(ctx, []string{"orion:queue:high", "orion:queue:default", "orion:queue:low"})
 
-	// Start scheduled job sweeper — promotes future-scheduled jobs into streams
-	go queue.StartScheduledSweeper(ctx)
-
 	// ── Pipeline Advancer [Phase 6 update] ───────────────────────────────────
 	// Pass metrics so the advancer emits pipeline counters and histograms.
 	adv := pipeline.NewAdvancer(pgStore, metrics, logger)

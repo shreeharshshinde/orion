@@ -157,9 +157,14 @@ func (s *Scheduler) releaseLeaderLock(ctx context.Context) {
 // Three loops:
 //   - scheduleTicker (every 2s): dispatch queued jobs + promote retries + advance pipelines
 //   - orphanTicker   (every 30s): reclaim jobs whose worker went silent
+//   - StartScheduledSweeper: promotes future-scheduled jobs from sorted set to streams
+//
 // Phase 6 change: scheduleQueuedJobs now measures cycle latency and emits spans.
 func (s *Scheduler) runAsLeader(ctx context.Context) {
 	defer s.releaseLeaderLock(ctx)
+
+	// Only the leader runs the scheduled sweeper to prevent double-promotion.
+	go s.queue.StartScheduledSweeper(ctx)
 
 	scheduleTicker := time.NewTicker(s.cfg.ScheduleInterval)
 	orphanTicker := time.NewTicker(s.cfg.OrphanInterval)

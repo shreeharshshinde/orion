@@ -219,6 +219,8 @@
 **2. Scheduled job promotion (sorted set sweeper)**  
 `Enqueue` correctly writes future-scheduled jobs to `orion:queue:scheduled` (a Redis sorted set). However, there is no goroutine that reads from this sorted set and moves jobs to the appropriate stream when `scheduled_at` arrives. Jobs submitted with a future `scheduled_at` will sit in the sorted set forever and never execute.
 
+> **Solution:** Implemented `StartScheduledSweeper` / `sweepScheduled` on `RedisQueue`. The sweeper ticks every second and uses an atomic Lua script (`zpopByScore`) that combines `ZRANGEBYSCORE` + `ZREM` in a single Redis round-trip, preventing double-promotion if two scheduler instances were ever to run the sweeper concurrently. On `XAdd` failure the member is re-inserted into the sorted set so it is retried next tick. `StartScheduledSweeper` was added to the `Queue` interface and is started inside `runAsLeader` in `scheduler.go` — ensuring only the leader scheduler runs it. The unconditional `go queue.StartScheduledSweeper(ctx)` call was removed from `cmd/scheduler/main.go`. Five unit tests added in `internal/queue/redis/sweep_test.go` using `miniredis`: promotes due jobs, ignores future jobs, no duplicates on double-sweep, routes to correct stream per queue name, handles empty set.
+
 **3. `GET /jobs/{id}/executions` response body**  
 `GetExecutions` is wired in `cmd/api/main.go` and implemented in the store, but the handler in `internal/api/handler/job.go` needs to be verified — the handler file was not fully read. This endpoint is critical for debugging failed jobs.
 

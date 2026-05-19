@@ -317,23 +317,33 @@ func (r *RedisQueue) StartScheduledSweeper(ctx context.Context) {
 	}
 }
 
-func (r *RedisQueue) sweepScheduled(ctx context.Context) {
-	now := float64(time.Now().Unix())
+// zpopByScore atomically pops up to `count` members with score <= max from a sorted set.
+// Uses a Lua script so the ZRANGEBYSCORE + ZREM is a single atomic operation,
+// preventing double-promotion when multiple scheduler instances are running.
+var zpopByScore = redis.NewScript(`
+local members = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1], 'LIMIT', 0, ARGV[2])
+if #members == 0 then return {} end
+redis.call('ZREM', KEYS[1], unpack(members))
+return members
+`)
 
-	members, err := r.client.ZRangeByScore(ctx, queue.QueueScheduled, &redis.ZRangeBy{
-		Min: "-inf",
-		Max: fmt.Sprintf("%f", now),
-	}).Result()
-	if err != nil || len(members) == 0 {
+func (r *RedisQueue) sweepScheduled(ctx context.Context) {
+	now := fmt.Sprintf("%d", time.Now().Unix())
+	const batchSize = "100"
+
+	result, err := zpopByScore.Run(ctx, r.client, []string{queue.QueueScheduled}, now, batchSize).StringSlice()
+	if err == redis.Nil || len(result) == 0 {
+		return
+	}
+	if err != nil {
+		r.logger.Error("scheduled sweeper: zpopByScore failed", "err", err)
 		return
 	}
 
-	for _, member := range members {
+	for _, member := range result {
 		var job domain.Job
 		if err := json.Unmarshal([]byte(member), &job); err != nil {
 			r.logger.Error("scheduled sweeper: failed to unmarshal job", "err", err)
-			// Remove malformed entry so it doesn't block forever
-			_ = r.client.ZRem(ctx, queue.QueueScheduled, member)
 			continue
 		}
 
@@ -346,10 +356,14 @@ func (r *RedisQueue) sweepScheduled(ctx context.Context) {
 			},
 		}).Err(); err != nil {
 			r.logger.Error("scheduled sweeper: failed to enqueue job", "job_id", job.ID, "err", err)
+			// Re-add to sorted set so it's retried next tick
+			_ = r.client.ZAdd(ctx, queue.QueueScheduled, redis.Z{
+				Score:  float64(job.ScheduledAt.Unix()),
+				Member: member,
+			})
 			continue
 		}
 
-		_ = r.client.ZRem(ctx, queue.QueueScheduled, member)
 		r.logger.Info("promoted scheduled job", "job_id", job.ID, "queue", job.QueueName)
 	}
 }
