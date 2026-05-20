@@ -1,7 +1,7 @@
 # Orion — Codebase Inspection Report
 
-**Date:** 2026-05-09  
-**Scope:** Full codebase audit of Phases 1–9  
+**Date:** 2026-05-09
+**Scope:** Full codebase audit of Phases 1–9
 **Purpose:** Identify what was built, what is missing, potential bugs, and the path to production
 
 ---
@@ -211,57 +211,71 @@
 
 ### Critical Missing Pieces
 
-**1. `DELETE /jobs/{id}` and `POST /jobs/{id}/cancel` HTTP endpoints** — ✅ RESOLVED  
+**1. `DELETE /jobs/{id}` and `POST /jobs/{id}/cancel` HTTP endpoints** — ✅ RESOLVED
 `store.DeleteJob` is implemented in postgres but there is no HTTP handler for it. `JobStatusCancelled` exists in the domain but there is no API endpoint to trigger a cancellation. The `CancelJob` RPC exists in gRPC but the HTTP REST API has no equivalent.
 
 > **Solution:** `POST /jobs/{id}/cancel` was already present but undocumented. Added `DeleteJob` handler to `internal/api/handler/job.go` — guards against deleting `running`/`scheduled` jobs (409 Conflict), returns 204 No Content on success. Both routes registered in `cmd/api/main.go`. Six unit tests added in `internal/api/handler/job_test.go`.
 
-**2. Scheduled job promotion (sorted set sweeper)**  
+**2. Scheduled job promotion (sorted set sweeper)**
 `Enqueue` correctly writes future-scheduled jobs to `orion:queue:scheduled` (a Redis sorted set). However, there is no goroutine that reads from this sorted set and moves jobs to the appropriate stream when `scheduled_at` arrives. Jobs submitted with a future `scheduled_at` will sit in the sorted set forever and never execute.
 
 > **Solution:** Implemented `StartScheduledSweeper` / `sweepScheduled` on `RedisQueue`. The sweeper ticks every second and uses an atomic Lua script (`zpopByScore`) that combines `ZRANGEBYSCORE` + `ZREM` in a single Redis round-trip, preventing double-promotion if two scheduler instances were ever to run the sweeper concurrently. On `XAdd` failure the member is re-inserted into the sorted set so it is retried next tick. `StartScheduledSweeper` was added to the `Queue` interface and is started inside `runAsLeader` in `scheduler.go` — ensuring only the leader scheduler runs it. The unconditional `go queue.StartScheduledSweeper(ctx)` call was removed from `cmd/scheduler/main.go`. Five unit tests added in `internal/queue/redis/sweep_test.go` using `miniredis`: promotes due jobs, ignores future jobs, no duplicates on double-sweep, routes to correct stream per queue name, handles empty set.
 
-**3. `GET /jobs/{id}/executions` response body** — ✅ RESOLVED  
+**3. `GET /jobs/{id}/executions` response body** — ✅ RESOLVED
 `GetExecutions` is wired in `cmd/api/main.go` and implemented in the store, but the handler in `internal/api/handler/job.go` needs to be verified — the handler file was not fully read. This endpoint is critical for debugging failed jobs.
 
 > **Solution:** Verified fully implemented. Handler returns `{"job_id": ..., "executions": [...], "count": N}`. Returns 404 for unknown jobs (not an ambiguous empty list). Store scans all 11 columns: `id`, `job_id`, `attempt`, `worker_id`, `status`, `started_at`, `finished_at`, `exit_code`, `logs_ref`, `error`, `created_at`. Four unit tests in `internal/api/handler/job_test.go` cover: found with executions (200), job not found (404), invalid UUID (400), empty history (200).
 
-**4. Cascade cancellation creates no job records**  
+**4. Cascade cancellation creates no job records** — ✅ RESOLVED
 When a pipeline node reaches `dead` status, `logCascadeCancellation` only logs which downstream nodes will not start. It does not create `cancelled` job records for those nodes. The `GET /pipelines/{id}/jobs` endpoint will show those nodes as simply absent rather than explicitly cancelled, making it hard to understand why a pipeline failed.
 
-**5. Worker `Queues` config not wired from `config.WorkerPoolConfig`**  
+> **Solution:** Replaced `logCascadeCancellation` with `createCancelledDownstreamJobs` in `internal/pipeline/advancement.go`. For each downstream node that hasn't started, it calls `CreateJob` with `status=cancelled` and links it via `AddPipelineJob`. Nodes that already have a job (running or completed before the failure) are skipped. On `CreateJob` or `AddPipelineJob` failure the error is logged and the loop continues — a partial cancel is better than blocking the pipeline failure transition. One test added: `TestAdvanceAll_CascadeCancel_CreatesJobRecordsForDownstreamNodes` verifies that a 4-node linear pipeline with `train` dead produces cancelled job records for `evaluate` and `deploy` in `pipeline_jobs`.
+
+> **Root Cause:** `logCascadeCancellation` was purely informational. It logged downstream nodes after a failure but never persisted any state changes. As a result, downstream jobs were missing from `GET /pipelines/{id}/jobs` instead of appearing with a `cancelled` status.
+
+> **Fix :** Implemented `createCancelledDownstreamJobs` to properly persist downstream cancellations.
+
+>**Changes Made**
+>1. Traverse all downstream nodes using BFS starting from the failed node.
+>2. Skip nodes that already have an associated job (indicating they executed before the failure).
+>3. Create a `domain.Job` with `status=cancelled` for each unstarted downstream node.
+>4. Link each cancelled job to the pipeline using `AddPipelineJob` so they are included in:
+   ```http
+   GET /pipelines/{id}/jobs
+
+**5. Worker `Queues` config not wired from `config.WorkerPoolConfig`**
 In `config.go`, `WorkerPoolConfig.Queues` is defined as `[]string` but has no default value and no `ORION_WORKER_QUEUES` env var parsing. The worker entrypoint (`cmd/worker/main.go`) must manually set this. If it is left empty, the worker dequeues from no queues and processes nothing silently.
 
-**6. `InstrumentedStore` does not wrap all state transitions**  
+**6. `InstrumentedStore` does not wrap all state transitions**
 `grpc.InstrumentedStore` wraps `MarkJobRunning`, `MarkJobCompleted`, `MarkJobFailed` — but not `TransitionJobState` directly. The scheduler calls `TransitionJobState` (queued→scheduled, failed→retrying, retrying→queued) and those transitions are never broadcast to `WatchJob` gRPC streams. Clients watching a job will miss the `scheduled` and `retrying` state transitions.
 
 ### Missing Operational Features
 
-**7. Dead-letter queue replay API**  
+**7. Dead-letter queue replay API**
 Jobs in `orion:queue:dead` (Redis stream) and `status=dead` (PostgreSQL) have no API to replay them. There is no `POST /jobs/{id}/replay` endpoint. Dead jobs are visible in Grafana but cannot be requeued without direct database manipulation.
 
-**8. `GET /workers` endpoint**  
+**8. `GET /workers` endpoint**
 `store.ListActiveWorkers` is implemented but there is no HTTP handler exposing it. Operators cannot see which workers are alive, their queue assignments, or their active job counts without querying the database directly.
 
-**9. `POST /jobs/{id}/cancel` for running jobs**  
+**9. `POST /jobs/{id}/cancel` for running jobs**
 Cancelling a running job requires signalling the worker that is executing it. The current architecture has no mechanism for this — the worker has no way to receive a cancellation signal for a specific job mid-execution. This requires either a Redis pub/sub channel or a context cancellation registry in the worker pool.
 
-**10. Helm chart missing Ingress template**  
+**10. Helm chart missing Ingress template**
 `deploy/helm/templates/` has no `ingress.yaml`. The API service is `ClusterIP` only. Exposing it externally requires manually creating an Ingress or LoadBalancer service outside the chart.
 
-**11. No `NetworkPolicy` manifests**  
+**11. No `NetworkPolicy` manifests**
 There are no Kubernetes `NetworkPolicy` resources. In a production cluster, the worker pods should only be able to reach PostgreSQL, Redis, and the Kubernetes API server — not arbitrary cluster services.
 
-**12. No `PodDisruptionBudget`**  
+**12. No `PodDisruptionBudget`**
 Rolling updates can take all API or scheduler pods down simultaneously. A PDB ensuring at least 1 API pod and 1 scheduler pod remain available during updates is missing.
 
-**13. Migration is not idempotent on re-run**  
+**13. Migration is not idempotent on re-run**
 The `migrate-job.yaml` Kubernetes Job runs `golang-migrate up`. If the Job is re-applied (e.g., during a Helm upgrade with no schema changes), it will attempt to run and succeed (migrations are idempotent by design), but the Job will show as `Completed` from a previous run. The Job should use `ttlSecondsAfterFinished` to clean itself up.
 
-**14. No `CANCEL` endpoint for pipelines**  
+**14. No `CANCEL` endpoint for pipelines**
 There is no `DELETE /pipelines/{id}` or `POST /pipelines/{id}/cancel`. A running pipeline cannot be stopped via the API.
 
-**15. `pkg/retry` not exported with a `Retry` function**  
+**15. `pkg/retry` not exported with a `Retry` function**
 `pkg/retry` exports `FullJitterBackoff` (the delay calculator) but not a `Retry(ctx, fn, opts)` wrapper. Callers that want to retry an operation with backoff must implement the loop themselves.
 
 ---
