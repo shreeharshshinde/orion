@@ -106,11 +106,20 @@ func (f *fakeStore) AddPipelineJob(_ context.Context, pipelineID uuid.UUID, node
 	// ON CONFLICT DO NOTHING semantics
 	for _, pj := range f.pipelineJobs[pipelineID] {
 		if pj.NodeID == nodeID {
-			return nil // already exists, idempotent skip
+			return nil
 		}
 	}
 
-	pjs := pipeline.MakePipelineJobStatus(nodeID, jobID, domain.JobStatusQueued)
+	// Look up the actual job status so cancelled jobs are reflected correctly
+	status := domain.JobStatusQueued
+	for _, j := range f.createdJobs {
+		if j.ID == jobID {
+			status = j.Status
+			break
+		}
+	}
+
+	pjs := pipeline.MakePipelineJobStatus(nodeID, jobID, status)
 	f.pipelineJobs[pipelineID] = append(f.pipelineJobs[pipelineID], pjs)
 	return nil
 }
@@ -138,7 +147,9 @@ func (f *fakeStore) CreateJob(_ context.Context, job *domain.Job) (*domain.Job, 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	job.ID = uuid.New()
-	job.Status = domain.JobStatusQueued
+	if job.Status == "" {
+		job.Status = domain.JobStatusQueued
+	}
 	f.createdJobs = append(f.createdJobs, job)
 	return job, nil
 }
@@ -444,9 +455,9 @@ func TestAdvanceAll_FailedNode_PipelineMarkedFailed(t *testing.T) {
 		t.Errorf("pipeline with dead node should be failed, got %q", getPipelineStatus(fs, p.ID))
 	}
 
-	// evaluate should never have been created (train blocked it)
-	if countCreatedJobs(fs) != 0 {
-		t.Errorf("evaluate should never be created after train fails, got %d jobs", countCreatedJobs(fs))
+	// evaluate should have a cancelled job record (cascade cancel), not be absent
+	if countCreatedJobs(fs) != 1 {
+		t.Errorf("evaluate should have a cancelled job record, got %d created jobs", countCreatedJobs(fs))
 	}
 }
 
@@ -468,6 +479,58 @@ func TestAdvanceAll_Idempotent_DoubleTickNoExtraJobs(t *testing.T) {
 
 	if countCreatedJobs(fs) != 1 {
 		t.Errorf("double tick should create exactly 1 job (idempotency), got %d", countCreatedJobs(fs))
+	}
+}
+
+func TestAdvanceAll_CascadeCancel_CreatesJobRecordsForDownstreamNodes(t *testing.T) {
+	fs := newFakeStore()
+	adv := pipeline.NewAdvancer(fs, nil, testLogger())
+
+	// preprocess → train → evaluate → deploy
+	dag := domain.DAGSpec{
+		Nodes: []domain.DAGNode{
+			{ID: "preprocess", JobTemplate: domain.JobPayload{HandlerName: "noop"}},
+			{ID: "train", JobTemplate: domain.JobPayload{HandlerName: "always_fail"}},
+			{ID: "evaluate", JobTemplate: domain.JobPayload{HandlerName: "noop"}},
+			{ID: "deploy", JobTemplate: domain.JobPayload{HandlerName: "noop"}},
+		},
+		Edges: []domain.DAGEdge{
+			{Source: "preprocess", Target: "train"},
+			{Source: "train", Target: "evaluate"},
+			{Source: "evaluate", Target: "deploy"},
+		},
+	}
+	p := seedPipeline(fs, "cascade-pipeline", domain.PipelineStatusRunning, dag)
+
+	// Seed preprocess as a completed pipeline job entry
+	fs.pipelineJobs[p.ID] = append(fs.pipelineJobs[p.ID],
+		pipeline.MakePipelineJobStatus("preprocess", uuid.New(), domain.JobStatusCompleted))
+	markNodeDead(fs, p.ID, "train")
+
+	_ = adv.AdvanceAll(context.Background())
+
+	if getPipelineStatus(fs, p.ID) != domain.PipelineStatusFailed {
+		t.Fatalf("expected pipeline failed, got %q", getPipelineStatus(fs, p.ID))
+	}
+
+	// evaluate and deploy should have cancelled job records linked to the pipeline
+	pipelineJobCount := getPipelineJobCount(fs, p.ID)
+	// preprocess (completed) + train (dead) + evaluate (cancelled) + deploy (cancelled) = 4
+	if pipelineJobCount != 4 {
+		t.Errorf("expected 4 pipeline_jobs entries (including 2 cancelled), got %d", pipelineJobCount)
+	}
+
+	// Verify the cancelled jobs have status=cancelled
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	cancelledCount := 0
+	for _, pj := range fs.pipelineJobs[p.ID] {
+		if pj.JobStatus == domain.JobStatusCancelled {
+			cancelledCount++
+		}
+	}
+	if cancelledCount != 2 {
+		t.Errorf("expected 2 cancelled job records (evaluate, deploy), got %d", cancelledCount)
 	}
 }
 
