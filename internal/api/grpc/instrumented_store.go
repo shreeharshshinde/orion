@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/google/uuid"
+	"github.com/shreeharshshinde/orion/internal/domain"
 	"github.com/shreeharshshinde/orion/internal/store"
 	orionv1 "github.com/shreeharshshinde/orion/proto/orion/v1"
 )
@@ -69,6 +70,21 @@ func (s *InstrumentedStore) MarkJobFailed(ctx context.Context, id uuid.UUID, err
 			NewStatus:    "failed",
 			ErrorMessage: errMsg,
 			Timestamp:    timestamppb.Now(),
+		})
+	}
+	return err
+}
+
+// TransitionJobState publishes an event for every successful state transition.
+// This covers scheduler-driven transitions (queued→scheduled, failed→retrying,
+// retrying→queued, queued→cancelled) that bypass MarkJob* methods.
+func (s *InstrumentedStore) TransitionJobState(ctx context.Context, id uuid.UUID, expected, next domain.JobStatus, opts ...store.TransitionOption) error {
+	err := s.Store.TransitionJobState(ctx, id, expected, next, opts...)
+	if err == nil {
+		s.broadcaster.Publish(id.String(), &orionv1.JobEvent{
+			JobId:     id.String(),
+			NewStatus: string(next),
+			Timestamp: timestamppb.Now(),
 		})
 	}
 	return err
