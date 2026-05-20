@@ -216,7 +216,7 @@
 
 > **Solution:** `POST /jobs/{id}/cancel` was already present but undocumented. Added `DeleteJob` handler to `internal/api/handler/job.go` — guards against deleting `running`/`scheduled` jobs (409 Conflict), returns 204 No Content on success. Both routes registered in `cmd/api/main.go`. Six unit tests added in `internal/api/handler/job_test.go`.
 
-**2. Scheduled job promotion (sorted set sweeper)**
+**2. Scheduled job promotion (sorted set sweeper)** — ✅ RESOLVED
 `Enqueue` correctly writes future-scheduled jobs to `orion:queue:scheduled` (a Redis sorted set). However, there is no goroutine that reads from this sorted set and moves jobs to the appropriate stream when `scheduled_at` arrives. Jobs submitted with a future `scheduled_at` will sit in the sorted set forever and never execute.
 
 > **Solution:** Implemented `StartScheduledSweeper` / `sweepScheduled` on `RedisQueue`. The sweeper ticks every second and uses an atomic Lua script (`zpopByScore`) that combines `ZRANGEBYSCORE` + `ZREM` in a single Redis round-trip, preventing double-promotion if two scheduler instances were ever to run the sweeper concurrently. On `XAdd` failure the member is re-inserted into the sorted set so it is retried next tick. `StartScheduledSweeper` was added to the `Queue` interface and is started inside `runAsLeader` in `scheduler.go` — ensuring only the leader scheduler runs it. The unconditional `go queue.StartScheduledSweeper(ctx)` call was removed from `cmd/scheduler/main.go`. Five unit tests added in `internal/queue/redis/sweep_test.go` using `miniredis`: promotes due jobs, ignores future jobs, no duplicates on double-sweep, routes to correct stream per queue name, handles empty set.
@@ -226,22 +226,10 @@
 
 > **Solution:** Verified fully implemented. Handler returns `{"job_id": ..., "executions": [...], "count": N}`. Returns 404 for unknown jobs (not an ambiguous empty list). Store scans all 11 columns: `id`, `job_id`, `attempt`, `worker_id`, `status`, `started_at`, `finished_at`, `exit_code`, `logs_ref`, `error`, `created_at`. Four unit tests in `internal/api/handler/job_test.go` cover: found with executions (200), job not found (404), invalid UUID (400), empty history (200).
 
-**4. Cascade cancellation creates no job records** — ✅ RESOLVED
+**4. Cascade cancellation creates no job records** — ✅ RESOLVED  
 When a pipeline node reaches `dead` status, `logCascadeCancellation` only logs which downstream nodes will not start. It does not create `cancelled` job records for those nodes. The `GET /pipelines/{id}/jobs` endpoint will show those nodes as simply absent rather than explicitly cancelled, making it hard to understand why a pipeline failed.
 
 > **Solution:** Replaced `logCascadeCancellation` with `createCancelledDownstreamJobs` in `internal/pipeline/advancement.go`. For each downstream node that hasn't started, it calls `CreateJob` with `status=cancelled` and links it via `AddPipelineJob`. Nodes that already have a job (running or completed before the failure) are skipped. On `CreateJob` or `AddPipelineJob` failure the error is logged and the loop continues — a partial cancel is better than blocking the pipeline failure transition. One test added: `TestAdvanceAll_CascadeCancel_CreatesJobRecordsForDownstreamNodes` verifies that a 4-node linear pipeline with `train` dead produces cancelled job records for `evaluate` and `deploy` in `pipeline_jobs`.
-
-> **Root Cause:** `logCascadeCancellation` was purely informational. It logged downstream nodes after a failure but never persisted any state changes. As a result, downstream jobs were missing from `GET /pipelines/{id}/jobs` instead of appearing with a `cancelled` status.
-
-> **Fix :** Implemented `createCancelledDownstreamJobs` to properly persist downstream cancellations.
-
->**Changes Made**
->1. Traverse all downstream nodes using BFS starting from the failed node.
->2. Skip nodes that already have an associated job (indicating they executed before the failure).
->3. Create a `domain.Job` with `status=cancelled` for each unstarted downstream node.
->4. Link each cancelled job to the pipeline using `AddPipelineJob` so they are included in:
-   ```http
-   GET /pipelines/{id}/jobs
 
 **5. Worker `Queues` config not wired from `config.WorkerPoolConfig`**
 In `config.go`, `WorkerPoolConfig.Queues` is defined as `[]string` but has no default value and no `ORION_WORKER_QUEUES` env var parsing. The worker entrypoint (`cmd/worker/main.go`) must manually set this. If it is left empty, the worker dequeues from no queues and processes nothing silently.
