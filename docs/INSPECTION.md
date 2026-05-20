@@ -231,8 +231,10 @@ When a pipeline node reaches `dead` status, `logCascadeCancellation` only logs w
 
 > **Solution:** Replaced `logCascadeCancellation` with `createCancelledDownstreamJobs` in `internal/pipeline/advancement.go`. For each downstream node that hasn't started, it calls `CreateJob` with `status=cancelled` and links it via `AddPipelineJob`. Nodes that already have a job (running or completed before the failure) are skipped. On `CreateJob` or `AddPipelineJob` failure the error is logged and the loop continues — a partial cancel is better than blocking the pipeline failure transition. One test added: `TestAdvanceAll_CascadeCancel_CreatesJobRecordsForDownstreamNodes` verifies that a 4-node linear pipeline with `train` dead produces cancelled job records for `evaluate` and `deploy` in `pipeline_jobs`.
 
-**5. Worker `Queues` config not wired from `config.WorkerPoolConfig`**
+**5. Worker `Queues` config not wired from `config.WorkerPoolConfig`** — ✅ RESOLVED  
 In `config.go`, `WorkerPoolConfig.Queues` is defined as `[]string` but has no default value and no `ORION_WORKER_QUEUES` env var parsing. The worker entrypoint (`cmd/worker/main.go`) must manually set this. If it is left empty, the worker dequeues from no queues and processes nothing silently.
+
+> **Solution:** Added `ORION_WORKER_QUEUES` parsing in `Load()` via a new `getEnvStringSlice` helper (comma-separated, trims whitespace). Default is `["orion:queue:high", "orion:queue:default", "orion:queue:low"]`. Removed the manual fallback from `cmd/worker/main.go` — the config layer now owns the default.
 
 **6. `InstrumentedStore` does not wrap all state transitions**
 `grpc.InstrumentedStore` wraps `MarkJobRunning`, `MarkJobCompleted`, `MarkJobFailed` — but not `TransitionJobState` directly. The scheduler calls `TransitionJobState` (queued→scheduled, failed→retrying, retrying→queued) and those transitions are never broadcast to `WatchJob` gRPC streams. Clients watching a job will miss the `scheduled` and `retrying` state transitions.
