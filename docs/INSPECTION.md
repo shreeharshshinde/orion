@@ -236,8 +236,10 @@ In `config.go`, `WorkerPoolConfig.Queues` is defined as `[]string` but has no de
 
 > **Solution:** Added `ORION_WORKER_QUEUES` parsing in `Load()` via a new `getEnvStringSlice` helper (comma-separated, trims whitespace). Default is `["orion:queue:high", "orion:queue:default", "orion:queue:low"]`. Removed the manual fallback from `cmd/worker/main.go` — the config layer now owns the default.
 
-**6. `InstrumentedStore` does not wrap all state transitions**
+**6. `InstrumentedStore` does not wrap all state transitions** — ✅ RESOLVED  
 `grpc.InstrumentedStore` wraps `MarkJobRunning`, `MarkJobCompleted`, `MarkJobFailed` — but not `TransitionJobState` directly. The scheduler calls `TransitionJobState` (queued→scheduled, failed→retrying, retrying→queued) and those transitions are never broadcast to `WatchJob` gRPC streams. Clients watching a job will miss the `scheduled` and `retrying` state transitions.
+
+> **Solution:** Added `TransitionJobState` override to `InstrumentedStore` in `internal/api/grpc/instrumented_store.go`. Publishes a `JobEvent` with `new_status` set to the target status after every successful transition. Four tests added in `internal/api/grpc/instrumented_store_test.go` covering all four methods and the four scheduler-driven transitions (queued→scheduled, failed→retrying, retrying→queued, queued→cancelled).
 
 ### Missing Operational Features
 
