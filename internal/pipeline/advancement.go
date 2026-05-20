@@ -179,7 +179,7 @@ func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
 			span.SetAttributes(attribute.String("pipeline.failed_node", pj.NodeID))
 			span.SetStatus(codes.Error, "node dead: "+pj.NodeID)
 
-			a.logCascadeCancellation(p, pj.NodeID, createdNodes)
+			a.createCancelledDownstreamJobs(ctx, p, pj.NodeID, createdNodes)
 
 			// Metric: pipeline failure + duration
 			if a.metrics != nil {
@@ -343,30 +343,55 @@ func (a *Advancer) advanceOne(ctx context.Context, p *domain.Pipeline) error {
 // Cascade cancellation
 // ─────────────────────────────────────────────────────────────────────────────
 
-// logCascadeCancellation logs which downstream nodes will not be started
-// because an upstream node failed. In Phase 5 this is informational only —
-// nodes that haven't been created simply never get created.
-//
-// Phase 6 enhancement: create explicit "cancelled" job records for every
-// downstream node so they appear in GET /pipelines/{id}/jobs with
-// status=cancelled for full audit trail.
-func (a *Advancer) logCascadeCancellation(
+// createCancelledDownstreamJobs creates explicit cancelled job records for every
+// downstream node that hasn't started yet, then links them to the pipeline via
+// AddPipelineJob. This makes them visible in GET /pipelines/{id}/jobs with
+// status=cancelled instead of simply being absent.
+func (a *Advancer) createCancelledDownstreamJobs(
+	ctx context.Context,
 	p *domain.Pipeline,
 	failedNodeID string,
 	createdNodes map[string]*store.PipelineJobStatus,
 ) {
 	downstream := findDownstream(p.DAGSpec, failedNodeID)
 	for _, nodeID := range downstream {
-		if _, created := createdNodes[nodeID]; !created {
-			a.logger.Info("downstream node will not start (upstream failed)",
-				"pipeline_id", p.ID,
-				"failed_node", failedNodeID,
-				"cancelled_node", nodeID,
-			)
-			if a.metrics != nil {
-				a.metrics.PipelineNodesTotal.WithLabelValues(p.Name, "cancelled").Inc()
-			}
+		if _, exists := createdNodes[nodeID]; exists {
+			continue // already has a job (running or completed before failure)
 		}
+
+		node := findNode(p.DAGSpec, nodeID)
+		if node == nil {
+			continue
+		}
+
+		job := &domain.Job{
+			Name:      fmt.Sprintf("%s/%s", p.Name, nodeID),
+			Type:      jobTypeFromPayload(node.JobTemplate),
+			QueueName: queueNameFromPayload(node.JobTemplate),
+			Priority:  domain.PriorityNormal,
+			Payload:   node.JobTemplate,
+			Status:    domain.JobStatusCancelled,
+		}
+
+		created, err := a.store.CreateJob(ctx, job)
+		if err != nil {
+			a.logger.Error("cascade cancel: failed to create cancelled job",
+				"pipeline_id", p.ID, "node_id", nodeID, "err", err)
+			continue
+		}
+
+		if err := a.store.AddPipelineJob(ctx, p.ID, nodeID, created.ID); err != nil {
+			a.logger.Error("cascade cancel: failed to link cancelled job",
+				"pipeline_id", p.ID, "node_id", nodeID, "job_id", created.ID, "err", err)
+			continue
+		}
+
+		if a.metrics != nil {
+			a.metrics.PipelineNodesTotal.WithLabelValues(p.Name, "cancelled").Inc()
+		}
+
+		a.logger.Info("cascade cancelled downstream node",
+			"pipeline_id", p.ID, "failed_node", failedNodeID, "cancelled_node", nodeID, "job_id", created.ID)
 	}
 }
 
