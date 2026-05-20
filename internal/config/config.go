@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -146,6 +147,7 @@ func Load() (*Config, error) {
 		Worker: WorkerPoolConfig{
 			WorkerID:          getEnv("ORION_WORKER_ID", mustHostname()),
 			Concurrency:       getEnvInt("ORION_WORKER_CONCURRENCY", 10),
+			Queues:            getEnvStringSlice("ORION_WORKER_QUEUES", []string{"orion:queue:high", "orion:queue:default", "orion:queue:low"}),
 			VisibilityTimeout: getEnvDuration("ORION_WORKER_VISIBILITY_TIMEOUT", 5*time.Minute),
 			HeartbeatInterval: getEnvDuration("ORION_WORKER_HEARTBEAT_INTERVAL", 15*time.Second),
 			ShutdownTimeout:   getEnvDuration("ORION_WORKER_SHUTDOWN_TIMEOUT", 30*time.Second),
@@ -238,4 +240,23 @@ func mustHostname() string {
 		return "unknown-worker"
 	}
 	return h
+}
+
+// getEnvStringSlice parses a comma-separated env var into a string slice.
+// e.g. ORION_WORKER_QUEUES="orion:queue:high,orion:queue:default"
+func getEnvStringSlice(key string, def []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	var result []string
+	for _, s := range strings.Split(v, ",") {
+		if t := strings.TrimSpace(s); t != "" {
+			result = append(result, t)
+		}
+	}
+	if len(result) == 0 {
+		return def
+	}
+	return result
 }

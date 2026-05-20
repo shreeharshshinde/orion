@@ -159,9 +159,6 @@ func main() {
 	// The pool uses metrics to record job_duration, jobs_completed, jobs_failed,
 	// jobs_dead, jobs_retried, and worker_active_jobs on every executeJob call.
 	queueNames := cfg.Worker.Queues
-	if len(queueNames) == 0 {
-		queueNames = []string{"orion:queue:high", "orion:queue:default", "orion:queue:low"}
-	}
 
 	pool := worker.NewPool(
 		worker.WorkerConfig{
