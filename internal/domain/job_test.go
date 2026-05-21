@@ -39,10 +39,10 @@ func TestCanTransitionTo_ValidTransitions(t *testing.T) {
 		{domain.JobStatusRunning, domain.JobStatusScheduled, false},
 		{domain.JobStatusRunning, domain.JobStatusRetrying, false},
 
-		// failed → retry or dead
+		// failed → retry, dead, or operator replay (queued)
 		{domain.JobStatusFailed, domain.JobStatusRetrying, true},
 		{domain.JobStatusFailed, domain.JobStatusDead, true},
-		{domain.JobStatusFailed, domain.JobStatusQueued, false},
+		{domain.JobStatusFailed, domain.JobStatusQueued, true}, // operator replay
 		{domain.JobStatusFailed, domain.JobStatusRunning, false},
 
 		// retrying → back to queued
@@ -50,10 +50,10 @@ func TestCanTransitionTo_ValidTransitions(t *testing.T) {
 		{domain.JobStatusRetrying, domain.JobStatusRunning, false},
 		{domain.JobStatusRetrying, domain.JobStatusFailed, false},
 
-		// terminal states — no outbound transitions
+		// terminal states — no outbound transitions except dead (operator replay)
 		{domain.JobStatusCompleted, domain.JobStatusQueued, false},
 		{domain.JobStatusCompleted, domain.JobStatusFailed, false},
-		{domain.JobStatusDead, domain.JobStatusQueued, false},
+		{domain.JobStatusDead, domain.JobStatusQueued, true}, // operator replay
 		{domain.JobStatusDead, domain.JobStatusRetrying, false},
 		{domain.JobStatusCancelled, domain.JobStatusQueued, false},
 		{domain.JobStatusCancelled, domain.JobStatusRunning, false},

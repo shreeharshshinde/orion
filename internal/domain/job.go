@@ -26,8 +26,9 @@ var ValidTransitions = map[JobStatus][]JobStatus{
 	JobStatusQueued:    {JobStatusScheduled, JobStatusCancelled},
 	JobStatusScheduled: {JobStatusRunning, JobStatusQueued, JobStatusCancelled},
 	JobStatusRunning:   {JobStatusCompleted, JobStatusFailed},
-	JobStatusFailed:    {JobStatusRetrying, JobStatusDead},
+	JobStatusFailed:    {JobStatusRetrying, JobStatusDead, JobStatusQueued}, // queued: operator replay
 	JobStatusRetrying:  {JobStatusQueued},
+	JobStatusDead:      {JobStatusQueued}, // replay: operator re-enqueues a dead job
 }
 
 // JobType defines the executor backend to use.
