@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shreeharshshinde/orion/internal/api/handler"
 	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/queue"
 	"github.com/shreeharshshinde/orion/internal/store"
 )
 
@@ -30,6 +31,7 @@ type fakeStore struct {
 	listJobsFn            func(ctx context.Context, filter store.JobFilter) ([]*domain.Job, error)
 	getExecutionsFn       func(ctx context.Context, jobID uuid.UUID) ([]*domain.JobExecution, error)
 	deleteJobFn           func(ctx context.Context, id uuid.UUID) error
+	transitionFn          func(ctx context.Context, id uuid.UUID, exp, new domain.JobStatus, opts ...store.TransitionOption) error
 }
 
 func (f *fakeStore) CreateJob(ctx context.Context, job *domain.Job) (*domain.Job, error) {
@@ -70,6 +72,9 @@ func (f *fakeStore) GetExecutions(ctx context.Context, jobID uuid.UUID) ([]*doma
 
 // Store interface stubs — unused in handler tests
 func (f *fakeStore) TransitionJobState(ctx context.Context, id uuid.UUID, exp, new domain.JobStatus, opts ...store.TransitionOption) error {
+	if f.transitionFn != nil {
+		return f.transitionFn(ctx, id, exp, new, opts...)
+	}
 	return nil
 }
 func (f *fakeStore) ClaimPendingJobs(ctx context.Context, q, w string, limit int) ([]*domain.Job, error) {
@@ -174,7 +179,7 @@ func getExecutions(t *testing.T, h *handler.JobHandler, id string) *httptest.Res
 // ─────────────────────────────────────────────────────────────────────────────
 
 func TestSubmitJob_ValidInlineJob_Returns201(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 
 	rr := postJob(t, h, map[string]any{
 		"name":    "test-job",
@@ -194,7 +199,7 @@ func TestSubmitJob_ValidInlineJob_Returns201(t *testing.T) {
 }
 
 func TestSubmitJob_ValidK8sJob_Returns201(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 
 	rr := postJob(t, h, map[string]any{
 		"name": "gpu-training",
@@ -216,7 +221,7 @@ func TestSubmitJob_ValidK8sJob_Returns201(t *testing.T) {
 }
 
 func TestSubmitJob_MissingName_Returns422(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 
 	rr := postJob(t, h, map[string]any{
 		"type":    "inline",
@@ -230,7 +235,7 @@ func TestSubmitJob_MissingName_Returns422(t *testing.T) {
 }
 
 func TestSubmitJob_InvalidType_Returns422(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 
 	rr := postJob(t, h, map[string]any{
 		"name":    "test",
@@ -244,7 +249,7 @@ func TestSubmitJob_InvalidType_Returns422(t *testing.T) {
 }
 
 func TestSubmitJob_InlineMissingHandlerName_Returns422(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 
 	rr := postJob(t, h, map[string]any{
 		"name":    "test",
@@ -258,7 +263,7 @@ func TestSubmitJob_InlineMissingHandlerName_Returns422(t *testing.T) {
 }
 
 func TestSubmitJob_K8sMissingSpec_Returns422(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 
 	rr := postJob(t, h, map[string]any{
 		"name":    "test",
@@ -272,7 +277,7 @@ func TestSubmitJob_K8sMissingSpec_Returns422(t *testing.T) {
 }
 
 func TestSubmitJob_InvalidJSON_Returns400(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 	req := httptest.NewRequest(http.MethodPost, "/jobs", bytes.NewBufferString("not json"))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -297,7 +302,7 @@ func TestSubmitJob_IdempotencyKey_ExistingReturns200(t *testing.T) {
 			}
 			return nil, store.ErrNotFound
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := postJob(t, h, map[string]any{
 		"name":            "new-attempt",
@@ -322,7 +327,7 @@ func TestSubmitJob_StoreError_Returns500(t *testing.T) {
 		createJobFn: func(_ context.Context, _ *domain.Job) (*domain.Job, error) {
 			return nil, errors.New("database connection lost")
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := postJob(t, h, map[string]any{
 		"name":    "test",
@@ -348,7 +353,7 @@ func TestGetJob_Found_Returns200(t *testing.T) {
 			}
 			return nil, store.ErrNotFound
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := getJob(t, h, jobID.String())
 
@@ -364,7 +369,7 @@ func TestGetJob_Found_Returns200(t *testing.T) {
 }
 
 func TestGetJob_NotFound_Returns404(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 	rr := getJob(t, h, uuid.New().String())
 
 	if rr.Code != http.StatusNotFound {
@@ -373,7 +378,7 @@ func TestGetJob_NotFound_Returns404(t *testing.T) {
 }
 
 func TestGetJob_InvalidUUID_Returns400(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 	rr := getJob(t, h, "not-a-uuid")
 
 	if rr.Code != http.StatusBadRequest {
@@ -394,7 +399,7 @@ func TestListJobs_ReturnsAll(t *testing.T) {
 		listJobsFn: func(_ context.Context, _ store.JobFilter) ([]*domain.Job, error) {
 			return jobs, nil
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/jobs", nil)
 	rr := httptest.NewRecorder()
@@ -412,7 +417,7 @@ func TestListJobs_ReturnsAll(t *testing.T) {
 }
 
 func TestListJobs_EmptyList_Returns200(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 	req := httptest.NewRequest(http.MethodGet, "/jobs", nil)
 	rr := httptest.NewRecorder()
 	h.ListJobs(rr, req)
@@ -440,7 +445,7 @@ func TestGetExecutions_Found_Returns200(t *testing.T) {
 		getExecutionsFn: func(_ context.Context, jid uuid.UUID) ([]*domain.JobExecution, error) {
 			return execs, nil
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := getExecutions(t, h, jobID.String())
 
@@ -456,7 +461,7 @@ func TestGetExecutions_Found_Returns200(t *testing.T) {
 }
 
 func TestGetExecutions_JobNotFound_Returns404(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 	rr := getExecutions(t, h, uuid.New().String())
 
 	if rr.Code != http.StatusNotFound {
@@ -465,7 +470,7 @@ func TestGetExecutions_JobNotFound_Returns404(t *testing.T) {
 }
 
 func TestGetExecutions_InvalidUUID_Returns400(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 	rr := getExecutions(t, h, "bad-uuid")
 
 	if rr.Code != http.StatusBadRequest {
@@ -482,7 +487,7 @@ func TestGetExecutions_EmptyHistory_Returns200(t *testing.T) {
 		getExecutionsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.JobExecution, error) {
 			return []*domain.JobExecution{}, nil
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := getExecutions(t, h, jobID.String())
 
@@ -507,7 +512,7 @@ func TestAllRoutes_SetJSONContentType(t *testing.T) {
 		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
 			return &domain.Job{ID: jobID}, nil
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := getJob(t, h, jobID.String())
 	ct := rr.Header().Get("Content-Type")
@@ -535,7 +540,7 @@ func TestDeleteJob_Completed_Returns204(t *testing.T) {
 		getJobFn: func(_ context.Context, id uuid.UUID) (*domain.Job, error) {
 			return &domain.Job{ID: jobID, Status: domain.JobStatusCompleted}, nil
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := deleteJob(t, h, jobID.String())
 	if rr.Code != http.StatusNoContent {
@@ -544,7 +549,7 @@ func TestDeleteJob_Completed_Returns204(t *testing.T) {
 }
 
 func TestDeleteJob_NotFound_Returns404(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 	rr := deleteJob(t, h, uuid.New().String())
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rr.Code)
@@ -552,7 +557,7 @@ func TestDeleteJob_NotFound_Returns404(t *testing.T) {
 }
 
 func TestDeleteJob_InvalidUUID_Returns400(t *testing.T) {
-	h := handler.NewJobHandler(&fakeStore{}, testLogger())
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
 	rr := deleteJob(t, h, "not-a-uuid")
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
@@ -565,7 +570,7 @@ func TestDeleteJob_RunningJob_Returns409(t *testing.T) {
 		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
 			return &domain.Job{ID: jobID, Status: domain.JobStatusRunning}, nil
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := deleteJob(t, h, jobID.String())
 	if rr.Code != http.StatusConflict {
@@ -579,7 +584,7 @@ func TestDeleteJob_ScheduledJob_Returns409(t *testing.T) {
 		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
 			return &domain.Job{ID: jobID, Status: domain.JobStatusScheduled}, nil
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := deleteJob(t, h, jobID.String())
 	if rr.Code != http.StatusConflict {
@@ -596,10 +601,142 @@ func TestDeleteJob_StoreError_Returns500(t *testing.T) {
 		deleteJobFn: func(_ context.Context, _ uuid.UUID) error {
 			return errors.New("db error")
 		},
-	}, testLogger())
+	}, nil, testLogger())
 
 	rr := deleteJob(t, h, jobID.String())
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 on store error, got %d", rr.Code)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fake queue — implements queue.Queue for replay tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+type fakeQueue struct {
+	enqueueFn func(ctx context.Context, job *domain.Job) error
+}
+
+func (q *fakeQueue) Enqueue(ctx context.Context, job *domain.Job) error {
+	if q.enqueueFn != nil {
+		return q.enqueueFn(ctx, job)
+	}
+	return nil
+}
+func (q *fakeQueue) Dequeue(_ context.Context, _ string, _ time.Duration) (*domain.Job, queue.AckFunc, error) {
+	return nil, nil, nil
+}
+func (q *fakeQueue) Len(_ context.Context, _ string) (int64, error)          { return 0, nil }
+func (q *fakeQueue) Dead(_ context.Context, _ *domain.Job, _ string) error   { return nil }
+func (q *fakeQueue) Flush(_ context.Context, _ string) error                 { return nil }
+func (q *fakeQueue) Close() error                                             { return nil }
+func (q *fakeQueue) StartScheduledSweeper(_ context.Context)                 {}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /jobs/{id}/replay — ReplayJob
+// ─────────────────────────────────────────────────────────────────────────────
+
+func replayJob(t *testing.T, h *handler.JobHandler, id string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/jobs/"+id+"/replay", nil)
+	req.SetPathValue("id", id)
+	rr := httptest.NewRecorder()
+	h.ReplayJob(rr, req)
+	return rr
+}
+
+func TestReplayJob_DeadJob_Returns200(t *testing.T) {
+	jobID := uuid.New()
+	var transitioned bool
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusDead, QueueName: "default"}, nil
+		},
+		transitionFn: func(_ context.Context, _ uuid.UUID, _, _ domain.JobStatus, _ ...store.TransitionOption) error {
+			transitioned = true
+			return nil
+		},
+	}, &fakeQueue{}, testLogger())
+
+	rr := replayJob(t, h, jobID.String())
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	if !transitioned {
+		t.Error("expected TransitionJobState to be called")
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["status"] != "queued" {
+		t.Errorf("expected status=queued in response, got %v", resp["status"])
+	}
+}
+
+func TestReplayJob_FailedJob_Returns200(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusFailed, QueueName: "high"}, nil
+		},
+	}, &fakeQueue{}, testLogger())
+
+	rr := replayJob(t, h, jobID.String())
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 for failed job replay, got %d", rr.Code)
+	}
+}
+
+func TestReplayJob_RunningJob_Returns409(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusRunning}, nil
+		},
+	}, &fakeQueue{}, testLogger())
+
+	rr := replayJob(t, h, jobID.String())
+	if rr.Code != http.StatusConflict {
+		t.Errorf("expected 409 for running job, got %d", rr.Code)
+	}
+}
+
+func TestReplayJob_NotFound_Returns404(t *testing.T) {
+	h := handler.NewJobHandler(&fakeStore{}, &fakeQueue{}, testLogger())
+	rr := replayJob(t, h, uuid.New().String())
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestReplayJob_InvalidUUID_Returns400(t *testing.T) {
+	h := handler.NewJobHandler(&fakeStore{}, &fakeQueue{}, testLogger())
+	rr := replayJob(t, h, "not-a-uuid")
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestReplayJob_NoQueue_Returns503(t *testing.T) {
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
+	rr := replayJob(t, h, uuid.New().String())
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 when queue is nil, got %d", rr.Code)
+	}
+}
+
+func TestReplayJob_StateConflict_Returns409(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusDead}, nil
+		},
+		transitionFn: func(_ context.Context, _ uuid.UUID, _, _ domain.JobStatus, _ ...store.TransitionOption) error {
+			return store.ErrStateConflict
+		},
+	}, &fakeQueue{}, testLogger())
+
+	rr := replayJob(t, h, jobID.String())
+	if rr.Code != http.StatusConflict {
+		t.Errorf("expected 409 on state conflict, got %d", rr.Code)
 	}
 }

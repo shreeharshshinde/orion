@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/queue"
 	"github.com/shreeharshshinde/orion/internal/store"
 )
 
@@ -23,13 +24,14 @@ import (
 // All business logic lives in the store, scheduler, and worker — not here.
 type JobHandler struct {
 	store  store.Store
+	queue  queue.Queue // may be nil; required only for ReplayJob
 	logger *slog.Logger
 }
 
 // NewJobHandler creates a JobHandler. s must be a fully initialised store.Store.
-// In Phase 2, this is postgres.New(db). In tests, pass a fake implementation.
-func NewJobHandler(s store.Store, logger *slog.Logger) *JobHandler {
-	return &JobHandler{store: s, logger: logger}
+// q is the queue used by ReplayJob to re-enqueue dead jobs; pass nil to disable replay.
+func NewJobHandler(s store.Store, q queue.Queue, logger *slog.Logger) *JobHandler {
+	return &JobHandler{store: s, queue: q, logger: logger}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -275,6 +277,65 @@ func (h *JobHandler) CancelJob(w http.ResponseWriter, r *http.Request) {
 }
 
 
+
+// ReplayJob handles POST /jobs/{id}/replay.
+// Re-enqueues a dead (or failed) job by resetting it to queued status and
+// pushing it back onto its original Redis stream. The attempt counter is
+// reset to 0 so the job gets a full set of retries again.
+// Returns 409 if the job is not in a replayable state (dead or failed).
+// Returns 503 if the queue is unavailable.
+func (h *JobHandler) ReplayJob(w http.ResponseWriter, r *http.Request) {
+	if h.queue == nil {
+		writeError(w, http.StatusServiceUnavailable, "replay unavailable: queue not configured")
+		return
+	}
+
+	id, err := parseJobID(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid job ID: must be a UUID")
+		return
+	}
+
+	job, err := h.store.GetJob(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "job not found")
+			return
+		}
+		h.logger.Error("failed to get job for replay", "id", id, "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	if !job.CanTransitionTo(domain.JobStatusQueued) {
+		writeError(w, http.StatusConflict, "job cannot be replayed from status: "+string(job.Status))
+		return
+	}
+
+	// Transition dead/failed → queued, clearing the error message.
+	if err := h.store.TransitionJobState(r.Context(), id, job.Status, domain.JobStatusQueued,
+		store.WithError(""),
+	); err != nil {
+		if errors.Is(err, store.ErrStateConflict) {
+			writeError(w, http.StatusConflict, "job status changed concurrently, please retry")
+			return
+		}
+		h.logger.Error("failed to transition job for replay", "id", id, "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	// Re-enqueue onto the job's original queue stream.
+	job.Status = domain.JobStatusQueued
+	job.Attempt = 0
+	if err := h.queue.Enqueue(r.Context(), job); err != nil {
+		// DB transition already committed; log but don't fail the request.
+		// The scheduler's orphan reclaimer will pick it up on the next cycle.
+		h.logger.Error("failed to enqueue replayed job; scheduler will reclaim it", "id", id, "err", err)
+	}
+
+	writeJSON(w, http.StatusOK, job)
+}
 
 // DeleteJob handles DELETE /jobs/{id}.
 // Hard-deletes the job and its execution history. Admin use only.
