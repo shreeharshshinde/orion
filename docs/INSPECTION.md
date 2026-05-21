@@ -243,8 +243,17 @@ In `config.go`, `WorkerPoolConfig.Queues` is defined as `[]string` but has no de
 
 ### Missing Operational Features
 
-**7. Dead-letter queue replay API**
-Jobs in `orion:queue:dead` (Redis stream) and `status=dead` (PostgreSQL) have no API to replay them. There is no `POST /jobs/{id}/replay` endpoint. Dead jobs are visible in Grafana but cannot be requeued without direct database manipulation.
+**7. Dead-letter queue replay API** — ✅ RESOLVED
+
+Jobs in `orion:queue:dead` (Redis stream) and `status=dead` (PostgreSQL) had no API to replay them. Dead jobs were visible in Grafana but could not be requeued without direct database manipulation.
+
+> **Solution:** Added `POST /jobs/{id}/replay` endpoint. The handler accepts jobs in `dead` or `failed` status and performs two atomic steps: (1) CAS transition to `queued` via `TransitionJobState` with the error field cleared, (2) re-enqueue onto the job's original Redis stream via `queue.Enqueue`. If the Redis enqueue fails after the DB transition, the error is logged and the scheduler's orphan reclaimer will pick the job up on its next cycle — so the operation is safe to retry.
+>
+> **State machine changes:** Added `dead → queued` and `failed → queued` to `ValidTransitions` in `domain/job.go`. The `failed → queued` path allows operators to bypass the normal retry backoff and immediately re-run a stuck failed job.
+>
+> **Handler wiring:** `JobHandler` gained a `queue.Queue` field. `NewJobHandler` now accepts a `queue.Queue` as its second argument (pass `nil` to disable replay — returns 503). The route `POST /jobs/{id}/replay` is registered in `cmd/api/main.go` and passes `redisQ`.
+>
+> **Tests:** Seven unit tests added in `internal/api/handler/job_test.go`: dead job replayed (200), failed job replayed (200), running job rejected (409), not found (404), invalid UUID (400), nil queue (503), concurrent state conflict (409).
 
 **8. `GET /workers` endpoint**
 `store.ListActiveWorkers` is implemented but there is no HTTP handler exposing it. Operators cannot see which workers are alive, their queue assignments, or their active job counts without querying the database directly.
@@ -633,7 +642,7 @@ Ordered by impact × urgency for making Orion production-ready.
 ### Short Term (First Production Sprint)
 
 7. **Add `POST /jobs/{id}/cancel`** — operators need a way to stop runaway jobs.
-8. **Add `POST /jobs/{id}/replay`** — dead jobs need a recovery path.
+8. **Add `POST /jobs/{id}/replay`** — ✅ RESOLVED. Dead/failed jobs re-enqueue via CAS transition + `queue.Enqueue`.
 9. **Add `GET /workers`** — basic operational visibility.
 10. **Fix `dequeueLoop` goroutine lifecycle** — prevents potential panic on shutdown.
 11. **Add scheduler unit tests** — the most critical untested component.
