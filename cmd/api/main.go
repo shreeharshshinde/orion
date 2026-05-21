@@ -150,12 +150,13 @@ func main() {
 	// HTTP handlers use pgStore directly — they don't need event broadcasting.
 	mux := http.NewServeMux()
 
-	jobHandler := handler.NewJobHandler(pgStore, logger)
+	jobHandler := handler.NewJobHandler(pgStore, redisQ, logger)
 	mux.HandleFunc("POST /jobs", jobHandler.SubmitJob)
 	mux.HandleFunc("GET /jobs", jobHandler.ListJobs)
 	mux.HandleFunc("GET /jobs/{id}", jobHandler.GetJob)
 	mux.HandleFunc("GET /jobs/{id}/executions", jobHandler.GetExecutions)
 	mux.HandleFunc("POST /jobs/{id}/cancel", jobHandler.CancelJob)
+	mux.HandleFunc("POST /jobs/{id}/replay", jobHandler.ReplayJob)
 	mux.HandleFunc("DELETE /jobs/{id}", jobHandler.DeleteJob)
 
 	workerHandler := handler.NewWorkerHandler(pgStore, logger)
