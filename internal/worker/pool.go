@@ -157,6 +157,7 @@ func (p *Pool) dequeueLoop(ctx context.Context) {
 			}
 		}(queueName)
 	}
+	<-ctx.Done()
 }
 
 // runWorker is a single worker goroutine. Reads tasks from jobCh and executes them.
