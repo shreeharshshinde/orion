@@ -672,4 +672,28 @@ Ordered by impact × urgency for making Orion production-ready.
 
 ---
 
-*Inspection completed: 2026-05-09. Next review recommended after Priority Items 1–6 are addressed.*
+---
+
+## 10. Session Fixes — 2026-05-22
+
+### Fix 1 — `TestExecute_WatchChannelClose_FallsBackToPoll` Hung Indefinitely (RESOLVED)
+
+**Location:** `internal/worker/k8s/executor_test.go`
+
+`Execute` calls `client.BatchV1().Jobs(ns).Create(...)` which registers the job in the fake client's object tracker. The test then called `fakeClient.Tracker().Add(succeededJob(...))` to simulate the job completing — but `Add` calls `t.add(..., replaceExisting=false)`, which returns `AlreadyExists` when the object already exists. The error was silently discarded (`_ =`), leaving the tracker with the original pending job. `pollForCompletion` kept calling `Get()`, always receiving the pending job, and looped forever until the 120s test timeout.
+
+**Fix:** Replaced `Tracker().Add()` with `fakeClient.BatchV1().Jobs("test-ns").UpdateStatus(...)`, which correctly replaces the existing object in the tracker via the normal reactor chain.
+
+---
+
+### Fix 2 — `TestWatchJob_PollFallback` Hung Indefinitely (RESOLVED)
+
+**Location:** `internal/api/grpc/server.go`, `internal/api/grpc/server_test.go`
+
+`WatchJob` was purely broadcaster-driven — it only received events via the `Broadcaster` channel with no poll fallback. `TestWatchJob_PollFallback` tested a poll fallback that was never implemented: the test's `fakeStore.getJobFn` returned a completed job on the second call, but `WatchJob` never called `GetJob` after the initial fetch, so the stream never received the status change and blocked forever.
+
+**Fix:** Added a 500ms poll ticker to `WatchJob` in `server.go`. On each tick, `GetJob` is called; if the status has changed since the last known status, a `JobEvent` is sent to the stream. This serves as a safety net when PG `LISTEN/NOTIFY` is unavailable or slow. The broadcaster path remains the primary delivery mechanism.
+
+---
+
+*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22. Next review recommended after Priority Items 1–6 are addressed.*
