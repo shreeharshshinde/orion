@@ -255,8 +255,10 @@ Jobs in `orion:queue:dead` (Redis stream) and `status=dead` (PostgreSQL) had no 
 >
 > **Tests:** Seven unit tests added in `internal/api/handler/job_test.go`: dead job replayed (200), failed job replayed (200), running job rejected (409), not found (404), invalid UUID (400), nil queue (503), concurrent state conflict (409).
 
-**8. `GET /workers` endpoint**
+**8. `GET /workers` endpoint** — ✅ RESOLVED
 `store.ListActiveWorkers` is implemented but there is no HTTP handler exposing it. Operators cannot see which workers are alive, their queue assignments, or their active job counts without querying the database directly.
+
+> **Solution:** `WorkerHandler.ListWorkers` in `internal/api/handler/worker.go` returns all workers that have sent a heartbeat within the last 45 seconds as `{"workers": [...], "count": N}`. Route `GET /workers` registered in `cmd/api/main.go`. Three unit tests added in `internal/api/handler/worker_test.go`: active workers returned (200), empty list (200), store error (500).
 
 **9. `POST /jobs/{id}/cancel` for running jobs**
 Cancelling a running job requires signalling the worker that is executing it. The current architecture has no mechanism for this — the worker has no way to receive a cancellation signal for a specific job mid-execution. This requires either a Redis pub/sub channel or a context cancellation registry in the worker pool.
@@ -643,7 +645,7 @@ Ordered by impact × urgency for making Orion production-ready.
 
 7. **Add `POST /jobs/{id}/cancel`** — operators need a way to stop runaway jobs.
 8. **Add `POST /jobs/{id}/replay`** — ✅ RESOLVED. Dead/failed jobs re-enqueue via CAS transition + `queue.Enqueue`.
-9. **Add `GET /workers`** — basic operational visibility.
+9. **Add `GET /workers`** — ✅ RESOLVED. `WorkerHandler.ListWorkers` returns active workers with queue assignments and active job counts.
 10. **Fix `dequeueLoop` goroutine lifecycle** — prevents potential panic on shutdown.
 11. **Add scheduler unit tests** — the most critical untested component.
 12. **Add Redis queue tests with miniredis** — PEL and reclaim logic needs coverage.
