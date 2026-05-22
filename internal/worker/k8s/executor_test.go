@@ -578,9 +578,13 @@ func TestExecute_WatchChannelClose_FallsBackToPoll(t *testing.T) {
 	watcher.Stop()
 
 	// Poll fallback should kick in. Give it a tick to call Get().
-	// Pre-create the successful job so Get() returns it.
+	// Update the existing job to succeeded so the next poll returns it.
 	time.Sleep(20 * time.Millisecond)
-	_ = fakeClient.Tracker().Add(succeededJob("orion-550e8400", "test-ns"))
+	_, _ = fakeClient.BatchV1().Jobs("test-ns").UpdateStatus(
+		context.Background(),
+		succeededJob("orion-550e8400", "test-ns"),
+		metav1.UpdateOptions{},
+	)
 
 	err := <-errCh
 	if err != nil {
