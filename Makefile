@@ -34,8 +34,10 @@ build-worker: ## Build the worker
 
 ## ─── Test ────────────────────────────────────────────────────────────────────
 
+GO_PKGS := $(shell go list ./... | grep -v '/node_modules/')
+
 test: ## Run all unit tests
-	@go test ./... -v -race -timeout 120s
+	@go test $(GO_PKGS) -v -race -timeout 120s
 
 test-integration: ## Run integration tests (auto-spins Docker infra, waits for health)
 	@echo "Starting infrastructure for integration tests..."
@@ -45,11 +47,11 @@ test-integration: ## Run integration tests (auto-spins Docker infra, waits for h
 	@echo "Waiting for redis..."
 	@until docker compose exec -T redis redis-cli ping | grep -q PONG; do sleep 1; done
 	@echo "Infrastructure ready. Running integration tests..."
-	@go test ./... -v -race -tags=integration -timeout 300s
+	@go test $(GO_PKGS) -v -race -tags=integration -timeout 300s
 	@echo "Integration tests complete."
 
 test-coverage: ## Generate test coverage report
-	@go test ./... -race -coverprofile=coverage.out -covermode=atomic
+	@go test $(GO_PKGS) -race -coverprofile=coverage.out -covermode=atomic
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
