@@ -32,6 +32,7 @@ type fakeStore struct {
 	getExecutionsFn       func(ctx context.Context, jobID uuid.UUID) ([]*domain.JobExecution, error)
 	deleteJobFn           func(ctx context.Context, id uuid.UUID) error
 	transitionFn          func(ctx context.Context, id uuid.UUID, exp, new domain.JobStatus, opts ...store.TransitionOption) error
+	listActiveWorkersFn   func(ctx context.Context, ttl time.Duration) ([]*domain.Worker, error)
 }
 
 func (f *fakeStore) CreateJob(ctx context.Context, job *domain.Job) (*domain.Job, error) {
@@ -100,6 +101,9 @@ func (f *fakeStore) RecordExecution(ctx context.Context, exec *domain.JobExecuti
 func (f *fakeStore) RegisterWorker(ctx context.Context, w *domain.Worker) error { return nil }
 func (f *fakeStore) Heartbeat(ctx context.Context, id string) error             { return nil }
 func (f *fakeStore) ListActiveWorkers(ctx context.Context, ttl time.Duration) ([]*domain.Worker, error) {
+	if f.listActiveWorkersFn != nil {
+		return f.listActiveWorkersFn(ctx, ttl)
+	}
 	return nil, nil
 }
 func (f *fakeStore) DeregisterWorker(ctx context.Context, id string) error { return nil }
