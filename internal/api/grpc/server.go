@@ -161,6 +161,12 @@ func (s *Server) WatchJob(req *orionv1.WatchJobRequest, stream grpc.ServerStream
 	ch, unsubscribe := s.broadcaster.Subscribe(id.String())
 	defer unsubscribe() // CRITICAL: prevents goroutine/channel leak
 
+	// Poll fallback: if PG LISTEN/NOTIFY is unavailable or slow, detect
+	// status changes by polling the store every 500ms.
+	pollTicker := time.NewTicker(500 * time.Millisecond)
+	defer pollTicker.Stop()
+	lastStatus := job.Status
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -175,6 +181,29 @@ func (s *Server) WatchJob(req *orionv1.WatchJobRequest, stream grpc.ServerStream
 				return err
 			}
 			if isTerminalStatus(event.NewStatus) {
+				return nil
+			}
+
+		case <-pollTicker.C:
+			current, err := s.store.GetJob(ctx, id)
+			if err != nil {
+				continue
+			}
+			if current.Status == lastStatus {
+				continue
+			}
+			prev := lastStatus
+			lastStatus = current.Status
+			if err := stream.Send(&orionv1.JobEvent{
+				JobId:          id.String(),
+				JobName:        current.Name,
+				PreviousStatus: string(prev),
+				NewStatus:      string(current.Status),
+				Timestamp:      timestamppb.Now(),
+			}); err != nil {
+				return err
+			}
+			if isTerminalStatus(string(current.Status)) {
 				return nil
 			}
 		}
