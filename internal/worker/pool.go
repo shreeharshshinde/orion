@@ -19,6 +19,7 @@ import (
 	"github.com/shreeharshshinde/orion/internal/observability"
 	"github.com/shreeharshshinde/orion/internal/queue"
 	"github.com/shreeharshshinde/orion/internal/store"
+	"github.com/shreeharshshinde/orion/internal/worker/cancel"
 	"github.com/shreeharshshinde/orion/pkg/retry"
 )
 
@@ -64,6 +65,11 @@ type Pool struct {
 	jobCh       chan *jobTask
 	activeCount atomic.Int32
 	wg          sync.WaitGroup
+
+	// cancel registry: maps job ID → cancel func for in-flight executions.
+	cancelMu       sync.Mutex
+	cancelRegistry map[uuid.UUID]context.CancelFunc
+	cancelSignaler cancel.Signaler // may be nil (no cross-process cancel)
 }
 
 type jobTask struct {
@@ -73,16 +79,22 @@ type jobTask struct {
 
 // NewPool creates a Pool. Call Start() to begin processing jobs.
 // m may be nil in tests — all metric calls are nil-guarded.
-func NewPool(cfg WorkerConfig, q queue.Queue, s store.Store, executors []Executor, m *observability.Metrics, logger *slog.Logger) *Pool {
-	return &Pool{
-		cfg:       cfg,
-		queue:     q,
-		store:     s,
-		executors: executors,
-		metrics:   m,
-		logger:    logger,
-		jobCh:     make(chan *jobTask, cfg.Concurrency),
+// sig may be nil — cancel signals will only work within the same process.
+func NewPool(cfg WorkerConfig, q queue.Queue, s store.Store, executors []Executor, m *observability.Metrics, logger *slog.Logger, sig ...cancel.Signaler) *Pool {
+	p := &Pool{
+		cfg:            cfg,
+		queue:          q,
+		store:          s,
+		executors:      executors,
+		metrics:        m,
+		logger:         logger,
+		jobCh:          make(chan *jobTask, cfg.Concurrency),
+		cancelRegistry: make(map[uuid.UUID]context.CancelFunc),
 	}
+	if len(sig) > 0 {
+		p.cancelSignaler = sig[0]
+	}
+	return p
 }
 
 // Start launches the worker goroutines and the dequeue loop.
@@ -113,6 +125,11 @@ func (p *Pool) Start(ctx context.Context) error {
 
 	// Send heartbeats in the background.
 	go p.heartbeatLoop(ctx)
+
+	// Listen for cross-process cancel signals if a signaler is configured.
+	if p.cancelSignaler != nil {
+		go p.startCancelListener(ctx)
+	}
 
 	// Run the dequeue loop in the calling goroutine (blocks until ctx cancelled).
 	p.dequeueLoop(ctx)
@@ -158,6 +175,49 @@ func (p *Pool) dequeueLoop(ctx context.Context) {
 		}(queueName)
 	}
 	<-ctx.Done()
+}
+
+// registerCancel stores a cancel func for a running job.
+func (p *Pool) registerCancel(id uuid.UUID, cancel context.CancelFunc) {
+	p.cancelMu.Lock()
+	p.cancelRegistry[id] = cancel
+	p.cancelMu.Unlock()
+}
+
+// deregisterCancel removes the cancel func when a job finishes.
+func (p *Pool) deregisterCancel(id uuid.UUID) {
+	p.cancelMu.Lock()
+	delete(p.cancelRegistry, id)
+	p.cancelMu.Unlock()
+}
+
+// CancelJob cancels an in-flight job by ID. Returns false if the job is not
+// currently running on this worker.
+func (p *Pool) CancelJob(id uuid.UUID) bool {
+	p.cancelMu.Lock()
+	fn, ok := p.cancelRegistry[id]
+	p.cancelMu.Unlock()
+	if ok {
+		fn()
+	}
+	return ok
+}
+
+// startCancelListener subscribes to Redis cancel signals and cancels matching
+// in-flight jobs on this worker.
+func (p *Pool) startCancelListener(ctx context.Context) {
+	ch := p.cancelSignaler.Subscribe(ctx)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case id, ok := <-ch:
+			if !ok {
+				return
+			}
+			p.CancelJob(id)
+		}
+	}
 }
 
 // runWorker is a single worker goroutine. Reads tasks from jobCh and executes them.
@@ -278,6 +338,14 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 		defer cancel()
 	}
 
+	// ── Register cancel func so the job can be cancelled mid-execution ────────
+	execCtx, jobCancel := context.WithCancel(execCtx)
+	p.registerCancel(job.ID, jobCancel)
+	defer func() {
+		jobCancel()
+		p.deregisterCancel(job.ID)
+	}()
+
 	// ── Execute ───────────────────────────────────────────────────────────────
 	err := executor.Execute(execCtx, job)
 	finishedAt := time.Now()
@@ -289,6 +357,26 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 			"err", err,
 			"elapsed_ms", finishedAt.Sub(startedAt).Milliseconds(),
 		)
+
+		// If the job was cancelled (context cancelled AND DB status is now cancelled),
+		// transition to cancelled rather than failed.
+		if errors.Is(err, context.Canceled) {
+			current, dbErr := p.store.GetJob(ctx, job.ID)
+			if dbErr == nil && current.Status == domain.JobStatusCancelled {
+				_ = p.store.RecordExecution(ctx, &domain.JobExecution{
+					ID:         uuid.New(),
+					JobID:      job.ID,
+					Attempt:    job.Attempt + 1,
+					WorkerID:   p.cfg.WorkerID,
+					Status:     domain.JobStatusCancelled,
+					StartedAt:  &startedAt,
+					FinishedAt: &finishedAt,
+					Error:      "cancelled",
+				})
+				_ = task.ackFn(nil) // ACK: job is done, no redelivery needed
+				return
+			}
+		}
 
 		// Classify failure reason for the metric label.
 		// reason is low-cardinality: 3 possible values.
