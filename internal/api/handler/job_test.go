@@ -744,3 +744,117 @@ func TestReplayJob_StateConflict_Returns409(t *testing.T) {
 		t.Errorf("expected 409 on state conflict, got %d", rr.Code)
 	}
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fake cancel signaler
+// ─────────────────────────────────────────────────────────────────────────────
+
+type fakeSignaler struct {
+	publishFn func(ctx context.Context, id uuid.UUID) error
+}
+
+func (s *fakeSignaler) Publish(ctx context.Context, id uuid.UUID) error {
+	if s.publishFn != nil {
+		return s.publishFn(ctx, id)
+	}
+	return nil
+}
+func (s *fakeSignaler) Subscribe(_ context.Context) <-chan uuid.UUID {
+	ch := make(chan uuid.UUID)
+	close(ch)
+	return ch
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /jobs/{id}/cancel — CancelJob
+// ─────────────────────────────────────────────────────────────────────────────
+
+func cancelJob(t *testing.T, h *handler.JobHandler, id string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/jobs/"+id+"/cancel", nil)
+	req.SetPathValue("id", id)
+	rr := httptest.NewRecorder()
+	h.CancelJob(rr, req)
+	return rr
+}
+
+func TestCancelJob_QueuedJob_Returns200(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusQueued}, nil
+		},
+	}, nil, testLogger())
+
+	rr := cancelJob(t, h, jobID.String())
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestCancelJob_RunningJob_PublishesSignalAndReturns200(t *testing.T) {
+	jobID := uuid.New()
+	var published uuid.UUID
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusRunning}, nil
+		},
+	}, nil, testLogger(), &fakeSignaler{
+		publishFn: func(_ context.Context, id uuid.UUID) error {
+			published = id
+			return nil
+		},
+	})
+
+	rr := cancelJob(t, h, jobID.String())
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	if published != jobID {
+		t.Errorf("expected cancel signal published for %s, got %s", jobID, published)
+	}
+}
+
+func TestCancelJob_RunningJob_NoSignaler_Returns503(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusRunning}, nil
+		},
+	}, nil, testLogger()) // no signaler
+
+	rr := cancelJob(t, h, jobID.String())
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 when no signaler configured, got %d", rr.Code)
+	}
+}
+
+func TestCancelJob_CompletedJob_Returns409(t *testing.T) {
+	jobID := uuid.New()
+	h := handler.NewJobHandler(&fakeStore{
+		getJobFn: func(_ context.Context, _ uuid.UUID) (*domain.Job, error) {
+			return &domain.Job{ID: jobID, Status: domain.JobStatusCompleted}, nil
+		},
+	}, nil, testLogger())
+
+	rr := cancelJob(t, h, jobID.String())
+	if rr.Code != http.StatusConflict {
+		t.Errorf("expected 409 for completed job, got %d", rr.Code)
+	}
+}
+
+func TestCancelJob_NotFound_Returns404(t *testing.T) {
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
+	rr := cancelJob(t, h, uuid.New().String())
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestCancelJob_InvalidUUID_Returns400(t *testing.T) {
+	h := handler.NewJobHandler(&fakeStore{}, nil, testLogger())
+	rr := cancelJob(t, h, "not-a-uuid")
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}

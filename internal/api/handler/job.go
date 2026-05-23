@@ -11,6 +11,7 @@ import (
 	"github.com/shreeharshshinde/orion/internal/domain"
 	"github.com/shreeharshshinde/orion/internal/queue"
 	"github.com/shreeharshshinde/orion/internal/store"
+	"github.com/shreeharshshinde/orion/internal/worker/cancel"
 )
 
 // JobHandler handles all HTTP requests for job operations.
@@ -23,15 +24,21 @@ import (
 //
 // All business logic lives in the store, scheduler, and worker — not here.
 type JobHandler struct {
-	store  store.Store
-	queue  queue.Queue // may be nil; required only for ReplayJob
-	logger *slog.Logger
+	store          store.Store
+	queue          queue.Queue    // may be nil; required only for ReplayJob
+	cancelSignaler cancel.Signaler // may be nil; required only for cancelling running jobs
+	logger         *slog.Logger
 }
 
 // NewJobHandler creates a JobHandler. s must be a fully initialised store.Store.
 // q is the queue used by ReplayJob to re-enqueue dead jobs; pass nil to disable replay.
-func NewJobHandler(s store.Store, q queue.Queue, logger *slog.Logger) *JobHandler {
-	return &JobHandler{store: s, queue: q, logger: logger}
+// sig is the cancel signaler used by CancelJob for running jobs; pass nil to disable.
+func NewJobHandler(s store.Store, q queue.Queue, logger *slog.Logger, sig ...cancel.Signaler) *JobHandler {
+	h := &JobHandler{store: s, queue: q, logger: logger}
+	if len(sig) > 0 {
+		h.cancelSignaler = sig[0]
+	}
+	return h
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -239,7 +246,11 @@ func (h *JobHandler) GetExecutions(w http.ResponseWriter, r *http.Request) {
 }
 
 // CancelJob handles POST /jobs/{id}/cancel.
-// Valid from queued or scheduled status only — running jobs cannot be cancelled via API.
+// For queued/scheduled jobs: transitions directly to cancelled.
+// For running jobs: publishes a cancel signal to the worker via Redis pub/sub,
+// then transitions to cancelled. The worker will stop execution on the next
+// context check and ACK the message (no redelivery).
+// Returns 503 if the job is running but no cancel signaler is configured.
 func (h *JobHandler) CancelJob(w http.ResponseWriter, r *http.Request) {
 	id, err := parseJobID(r)
 	if err != nil {
@@ -260,6 +271,21 @@ func (h *JobHandler) CancelJob(w http.ResponseWriter, r *http.Request) {
 	if !job.CanTransitionTo(domain.JobStatusCancelled) {
 		writeError(w, http.StatusConflict, "job cannot be cancelled from status: "+string(job.Status))
 		return
+	}
+
+	// For running jobs, signal the worker before transitioning state.
+	// The worker checks the DB status after context cancellation to decide
+	// whether to record a cancelled execution (not a failed one).
+	if job.Status == domain.JobStatusRunning {
+		if h.cancelSignaler == nil {
+			writeError(w, http.StatusServiceUnavailable, "cancel unavailable: signaler not configured")
+			return
+		}
+		if err := h.cancelSignaler.Publish(r.Context(), id); err != nil {
+			h.logger.Error("failed to publish cancel signal", "id", id, "err", err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 
 	if err := h.store.TransitionJobState(r.Context(), id, job.Status, domain.JobStatusCancelled); err != nil {
