@@ -85,6 +85,21 @@ worker:
       memory: "2Gi"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Ingress
+# ─────────────────────────────────────────────────────────────────────────────
+ingress:
+  enabled: false
+  className: ""          # e.g. "nginx", "traefik"
+  host: ""               # e.g. "orion.example.com"; omit for wildcard
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls: []
+  #  - secretName: orion-tls
+  #    hosts:
+  #      - orion.example.com
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Database (PostgreSQL)
 # ─────────────────────────────────────────────────────────────────────────────
 database:
