@@ -260,8 +260,17 @@ Jobs in `orion:queue:dead` (Redis stream) and `status=dead` (PostgreSQL) had no 
 
 > **Solution:** `WorkerHandler.ListWorkers` in `internal/api/handler/worker.go` returns all workers that have sent a heartbeat within the last 45 seconds as `{"workers": [...], "count": N}`. Route `GET /workers` registered in `cmd/api/main.go`. Three unit tests added in `internal/api/handler/worker_test.go`: active workers returned (200), empty list (200), store error (500).
 
-**9. `POST /jobs/{id}/cancel` for running jobs**
-Cancelling a running job requires signalling the worker that is executing it. The current architecture has no mechanism for this — the worker has no way to receive a cancellation signal for a specific job mid-execution. This requires either a Redis pub/sub channel or a context cancellation registry in the worker pool.
+**9. `POST /jobs/{id}/cancel` for running jobs** — ✅ RESOLVED
+
+> **Solution:** Implemented a Redis pub/sub cancellation mechanism across two layers:
+>
+> **`internal/worker/cancel/cancel.go`** — `Signaler` interface with `Publish(ctx, jobID)` and `Subscribe(ctx) <-chan uuid.UUID`. `NewRedisSignaler` backs it with `redis.Client`. The pub/sub channel is `orion:cancel`.
+>
+> **`internal/worker/pool.go`** — `Pool` gained a `cancelRegistry map[uuid.UUID]context.CancelFunc` (mutex-guarded). `executeJob` wraps the executor call in a per-job `context.WithCancel`, registers the cancel func before execution, and deregisters it on completion. `startCancelListener` subscribes to Redis cancel signals and calls `CancelJob(id)` on match. When the executor returns `context.Canceled` and the DB status is already `cancelled`, the execution is recorded as `cancelled` and the message is ACKed (no redelivery). `NewPool` accepts an optional `cancel.Signaler` variadic argument — nil disables cross-process cancellation.
+>
+> **`internal/api/handler/job.go`** — `CancelJob` handler: for non-running jobs (`queued`, `scheduled`) it performs a CAS transition to `cancelled` via `TransitionJobState`. For `running` jobs it publishes a Redis cancel signal via `cancelSignaler.Publish`; returns 503 if no signaler is configured. Terminal states (`completed`, `failed`, `dead`, `cancelled`) return 409. `NewJobHandler` accepts an optional `cancel.Signaler` variadic argument.
+>
+> **Tests:** Six unit tests in `internal/api/handler/job_test.go`: queued job cancelled (200), running job publishes signal (200), running job with no signaler (503), completed job rejected (409), not found (404), invalid UUID (400). All pass.
 
 **10. Helm chart missing Ingress template**
 `deploy/helm/templates/` has no `ingress.yaml`. The API service is `ClusterIP` only. Exposing it externally requires manually creating an Ingress or LoadBalancer service outside the chart.
@@ -643,7 +652,7 @@ Ordered by impact × urgency for making Orion production-ready.
 
 ### Short Term (First Production Sprint)
 
-7. **Add `POST /jobs/{id}/cancel`** — operators need a way to stop runaway jobs.
+7. **Add `POST /jobs/{id}/cancel`** — ✅ RESOLVED. Redis pub/sub `Signaler` signals in-flight workers; CAS transition for queued/scheduled jobs; 503 when no signaler configured.
 8. **Add `POST /jobs/{id}/replay`** — ✅ RESOLVED. Dead/failed jobs re-enqueue via CAS transition + `queue.Enqueue`.
 9. **Add `GET /workers`** — ✅ RESOLVED. `WorkerHandler.ListWorkers` returns active workers with queue assignments and active job counts.
 10. **Fix `dequeueLoop` goroutine lifecycle** — prevents potential panic on shutdown.
@@ -696,4 +705,22 @@ Ordered by impact × urgency for making Orion production-ready.
 
 ---
 
-*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22. Next review recommended after Priority Items 1–6 are addressed.*
+## 11. Session Fixes — 2026-05-23
+
+### Fix 3 — `POST /jobs/{id}/cancel` for Running Jobs (RESOLVED)
+
+**Location:** `internal/worker/cancel/cancel.go`, `internal/worker/pool.go`, `internal/api/handler/job.go`
+
+The original `POST /jobs/{id}/cancel` endpoint could only transition `queued` and `scheduled` jobs. There was no mechanism to signal a worker that was actively executing a job — the worker had no way to receive a per-job cancellation signal mid-execution.
+
+**Fix:** Implemented a Redis pub/sub cancellation path:
+
+- `internal/worker/cancel/cancel.go` — new `Signaler` interface (`Publish`, `Subscribe`) backed by `redis.Client` on channel `orion:cancel`.
+- `internal/worker/pool.go` — `Pool` gained a `cancelRegistry map[uuid.UUID]context.CancelFunc` (mutex-guarded). Each job execution wraps the executor call in a `context.WithCancel`, registers the cancel func before execution, and deregisters it on completion. `startCancelListener` subscribes to Redis cancel signals and invokes `CancelJob(id)` on match. When the executor returns `context.Canceled` and the DB status is already `cancelled`, the execution is recorded as `cancelled` and the Redis message is ACKed (no redelivery). `NewPool` accepts an optional `cancel.Signaler` variadic — nil disables cross-process cancellation.
+- `internal/api/handler/job.go` — `CancelJob` handler: CAS transition to `cancelled` for `queued`/`scheduled` jobs; `cancelSignaler.Publish` for `running` jobs (503 if no signaler configured); 409 for terminal states. `NewJobHandler` accepts an optional `cancel.Signaler` variadic.
+
+**Tests:** Six unit tests in `internal/api/handler/job_test.go` — all pass: queued job (200), running job publishes signal (200), running job no signaler (503), completed job (409), not found (404), invalid UUID (400).
+
+---
+
+*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23. Next review recommended after Priority Items 1–6 are addressed.*
