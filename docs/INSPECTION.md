@@ -272,8 +272,9 @@ Jobs in `orion:queue:dead` (Redis stream) and `status=dead` (PostgreSQL) had no 
 >
 > **Tests:** Six unit tests in `internal/api/handler/job_test.go`: queued job cancelled (200), running job publishes signal (200), running job with no signaler (503), completed job rejected (409), not found (404), invalid UUID (400). All pass.
 
-**10. Helm chart missing Ingress template**
-`deploy/helm/templates/` has no `ingress.yaml`. The API service is `ClusterIP` only. Exposing it externally requires manually creating an Ingress or LoadBalancer service outside the chart.
+**10. Helm chart missing Ingress template** — ✅ RESOLVED
+
+> **Solution:** Added `deploy/helm/templates/ingress.yaml`. The template is gated on `ingress.enabled` (default `false`) so existing deployments are unaffected. Supports `ingressClassName`, `host`, `annotations`, and `tls` fields. Added a matching `ingress:` section to `values.yaml` with commented examples for nginx and cert-manager. Verified with `helm template` — renders correctly when enabled, produces no output when disabled.
 
 **11. No `NetworkPolicy` manifests**
 There are no Kubernetes `NetworkPolicy` resources. In a production cluster, the worker pods should only be able to reach PostgreSQL, Redis, and the Kubernetes API server — not arbitrary cluster services.
@@ -647,7 +648,7 @@ Ordered by impact × urgency for making Orion production-ready.
 2. **Add authentication middleware** — even a simple static API key is better than nothing.
 3. **Implement scheduled job sweeper** — jobs with `scheduled_at` silently never run.
 4. **Add `ORION_WORKER_QUEUES` env var parsing** — without this, a misconfigured worker processes nothing and gives no error.
-5. **Add Helm Ingress template** — the API is not externally reachable without it.
+5. **Add Helm Ingress template** — ✅ RESOLVED. `deploy/helm/templates/ingress.yaml` added; gated on `ingress.enabled` (default `false`); supports `className`, `host`, `annotations`, `tls`.
 6. **Add Redis password to defaults** — the queue is wide open on any cluster.
 
 ### Short Term (First Production Sprint)
@@ -720,6 +721,16 @@ The original `POST /jobs/{id}/cancel` endpoint could only transition `queued` an
 - `internal/api/handler/job.go` — `CancelJob` handler: CAS transition to `cancelled` for `queued`/`scheduled` jobs; `cancelSignaler.Publish` for `running` jobs (503 if no signaler configured); 409 for terminal states. `NewJobHandler` accepts an optional `cancel.Signaler` variadic.
 
 **Tests:** Six unit tests in `internal/api/handler/job_test.go` — all pass: queued job (200), running job publishes signal (200), running job no signaler (503), completed job (409), not found (404), invalid UUID (400).
+
+---
+
+### Fix 5 — Helm Chart Missing Ingress Template (RESOLVED)
+
+**Location:** `deploy/helm/templates/ingress.yaml`, `deploy/helm/values.yaml`
+
+The API `Service` was `ClusterIP` only with no Ingress resource in the chart. Exposing the API externally required manual work outside the chart.
+
+**Fix:** Added `deploy/helm/templates/ingress.yaml` gated on `ingress.enabled` (default `false`). Supports `ingressClassName`, `host`, `annotations`, and `tls`. Added a matching `ingress:` block to `values.yaml` with commented examples for nginx and cert-manager. Verified with `helm template` — renders correctly when enabled, produces no output when disabled.
 
 ---
 
