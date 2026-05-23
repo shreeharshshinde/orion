@@ -23,6 +23,7 @@ import (
 	redisqueue "github.com/shreeharshshinde/orion/internal/queue/redis"
 	"github.com/shreeharshshinde/orion/internal/scheduler"
 	"github.com/shreeharshshinde/orion/internal/store/postgres"
+	workercancel "github.com/shreeharshshinde/orion/internal/worker/cancel"
 )
 
 func main() {
@@ -150,7 +151,8 @@ func main() {
 	// HTTP handlers use pgStore directly — they don't need event broadcasting.
 	mux := http.NewServeMux()
 
-	jobHandler := handler.NewJobHandler(pgStore, redisQ, logger)
+	cancelSignaler := workercancel.NewRedisSignaler(redisClient)
+	jobHandler := handler.NewJobHandler(pgStore, redisQ, logger, cancelSignaler)
 	mux.HandleFunc("POST /jobs", jobHandler.SubmitJob)
 	mux.HandleFunc("GET /jobs", jobHandler.ListJobs)
 	mux.HandleFunc("GET /jobs/{id}", jobHandler.GetJob)

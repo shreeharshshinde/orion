@@ -17,6 +17,7 @@ import (
 	redisqueue "github.com/shreeharshshinde/orion/internal/queue/redis"
 	"github.com/shreeharshshinde/orion/internal/store/postgres"
 	"github.com/shreeharshshinde/orion/internal/worker"
+	workercancel "github.com/shreeharshshinde/orion/internal/worker/cancel"
 	"github.com/shreeharshshinde/orion/internal/worker/handlers"
 	"github.com/shreeharshshinde/orion/internal/worker/k8s"
 )
@@ -174,6 +175,7 @@ func main() {
 		executors,
 		metrics, // ← Phase 6
 		logger,
+		workercancel.NewRedisSignaler(redisClient),
 	)
 
 	logger.Info("starting worker pool",
