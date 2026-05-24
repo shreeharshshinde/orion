@@ -1,0 +1,104 @@
+{{- if .Values.networkPolicy.enabled -}}
+# ── API ──────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "orion.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "orion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Ingress controller → HTTP + gRPC
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+      ports:
+        - port: {{ .Values.api.httpPort }}
+        - port: {{ .Values.api.grpcPort }}
+    # Prometheus scrape → metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoringNamespace }}
+      ports:
+        - port: {{ .Values.api.metricsPort }}
+  egress:
+    - ports: [{ port: 5432 }]          # PostgreSQL
+    - ports: [{ port: 6379 }]          # Redis
+    - ports: [{ port: 4317 }]          # OTLP collector
+    - ports: [{ port: 443 }, { port: 6443 }]  # Kubernetes API server
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]  # DNS
+---
+# ── Scheduler ────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "orion.fullname" . }}-scheduler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scheduler
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "orion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scheduler
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoringNamespace }}
+      ports:
+        - port: {{ .Values.scheduler.metricsPort }}
+  egress:
+    - ports: [{ port: 5432 }]
+    - ports: [{ port: 6379 }]
+    - ports: [{ port: 4317 }]
+    - ports: [{ port: 443 }, { port: 6443 }]
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+---
+# ── Worker ───────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "orion.fullname" . }}-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "orion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoringNamespace }}
+      ports:
+        - port: {{ .Values.worker.metricsPort }}
+  egress:
+    - ports: [{ port: 5432 }]
+    - ports: [{ port: 6379 }]
+    - ports: [{ port: 4317 }]
+    # Kubernetes API server — required to create/watch K8s Jobs in orion-jobs namespace
+    - ports: [{ port: 443 }, { port: 6443 }]
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+{{- end }}
