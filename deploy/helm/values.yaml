@@ -100,6 +100,16 @@ ingress:
   #      - orion.example.com
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Network Policy
+# ─────────────────────────────────────────────────────────────────────────────
+networkPolicy:
+  enabled: false
+  # Namespace where the ingress controller runs (e.g. "ingress-nginx")
+  ingressNamespace: ingress-nginx
+  # Namespace where Prometheus runs (e.g. "monitoring")
+  monitoringNamespace: monitoring
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Database (PostgreSQL)
 # ─────────────────────────────────────────────────────────────────────────────
 database:
