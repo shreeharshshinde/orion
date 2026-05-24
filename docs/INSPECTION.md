@@ -279,8 +279,11 @@ Jobs in `orion:queue:dead` (Redis stream) and `status=dead` (PostgreSQL) had no 
 **11. No `NetworkPolicy` manifests**
 There are no Kubernetes `NetworkPolicy` resources. In a production cluster, the worker pods should only be able to reach PostgreSQL, Redis, and the Kubernetes API server — not arbitrary cluster services.
 
-**12. No `PodDisruptionBudget`**
+**12. No `PodDisruptionBudget`** — ✅ RESOLVED
+
 Rolling updates can take all API or scheduler pods down simultaneously. A PDB ensuring at least 1 API pod and 1 scheduler pod remain available during updates is missing.
+
+> **Solution:** PDBs for the API (`minAvailable: 2`) and scheduler (`minAvailable: 1`) were already present in their respective deployment templates. Added a worker PDB (`maxUnavailable: 1`) to `deploy/helm/templates/worker-deployment.yaml`. The worker uses `maxUnavailable` rather than `minAvailable` because the worker replica count is dynamic (HPA scales 2–50); a fixed `minAvailable` would block node drains when the HPA has scaled down to the minimum. `maxUnavailable: 1` ensures at most one worker pod is disrupted at a time regardless of the current replica count, protecting in-flight ML jobs during rolling updates and node maintenance.
 
 **13. Migration is not idempotent on re-run**
 The `migrate-job.yaml` Kubernetes Job runs `golang-migrate up`. If the Job is re-applied (e.g., during a Helm upgrade with no schema changes), it will attempt to run and succeed (migrations are idempotent by design), but the Job will show as `Completed` from a previous run. The Job should use `ttlSecondsAfterFinished` to clean itself up.
@@ -660,7 +663,7 @@ Ordered by impact × urgency for making Orion production-ready.
 11. **Add scheduler unit tests** — the most critical untested component.
 12. **Add Redis queue tests with miniredis** — PEL and reclaim logic needs coverage.
 13. **Add `NetworkPolicy` to Helm chart** — isolate worker pods.
-14. **Add `PodDisruptionBudget` to Helm chart** — safe rolling updates.
+14. **Add `PodDisruptionBudget` to Helm chart** — ✅ RESOLVED. Worker PDB (`maxUnavailable: 1`) added to `worker-deployment.yaml`; API (`minAvailable: 2`) and scheduler (`minAvailable: 1`) PDBs were already present.
 
 ### Medium Term (Hardening Sprint)
 
@@ -734,4 +737,30 @@ The API `Service` was `ClusterIP` only with no Ingress resource in the chart. Ex
 
 ---
 
-*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23. Next review recommended after Priority Items 1–6 are addressed.*
+*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23, 2026-05-24. Next review recommended after Priority Items 1–6 are addressed.*
+
+---
+
+## 12. Session Fixes — 2026-05-24
+
+### Fix 6 — No `PodDisruptionBudget` for Worker (RESOLVED)
+
+**Location:** `deploy/helm/templates/worker-deployment.yaml`
+
+The API and scheduler already had PDBs (`minAvailable: 2` and `minAvailable: 1` respectively) embedded in their deployment templates. The worker had none. During a node drain or rolling update, Kubernetes could evict all worker pods simultaneously, killing every in-flight ML job.
+
+**Fix:** Added a `PodDisruptionBudget` for the worker to `deploy/helm/templates/worker-deployment.yaml`:
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "orion.fullname" . }}-worker-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+```
+
+`maxUnavailable: 1` is used instead of `minAvailable` because the worker replica count is dynamic (HPA scales 2–50). A fixed `minAvailable` would block node drains when the HPA has scaled down to the minimum. `maxUnavailable: 1` ensures at most one worker pod is disrupted at a time regardless of the current scale, protecting in-flight jobs during rolling updates and node maintenance.
