@@ -276,8 +276,16 @@ Jobs in `orion:queue:dead` (Redis stream) and `status=dead` (PostgreSQL) had no 
 
 > **Solution:** Added `deploy/helm/templates/ingress.yaml`. The template is gated on `ingress.enabled` (default `false`) so existing deployments are unaffected. Supports `ingressClassName`, `host`, `annotations`, and `tls` fields. Added a matching `ingress:` section to `values.yaml` with commented examples for nginx and cert-manager. Verified with `helm template` — renders correctly when enabled, produces no output when disabled.
 
-**11. No `NetworkPolicy` manifests**
+**11. No `NetworkPolicy` manifests** — ✅ RESOLVED
+
 There are no Kubernetes `NetworkPolicy` resources. In a production cluster, the worker pods should only be able to reach PostgreSQL, Redis, and the Kubernetes API server — not arbitrary cluster services.
+
+> **Solution:** Added `deploy/helm/templates/network-policy.yaml` gated on `networkPolicy.enabled` (default `false`). Creates one `NetworkPolicy` per component (api, scheduler, worker). Each policy allows only the minimum required traffic:
+> - **API** — ingress from `ingressNamespace` on HTTP/gRPC ports, from `monitoringNamespace` on the metrics port; egress to PostgreSQL (5432), Redis (6379), OTLP collector (4317), Kubernetes API server (443/6443), and DNS (53).
+> - **Scheduler** — ingress from `monitoringNamespace` on metrics port only; same egress as API.
+> - **Worker** — ingress from `monitoringNamespace` on metrics port only; same egress as API (Kubernetes API server access is required to create/watch K8s Jobs in the `orion-jobs` namespace).
+>
+> Added `networkPolicy:` block to `values.yaml` with `ingressNamespace: ingress-nginx` and `monitoringNamespace: monitoring` as configurable defaults.
 
 **12. No `PodDisruptionBudget`** — ✅ RESOLVED
 
@@ -662,7 +670,7 @@ Ordered by impact × urgency for making Orion production-ready.
 10. **Fix `dequeueLoop` goroutine lifecycle** — prevents potential panic on shutdown.
 11. **Add scheduler unit tests** — the most critical untested component.
 12. **Add Redis queue tests with miniredis** — PEL and reclaim logic needs coverage.
-13. **Add `NetworkPolicy` to Helm chart** — isolate worker pods.
+13. **Add `NetworkPolicy` to Helm chart** — ✅ RESOLVED. `deploy/helm/templates/network-policy.yaml` added; gated on `networkPolicy.enabled` (default `false`); restricts api/scheduler/worker to PostgreSQL, Redis, OTLP, K8s API server, and DNS only.
 14. **Add `PodDisruptionBudget` to Helm chart** — ✅ RESOLVED. Worker PDB (`maxUnavailable: 1`) added to `worker-deployment.yaml`; API (`minAvailable: 2`) and scheduler (`minAvailable: 1`) PDBs were already present.
 
 ### Medium Term (Hardening Sprint)
@@ -736,6 +744,22 @@ The API `Service` was `ClusterIP` only with no Ingress resource in the chart. Ex
 **Fix:** Added `deploy/helm/templates/ingress.yaml` gated on `ingress.enabled` (default `false`). Supports `ingressClassName`, `host`, `annotations`, and `tls`. Added a matching `ingress:` block to `values.yaml` with commented examples for nginx and cert-manager. Verified with `helm template` — renders correctly when enabled, produces no output when disabled.
 
 ---
+
+### Fix 7 — No `NetworkPolicy` Manifests (RESOLVED)
+
+**Location:** `deploy/helm/templates/network-policy.yaml`, `deploy/helm/values.yaml`
+
+No `NetworkPolicy` resources existed in the Helm chart. Worker pods (and all other Orion pods) could reach any service in the cluster — a significant blast radius if a pod was compromised or misconfigured.
+
+**Fix:** Added `deploy/helm/templates/network-policy.yaml` with one `NetworkPolicy` per component, gated on `networkPolicy.enabled` (default `false`) so existing deployments are unaffected. Each policy enforces least-privilege:
+
+| Component | Ingress allowed | Egress allowed |
+|---|---|---|
+| api | ingress-controller ns (HTTP/gRPC), monitoring ns (metrics) | PostgreSQL, Redis, OTLP, K8s API, DNS |
+| scheduler | monitoring ns (metrics) | PostgreSQL, Redis, OTLP, K8s API, DNS |
+| worker | monitoring ns (metrics) | PostgreSQL, Redis, OTLP, K8s API, DNS |
+
+The worker requires K8s API server egress (443/6443) to create and watch `batchv1.Job` resources in the `orion-jobs` namespace. The ingress and monitoring namespace names are configurable via `networkPolicy.ingressNamespace` and `networkPolicy.monitoringNamespace` in `values.yaml`.
 
 *Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23, 2026-05-24. Next review recommended after Priority Items 1–6 are addressed.*
 
