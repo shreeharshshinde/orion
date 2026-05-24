@@ -93,3 +93,17 @@ spec:
     - name: metrics
       port: {{ .Values.worker.metricsPort }}
       targetPort: metrics
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "orion.fullname" . }}-worker-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orion.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "orion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
