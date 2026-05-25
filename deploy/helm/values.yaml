@@ -110,6 +110,16 @@ networkPolicy:
   monitoringNamespace: monitoring
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Database migration Job
+# ─────────────────────────────────────────────────────────────────────────────
+migrate:
+  enabled: true
+  # Seconds after the Job finishes (success or failure) before Kubernetes
+  # automatically deletes it. Prevents completed migration Jobs from
+  # accumulating across Helm upgrades. 300 = 5 minutes.
+  ttlSecondsAfterFinished: 300
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Database (PostgreSQL)
 # ─────────────────────────────────────────────────────────────────────────────
 database:
