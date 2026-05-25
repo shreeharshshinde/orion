@@ -293,8 +293,11 @@ Rolling updates can take all API or scheduler pods down simultaneously. A PDB en
 
 > **Solution:** PDBs for the API (`minAvailable: 2`) and scheduler (`minAvailable: 1`) were already present in their respective deployment templates. Added a worker PDB (`maxUnavailable: 1`) to `deploy/helm/templates/worker-deployment.yaml`. The worker uses `maxUnavailable` rather than `minAvailable` because the worker replica count is dynamic (HPA scales 2–50); a fixed `minAvailable` would block node drains when the HPA has scaled down to the minimum. `maxUnavailable: 1` ensures at most one worker pod is disrupted at a time regardless of the current replica count, protecting in-flight ML jobs during rolling updates and node maintenance.
 
-**13. Migration is not idempotent on re-run**
+**13. Migration Job missing `ttlSecondsAfterFinished` in Helm chart** — ✅ RESOLVED
+
 The `migrate-job.yaml` Kubernetes Job runs `golang-migrate up`. If the Job is re-applied (e.g., during a Helm upgrade with no schema changes), it will attempt to run and succeed (migrations are idempotent by design), but the Job will show as `Completed` from a previous run. The Job should use `ttlSecondsAfterFinished` to clean itself up.
+
+> **Solution:** Added `deploy/helm/templates/migrate-job.yaml` as a Helm hook Job (`pre-install,pre-upgrade`) with `ttlSecondsAfterFinished` sourced from `migrate.ttlSecondsAfterFinished` (default `300` seconds). The `helm.sh/hook-delete-policy: before-hook-creation` annotation ensures the previous Job is removed before each upgrade, preventing `AlreadyExists` errors. Added `migrate.enabled` (default `true`) and `migrate.ttlSecondsAfterFinished` to `values.yaml`.
 
 **14. No `CANCEL` endpoint for pipelines**
 There is no `DELETE /pipelines/{id}` or `POST /pipelines/{id}/cancel`. A running pipeline cannot be stopped via the API.
@@ -530,7 +533,7 @@ The DSN (containing the database password) defaults to empty and must be provide
 | No TLS on gRPC server | Medium | Internal service-to-service traffic unencrypted |
 | Redis has no password in defaults | High | Any pod in the cluster can read/write the job queue |
 | No Horizontal Pod Autoscaler for API | Medium | API cannot scale under submission load spikes |
-| `migrate-job.yaml` missing `ttlSecondsAfterFinished` | Low | Completed migration Jobs accumulate |
+| `migrate-job.yaml` missing `ttlSecondsAfterFinished` | Low | ✅ RESOLVED — Helm hook Job with TTL 300s added |
 
 ### Operational
 
@@ -761,7 +764,7 @@ No `NetworkPolicy` resources existed in the Helm chart. Worker pods (and all oth
 
 The worker requires K8s API server egress (443/6443) to create and watch `batchv1.Job` resources in the `orion-jobs` namespace. The ingress and monitoring namespace names are configurable via `networkPolicy.ingressNamespace` and `networkPolicy.monitoringNamespace` in `values.yaml`.
 
-*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23, 2026-05-24. Next review recommended after Priority Items 1–6 are addressed.*
+*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23, 2026-05-24, 2026-05-25. Next review recommended after Priority Items 1–6 are addressed.*
 
 ---
 
@@ -788,3 +791,30 @@ spec:
 ```
 
 `maxUnavailable: 1` is used instead of `minAvailable` because the worker replica count is dynamic (HPA scales 2–50). A fixed `minAvailable` would block node drains when the HPA has scaled down to the minimum. `maxUnavailable: 1` ensures at most one worker pod is disrupted at a time regardless of the current scale, protecting in-flight jobs during rolling updates and node maintenance.
+
+---
+
+## 13. Session Fixes — 2026-05-25
+
+### Fix 13 — Helm Chart Missing Migrate Job with `ttlSecondsAfterFinished` (RESOLVED)
+
+**Location:** `deploy/helm/templates/migrate-job.yaml`, `deploy/helm/values.yaml`
+
+The Helm chart had no migrate Job template. The only migration manifest was the standalone `deploy/k8s/migrate-job.yaml`, which is applied manually and is not part of the Helm release lifecycle. On every `helm upgrade`, the migration step was either skipped entirely or required manual `kubectl apply` outside the chart. Additionally, the issue noted that any migrate Job should use `ttlSecondsAfterFinished` so completed Jobs do not accumulate across upgrades.
+
+**Fix:** Added `deploy/helm/templates/migrate-job.yaml` as a Helm pre-install/pre-upgrade hook Job:
+
+- `"helm.sh/hook": pre-install,pre-upgrade` — runs before any Orion service starts, ensuring the schema is up to date before the API, scheduler, or worker pods are created or updated.
+- `"helm.sh/hook-weight": "-5"` — executes before other hooks (e.g., any future seed jobs).
+- `"helm.sh/hook-delete-policy": before-hook-creation` — Kubernetes deletes the previous Job before creating a new one on each upgrade, preventing `AlreadyExists` errors.
+- `spec.ttlSecondsAfterFinished: {{ .Values.migrate.ttlSecondsAfterFinished }}` — Kubernetes automatically garbage-collects the Job 300 seconds after it finishes (success or failure), preventing accumulation of completed migration Jobs across upgrades.
+
+Added `migrate:` block to `values.yaml`:
+
+```yaml
+migrate:
+  enabled: true
+  ttlSecondsAfterFinished: 300  # 5 minutes
+```
+
+`migrate.enabled` (default `true`) allows operators to disable the hook Job if they manage migrations out-of-band (e.g., via a CI pipeline step). The Job reuses the API image and the existing `orion.secretName` helper for the database DSN secret, so no new secrets or images are required.
