@@ -304,8 +304,10 @@ There is no `DELETE /pipelines/{id}` or `POST /pipelines/{id}/cancel`. A running
 
 > **Solution:** Added `CancelPipeline` handler to `internal/api/handler/pipeline.go`. The handler fetches the pipeline, returns 409 if it is already in a terminal state (`completed`, `failed`, `cancelled`), and calls `UpdatePipelineStatus` to transition it to `cancelled` for `pending` or `running` pipelines. Returns 200 with the updated pipeline on success. Route `POST /pipelines/{id}/cancel` registered in `cmd/api/main.go`. Six unit tests added in `internal/api/handler/pipeline_test.go`: pending pipeline (200), running pipeline (200), completed pipeline (409), already-cancelled pipeline (409), not found (404), invalid UUID (400).
 
-**15. `pkg/retry` not exported with a `Retry` function**
+**15. `pkg/retry` not exported with a `Retry` function** — ✅ RESOLVED
 `pkg/retry` exports `FullJitterBackoff` (the delay calculator) but not a `Retry(ctx, fn, opts)` wrapper. Callers that want to retry an operation with backoff must implement the loop themselves.
+
+> **Solution:** Added `Do(ctx context.Context, fn func(ctx context.Context) error, opts ...Option) error` to `pkg/retry/retry.go`. Configured via functional options `WithMaxAttempts`, `WithBase`, and `WithCap` (defaults: 3 attempts, 100ms base, 30s cap). The sleep between attempts uses a `select` on `ctx.Done()` and `time.After`, so cancellation interrupts the wait immediately rather than blocking until the full delay elapses. Returns `ctx.Err()` on cancellation, or the last fn error on exhaustion. Five unit tests added in `pkg/retry/retry_test.go`: success on first call, retries and succeeds, exhausts attempts, cancelled before first call, cancelled during sleep — all pass.
 
 ---
 
@@ -843,3 +845,22 @@ migrate:
 ```
 
 `migrate.enabled` (default `true`) allows operators to disable the hook Job if they manage migrations out-of-band (e.g., via a CI pipeline step). The Job reuses the API image and the existing `orion.secretName` helper for the database DSN secret, so no new secrets or images are required.
+
+---
+
+## 15. Session Fixes — 2026-05-26
+
+### Fix 15 — `pkg/retry` Missing Context-Aware `Do` Wrapper (RESOLVED)
+
+**Location:** `pkg/retry/retry.go`, `pkg/retry/retry_test.go`
+
+`pkg/retry` exported `FullJitterBackoff` (the delay calculator) and `WithRetry` (a simple loop), but `WithRetry` accepts no `context.Context`. Callers could not cancel an in-progress retry loop on shutdown or deadline, and had to implement their own context-aware loops manually.
+
+**Fix:** Added `Do(ctx context.Context, fn func(ctx context.Context) error, opts ...Option) error` to `pkg/retry/retry.go`:
+
+- Configured via functional options: `WithMaxAttempts(n)`, `WithBase(d)`, `WithCap(d)`. Defaults: 3 attempts, 100ms base, 30s cap.
+- Checks `ctx.Err()` before the first call — returns immediately if the context is already cancelled.
+- Between attempts, sleeps via `select { case <-ctx.Done(): return ctx.Err(); case <-time.After(delay): }` — cancellation interrupts the sleep immediately rather than blocking for the full jitter delay.
+- Returns `ctx.Err()` on cancellation, or the last `fn` error when all attempts are exhausted.
+
+**Tests:** Five unit tests added in `pkg/retry/retry_test.go` — all pass: success on first call, retries and succeeds (3 attempts), exhausts all attempts, cancelled before first call, cancelled during sleep.
