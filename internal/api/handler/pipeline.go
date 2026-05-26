@@ -252,6 +252,64 @@ func (h *PipelineHandler) GetPipelineJobs(w http.ResponseWriter, r *http.Request
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /pipelines/{id}/cancel — CancelPipeline
+// ─────────────────────────────────────────────────────────────────────────────
+
+// CancelPipeline handles POST /pipelines/{id}/cancel.
+//
+// Transitions a pending or running pipeline to cancelled status.
+// Does not cancel individual jobs that are already running — those will
+// complete or fail naturally. Downstream nodes that haven't started will
+// not be created by the scheduler once the pipeline is cancelled.
+//
+// Responses:
+//
+//	200 OK           → pipeline cancelled (body: domain.Pipeline)
+//	400 Bad Request  → id is not a valid UUID
+//	404 Not Found    → no pipeline with that ID
+//	409 Conflict     → pipeline is already in a terminal state (completed/failed/cancelled)
+//	500 Internal     → store failure
+func (h *PipelineHandler) CancelPipeline(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePipelineID(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid pipeline ID: must be a UUID")
+		return
+	}
+
+	p, err := h.store.GetPipeline(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "pipeline not found")
+			return
+		}
+		h.logger.Error("failed to get pipeline", "id", id, "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	// Only pending and running pipelines can be cancelled.
+	if p.Status != domain.PipelineStatusPending && p.Status != domain.PipelineStatusRunning {
+		writeError(w, http.StatusConflict,
+			"pipeline is already in a terminal state: "+string(p.Status))
+		return
+	}
+
+	if err := h.store.UpdatePipelineStatus(r.Context(), id, domain.PipelineStatusCancelled); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "pipeline not found")
+			return
+		}
+		h.logger.Error("failed to cancel pipeline", "id", id, "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	p.Status = domain.PipelineStatusCancelled
+	h.logger.Info("pipeline cancelled", "pipeline_id", id, "name", p.Name)
+	writeJSON(w, http.StatusOK, p)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DAG validation
 // ─────────────────────────────────────────────────────────────────────────────
 
