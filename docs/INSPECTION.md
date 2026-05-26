@@ -299,8 +299,10 @@ The `migrate-job.yaml` Kubernetes Job runs `golang-migrate up`. If the Job is re
 
 > **Solution:** Added `deploy/helm/templates/migrate-job.yaml` as a Helm hook Job (`pre-install,pre-upgrade`) with `ttlSecondsAfterFinished` sourced from `migrate.ttlSecondsAfterFinished` (default `300` seconds). The `helm.sh/hook-delete-policy: before-hook-creation` annotation ensures the previous Job is removed before each upgrade, preventing `AlreadyExists` errors. Added `migrate.enabled` (default `true`) and `migrate.ttlSecondsAfterFinished` to `values.yaml`.
 
-**14. No `CANCEL` endpoint for pipelines**
+**14. No `CANCEL` endpoint for pipelines** — ✅ RESOLVED
 There is no `DELETE /pipelines/{id}` or `POST /pipelines/{id}/cancel`. A running pipeline cannot be stopped via the API.
+
+> **Solution:** Added `CancelPipeline` handler to `internal/api/handler/pipeline.go`. The handler fetches the pipeline, returns 409 if it is already in a terminal state (`completed`, `failed`, `cancelled`), and calls `UpdatePipelineStatus` to transition it to `cancelled` for `pending` or `running` pipelines. Returns 200 with the updated pipeline on success. Route `POST /pipelines/{id}/cancel` registered in `cmd/api/main.go`. Six unit tests added in `internal/api/handler/pipeline_test.go`: pending pipeline (200), running pipeline (200), completed pipeline (409), already-cancelled pipeline (409), not found (404), invalid UUID (400).
 
 **15. `pkg/retry` not exported with a `Retry` function**
 `pkg/retry` exports `FullJitterBackoff` (the delay calculator) but not a `Retry(ctx, fn, opts)` wrapper. Callers that want to retry an operation with backoff must implement the loop themselves.
@@ -542,7 +544,7 @@ The DSN (containing the database password) defaults to empty and must be provide
 | No `GET /workers` endpoint | Medium | Cannot inspect worker health via API |
 | No job cancellation API | High | Cannot stop a running job without direct DB access |
 | No dead-letter replay API | High | Dead jobs require manual DB intervention to retry |
-| No pipeline cancellation API | Medium | Cannot stop a running pipeline |
+| No pipeline cancellation API | Medium | ✅ RESOLVED — `POST /pipelines/{id}/cancel` added |
 | Scheduled job sorted-set sweeper missing | Critical | Jobs with `scheduled_at` never execute |
 | No `ORION_WORKER_QUEUES` env var parsing | High | Worker silently processes no queues if not set in code |
 | No structured runbook for common failures | Medium | `docs/RUNBOOK.md` exists but may be incomplete |
@@ -764,7 +766,30 @@ No `NetworkPolicy` resources existed in the Helm chart. Worker pods (and all oth
 
 The worker requires K8s API server egress (443/6443) to create and watch `batchv1.Job` resources in the `orion-jobs` namespace. The ingress and monitoring namespace names are configurable via `networkPolicy.ingressNamespace` and `networkPolicy.monitoringNamespace` in `values.yaml`.
 
-*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23, 2026-05-24, 2026-05-25. Next review recommended after Priority Items 1–6 are addressed.*
+*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23, 2026-05-24, 2026-05-25, 2026-05-26. Next review recommended after Priority Items 1–6 are addressed.*
+
+---
+
+## 14. Session Fixes — 2026-05-26
+
+### Fix 14 — No `CANCEL` Endpoint for Pipelines (RESOLVED)
+
+**Location:** `internal/api/handler/pipeline.go`, `cmd/api/main.go`
+
+There was no HTTP endpoint to stop a running or pending pipeline. Operators had to directly update the `pipelines` table in PostgreSQL to cancel a pipeline, with no API-level guard against cancelling already-terminal pipelines.
+
+**Fix:** Added `CancelPipeline` handler to `internal/api/handler/pipeline.go`:
+
+- Fetches the pipeline by ID; returns 404 if not found, 400 for invalid UUID.
+- Returns 409 Conflict if the pipeline is already in a terminal state (`completed`, `failed`, `cancelled`).
+- Calls `UpdatePipelineStatus(ctx, id, PipelineStatusCancelled)` for `pending` or `running` pipelines.
+- Returns 200 with the updated pipeline on success.
+
+The scheduler's `AdvanceAll` loop naturally stops advancing a cancelled pipeline because `ListPipelinesByStatus` only fetches `pending` and `running` pipelines — a cancelled pipeline is never picked up again.
+
+Route `POST /pipelines/{id}/cancel` registered in `cmd/api/main.go`.
+
+**Tests:** Six unit tests added in `internal/api/handler/pipeline_test.go` — all pass: pending pipeline cancelled (200), running pipeline cancelled (200), completed pipeline rejected (409), already-cancelled pipeline rejected (409), not found (404), invalid UUID (400).
 
 ---
 
