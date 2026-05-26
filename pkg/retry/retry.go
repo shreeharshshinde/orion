@@ -1,10 +1,68 @@
 package retry
 
 import (
+	"context"
 	"math"
 	"math/rand"
 	"time"
 )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Do — context-aware retry wrapper
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Options configures the Do retry loop.
+type Options struct {
+	MaxAttempts int           // total attempts (default 3)
+	Base        time.Duration // initial backoff (default 100ms)
+	Cap         time.Duration // maximum backoff (default 30s)
+}
+
+// Option is a functional option for Do.
+type Option func(*Options)
+
+// WithMaxAttempts sets the maximum number of attempts.
+func WithMaxAttempts(n int) Option { return func(o *Options) { o.MaxAttempts = n } }
+
+// WithBase sets the initial backoff duration.
+func WithBase(d time.Duration) Option { return func(o *Options) { o.Base = d } }
+
+// WithCap sets the maximum backoff duration.
+func WithCap(d time.Duration) Option { return func(o *Options) { o.Cap = d } }
+
+// Do calls fn repeatedly with full-jitter exponential backoff until fn returns
+// nil, all attempts are exhausted, or ctx is cancelled.
+//
+// The sleep between attempts is interrupted immediately when ctx is cancelled,
+// so callers never wait longer than the context deadline allows.
+//
+// Returns ctx.Err() if the context is cancelled during a sleep, or the last
+// error returned by fn if all attempts are exhausted.
+func Do(ctx context.Context, fn func(ctx context.Context) error, opts ...Option) error {
+	o := Options{MaxAttempts: 3, Base: 100 * time.Millisecond, Cap: 30 * time.Second}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	var lastErr error
+	for i := 0; i < o.MaxAttempts; i++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if lastErr = fn(ctx); lastErr == nil {
+			return nil
+		}
+		if i < o.MaxAttempts-1 {
+			delay := FullJitterBackoff(i, o.Base, o.Cap)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+	}
+	return lastErr
+}
 
 // FullJitterBackoff computes a random delay between 0 and min(cap, base * 2^attempt).
 //
