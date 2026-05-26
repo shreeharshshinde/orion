@@ -1,6 +1,7 @@
 package retry_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -194,5 +195,92 @@ func TestWithRetry_AlwaysFails_RunsAllAttempts(t *testing.T) {
 	}
 	if calls != 5 {
 		t.Errorf("expected exactly 5 calls, got %d", calls)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Do — context-aware retry
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestDo_SuccessOnFirstCall(t *testing.T) {
+	calls := 0
+	err := retry.Do(context.Background(), func(_ context.Context) error {
+		calls++
+		return nil
+	})
+	if err != nil {
+		t.Errorf("expected nil, got %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("expected 1 call, got %d", calls)
+	}
+}
+
+func TestDo_RetriesAndSucceeds(t *testing.T) {
+	calls := 0
+	err := retry.Do(context.Background(), func(_ context.Context) error {
+		calls++
+		if calls < 3 {
+			return errors.New("transient")
+		}
+		return nil
+	}, retry.WithMaxAttempts(5), retry.WithBase(time.Millisecond), retry.WithCap(5*time.Millisecond))
+	if err != nil {
+		t.Errorf("expected nil after retry, got %v", err)
+	}
+	if calls != 3 {
+		t.Errorf("expected 3 calls, got %d", calls)
+	}
+}
+
+func TestDo_ExhaustsAttempts(t *testing.T) {
+	sentinel := errors.New("permanent")
+	calls := 0
+	err := retry.Do(context.Background(), func(_ context.Context) error {
+		calls++
+		return sentinel
+	}, retry.WithMaxAttempts(3), retry.WithBase(time.Millisecond), retry.WithCap(5*time.Millisecond))
+	if !errors.Is(err, sentinel) {
+		t.Errorf("expected sentinel error, got %v", err)
+	}
+	if calls != 3 {
+		t.Errorf("expected 3 calls, got %d", calls)
+	}
+}
+
+func TestDo_CancelledBeforeFirstCall(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // already cancelled
+
+	calls := 0
+	err := retry.Do(ctx, func(_ context.Context) error {
+		calls++
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+	if calls != 0 {
+		t.Errorf("expected 0 calls on pre-cancelled ctx, got %d", calls)
+	}
+}
+
+func TestDo_CancelledDuringSleep(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	calls := 0
+	err := retry.Do(ctx, func(_ context.Context) error {
+		calls++
+		if calls == 1 {
+			cancel() // cancel after first failure, during the sleep
+		}
+		return errors.New("fail")
+	}, retry.WithMaxAttempts(5), retry.WithBase(time.Second), retry.WithCap(time.Minute))
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("expected 1 call before cancel, got %d", calls)
 	}
 }
