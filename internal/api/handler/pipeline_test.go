@@ -561,6 +561,105 @@ func TestGetPipelineJobs_InvalidUUID_Returns400(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /pipelines/{id}/cancel — CancelPipeline
+// ─────────────────────────────────────────────────────────────────────────────
+
+func cancelPipelineReq(t *testing.T, h *handler.PipelineHandler, id string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/pipelines/"+id+"/cancel", nil)
+	req.SetPathValue("id", id)
+	rr := httptest.NewRecorder()
+	h.CancelPipeline(rr, req)
+	return rr
+}
+
+func TestCancelPipeline_PendingPipeline_Returns200(t *testing.T) {
+	fs := newPipelineFakeStore()
+	h := handler.NewPipelineHandler(fs, testLogger())
+
+	rr := postPipeline(t, h, map[string]any{"name": "to-cancel", "dag_spec": minimalDAG()})
+	var created map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &created)
+	id := created["id"].(string)
+
+	rr2 := cancelPipelineReq(t, h, id)
+	if rr2.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d body=%s", rr2.Code, rr2.Body.String())
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp)
+	if resp["status"] != "cancelled" {
+		t.Errorf("expected status=cancelled, got %v", resp["status"])
+	}
+}
+
+func TestCancelPipeline_RunningPipeline_Returns200(t *testing.T) {
+	fs := newPipelineFakeStore()
+	h := handler.NewPipelineHandler(fs, testLogger())
+
+	rr := postPipeline(t, h, map[string]any{"name": "running-pipeline", "dag_spec": minimalDAG()})
+	var created map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &created)
+	id := uuid.MustParse(created["id"].(string))
+
+	// Manually set to running
+	fs.pipelines[id].Status = domain.PipelineStatusRunning
+
+	rr2 := cancelPipelineReq(t, h, id.String())
+	if rr2.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d body=%s", rr2.Code, rr2.Body.String())
+	}
+}
+
+func TestCancelPipeline_AlreadyCompleted_Returns409(t *testing.T) {
+	fs := newPipelineFakeStore()
+	h := handler.NewPipelineHandler(fs, testLogger())
+
+	rr := postPipeline(t, h, map[string]any{"name": "done", "dag_spec": minimalDAG()})
+	var created map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &created)
+	id := uuid.MustParse(created["id"].(string))
+	fs.pipelines[id].Status = domain.PipelineStatusCompleted
+
+	rr2 := cancelPipelineReq(t, h, id.String())
+	if rr2.Code != http.StatusConflict {
+		t.Errorf("expected 409 for completed pipeline, got %d", rr2.Code)
+	}
+}
+
+func TestCancelPipeline_AlreadyCancelled_Returns409(t *testing.T) {
+	fs := newPipelineFakeStore()
+	h := handler.NewPipelineHandler(fs, testLogger())
+
+	rr := postPipeline(t, h, map[string]any{"name": "already-cancelled", "dag_spec": minimalDAG()})
+	var created map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &created)
+	id := uuid.MustParse(created["id"].(string))
+	fs.pipelines[id].Status = domain.PipelineStatusCancelled
+
+	rr2 := cancelPipelineReq(t, h, id.String())
+	if rr2.Code != http.StatusConflict {
+		t.Errorf("expected 409 for already-cancelled pipeline, got %d", rr2.Code)
+	}
+}
+
+func TestCancelPipeline_NotFound_Returns404(t *testing.T) {
+	h := handler.NewPipelineHandler(newPipelineFakeStore(), testLogger())
+	rr := cancelPipelineReq(t, h, uuid.New().String())
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestCancelPipeline_InvalidUUID_Returns400(t *testing.T) {
+	h := handler.NewPipelineHandler(newPipelineFakeStore(), testLogger())
+	rr := cancelPipelineReq(t, h, "not-a-uuid")
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Content-Type header
 // ─────────────────────────────────────────────────────────────────────────────
 
