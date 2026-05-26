@@ -169,6 +169,7 @@ func main() {
 	mux.HandleFunc("GET /pipelines", pipelineHandler.ListPipelines)
 	mux.HandleFunc("GET /pipelines/{id}", pipelineHandler.GetPipeline)
 	mux.HandleFunc("GET /pipelines/{id}/jobs", pipelineHandler.GetPipelineJobs)
+	mux.HandleFunc("POST /pipelines/{id}/cancel", pipelineHandler.CancelPipeline)
 
 	// ── Phase 8: queue config routes ─────────────────────────────────────────
 	// GET  /queues                  → list all queue configurations
