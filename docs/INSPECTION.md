@@ -357,7 +357,7 @@ conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", advisoryLockKey).Scan(&hel
 
 ---
 
-### Bug 2 — Double-Execution Risk on Worker Restart During `MarkJobRunning` (MEDIUM)
+### Bug 2 — Double-Execution Risk on Worker Restart During `MarkJobRunning` (MEDIUM) ✅ RESOLVED
 
 **Location:** `internal/worker/pool.go` — `executeJob`
 
@@ -371,6 +371,20 @@ On restart, the PEL reclaimer (`ReclaimStalePending`) will redeliver the message
 The orphan reclaimer will eventually reset the job to `queued` (after 90s), but the message is still in the PEL. When the orphan reclaimer fires, the job goes back to `queued`, the scheduler re-enqueues it to Redis, and now there are **two messages for the same job** in the stream.
 
 **Fix:** In `executeJob`, after `MarkJobRunning` returns `ErrStateConflict`, check the current job status. If it is `running` with a different `worker_id`, NACK and skip. If it is `running` with *this* worker's ID (restart scenario), proceed with execution.
+
+> **Solution:** The original code treated any error from `MarkJobRunning` as fatal — it NACKed the message and returned, leaving the job stuck in `running` in PostgreSQL and the stale PEL message alive in Redis. This created the two-message scenario described above.
+>
+> The fix adds a branch specifically for `store.ErrStateConflict`. When that error is returned, `executeJob` calls `store.GetJob` to read the current state and branches on three cases:
+>
+> **Case 1 — Restart scenario** (`status=running`, `worker_id` matches this worker): The worker crashed after `MarkJobRunning` succeeded but before `ackFn(nil)` was called. The DB state is already correct. Execution resumes normally — the executor runs, and on completion the job is transitioned to `completed`/`failed` and the PEL message is ACKed. No duplicate execution occurs because the job is already `running`; any other worker that receives the same redelivered message will hit Case 2 and skip it.
+>
+> **Case 2 — Stolen by another worker** (`status=running`, `worker_id` differs): A different worker instance picked up the job (e.g., via the orphan reclaimer resetting it to `queued` and the scheduler re-dispatching it). This worker ACKs the stale PEL message with `ackFn(nil)` and returns. The other worker owns the job and will complete it normally.
+>
+> **Case 3 — Terminal or unexpected state** (anything else — `completed`, `failed`, `cancelled`, `queued`): The job has already been resolved by another path. ACK the stale PEL message and return. This prevents the message from accumulating in the PEL indefinitely.
+>
+> All other errors from `MarkJobRunning` (network failure, unexpected DB error) are still treated as fatal — the message is NACKed for redelivery, which is the correct behaviour.
+>
+> The key invariant this fix preserves: **a PEL message is always ACKed or NACKed exactly once**, and the ACK path (`ackFn(nil)`) is only taken when the job is either being resumed by its rightful owner or has already been handled by another path. The two-message scenario is eliminated because the stale PEL entry is ACKed in Cases 2 and 3 rather than left to accumulate.
 
 ---
 
