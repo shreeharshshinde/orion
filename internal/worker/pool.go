@@ -283,10 +283,46 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 
 	// ── Transition: scheduled → running ──────────────────────────────────────
 	if err := p.store.MarkJobRunning(ctx, job.ID, p.cfg.WorkerID); err != nil {
-		logger.Error("failed to mark job running", "err", err)
-		span.SetStatus(codes.Error, "MarkJobRunning failed: "+err.Error())
-		_ = task.ackFn(err)
-		return
+		if !errors.Is(err, store.ErrStateConflict) {
+			logger.Error("failed to mark job running", "err", err)
+			span.SetStatus(codes.Error, "MarkJobRunning failed: "+err.Error())
+			_ = task.ackFn(err)
+			return
+		}
+
+		// ErrStateConflict: the job is no longer in 'scheduled' state.
+		// This happens on worker restart: the PEL redelivers a message for a job
+		// that this worker already transitioned to 'running' before crashing.
+		// Fetch the current state to decide how to proceed.
+		current, fetchErr := p.store.GetJob(ctx, job.ID)
+		if fetchErr != nil {
+			logger.Error("state conflict on MarkJobRunning, could not fetch job", "err", fetchErr)
+			_ = task.ackFn(fetchErr)
+			return
+		}
+
+		switch {
+		case current.Status == domain.JobStatusRunning && current.WorkerID == p.cfg.WorkerID:
+			// Restart scenario: this worker owns the job. Proceed with execution
+			// as if MarkJobRunning had succeeded — the DB state is already correct.
+			logger.Info("resuming job owned by this worker after restart", "job_id", job.ID)
+
+		case current.Status == domain.JobStatusRunning:
+			// A different worker is executing this job. ACK to remove the stale
+			// PEL message — the other worker will complete or fail it normally.
+			logger.Warn("job already running on another worker, skipping",
+				"job_id", job.ID, "owner_worker_id", current.WorkerID)
+			_ = task.ackFn(nil)
+			return
+
+		default:
+			// Job reached a terminal or unexpected state (completed, failed, cancelled).
+			// ACK the stale PEL message and move on.
+			logger.Info("job in unexpected state after MarkJobRunning conflict, skipping",
+				"job_id", job.ID, "status", current.Status)
+			_ = task.ackFn(nil)
+			return
+		}
 	}
 
 	// ── Audit: record execution start ─────────────────────────────────────────
