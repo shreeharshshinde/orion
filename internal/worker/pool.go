@@ -64,7 +64,8 @@ type Pool struct {
 
 	jobCh       chan *jobTask
 	activeCount atomic.Int32
-	wg          sync.WaitGroup
+	wg          sync.WaitGroup // tracks worker goroutines
+	dequeueWg   sync.WaitGroup // tracks dequeue goroutines; drained before jobCh is closed
 
 	// cancel registry: maps job ID → cancel func for in-flight executions.
 	cancelMu       sync.Mutex
@@ -142,7 +143,9 @@ func (p *Pool) Start(ctx context.Context) error {
 // Sending to jobCh blocks when all worker slots are occupied — natural backpressure.
 func (p *Pool) dequeueLoop(ctx context.Context) {
 	for _, queueName := range p.cfg.QueueNames {
+		p.dequeueWg.Add(1)
 		go func(qName string) {
+			defer p.dequeueWg.Done()
 			for {
 				select {
 				case <-ctx.Done():
@@ -512,10 +515,18 @@ func (p *Pool) nextRetryTime(job *domain.Job) *time.Time {
 	return &t
 }
 
-// drain closes jobCh and waits for all in-flight jobs to finish.
-// Returns an error if jobs do not complete within ShutdownTimeout.
+// drain waits for all dequeue goroutines to exit, then closes jobCh and waits
+// for all worker goroutines to finish. Closing jobCh only after dequeue goroutines
+// have exited guarantees no goroutine can send on a closed channel.
 func (p *Pool) drain() error {
 	p.logger.Info("draining worker pool")
+
+	// Wait for every dequeue goroutine to exit before closing jobCh.
+	// Each goroutine exits its loop when ctx is cancelled (already done by the
+	// time drain() is called from Start). The worst-case wait is one XREADGROUP
+	// block timeout (~5s), after which the goroutine checks ctx.Done() and returns.
+	p.dequeueWg.Wait()
+
 	close(p.jobCh)
 
 	done := make(chan struct{})
