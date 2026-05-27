@@ -313,7 +313,7 @@ There is no `DELETE /pipelines/{id}` or `POST /pipelines/{id}/cancel`. A running
 
 ## 4. Potential Bugs and Risk Areas
 
-### Bug 1 — Advisory Lock on Pooled Connection (HIGH RISK)
+### Bug 1 — Advisory Lock on Pooled Connection (HIGH RISK) ✅ RESOLVED
 
 **Location:** `internal/scheduler/scheduler.go` — `tryAcquireLeaderLock`
 
@@ -331,6 +331,29 @@ defer conn.Release()
 conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", advisoryLockKey).Scan(&held)
 // use conn for all lock operations
 ```
+
+> **Solution:** The fix ties the advisory lock to a dedicated connection that lives for the entire leader tenure, making it impossible for pgxpool to silently release it.
+>
+> `tryAcquireLeaderLock` now calls `s.db.Acquire(ctx)` to check out a `*pgxpool.Conn` exclusively — pgxpool will never close or recycle a connection that has been `Acquire`d; it is owned by the caller until `Release()` is called. `pg_try_advisory_lock` is then run on that specific connection. If the lock is not granted, the connection is released immediately and the scheduler retries after 3 seconds. If the lock is granted, the connection is returned to the caller alongside the `true` result.
+>
+> `runAsLeader` now accepts the `*pgxpool.Conn` as a parameter and defers `releaseLeaderLock(conn)` as its very first action, so the lock is released on every exit path — normal shutdown, context cancellation, or panic recovery. `releaseLeaderLock` explicitly calls `pg_advisory_unlock` before `conn.Release()`: the explicit unlock is belt-and-suspenders; the real guarantee is that returning the connection to the pool causes PostgreSQL to close the backend session and release all session-scoped locks automatically.
+>
+> `Run` receives the connection from `tryAcquireLeaderLock` and passes it straight into `runAsLeader` — no other code touches it.
+>
+> **Why this eliminates the race:** with the old code, the connection that held the lock could be closed by pgxpool at any time (idle timeout, max lifetime rotation), releasing the lock without the scheduler knowing. A standby instance would then win the lock and start dispatching — both instances now believe they are leader, and the same `queued` job can be transitioned to `scheduled` and enqueued into Redis twice, causing double execution. With the dedicated connection, the lock lifetime is deterministic: it starts when `Acquire` succeeds and ends when `Release` is called or the process dies. There is no window for silent release.
+>
+> **Signature changes:**
+> ```go
+> // Before
+> func (s *Scheduler) tryAcquireLeaderLock(ctx context.Context) (bool, error)
+> func (s *Scheduler) releaseLeaderLock(ctx context.Context)
+> func (s *Scheduler) runAsLeader(ctx context.Context)
+>
+> // After
+> func (s *Scheduler) tryAcquireLeaderLock(ctx context.Context) (*pgxpool.Conn, bool, error)
+> func (s *Scheduler) releaseLeaderLock(conn *pgxpool.Conn)
+> func (s *Scheduler) runAsLeader(ctx context.Context, conn *pgxpool.Conn)
+> ```
 
 ---
 
@@ -768,7 +791,7 @@ No `NetworkPolicy` resources existed in the Helm chart. Worker pods (and all oth
 
 The worker requires K8s API server egress (443/6443) to create and watch `batchv1.Job` resources in the `orion-jobs` namespace. The ingress and monitoring namespace names are configurable via `networkPolicy.ingressNamespace` and `networkPolicy.monitoringNamespace` in `values.yaml`.
 
-*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23, 2026-05-24, 2026-05-25, 2026-05-26. Next review recommended after Priority Items 1–6 are addressed.*
+*Inspection completed: 2026-05-09. Session fixes applied: 2026-05-22, 2026-05-23, 2026-05-24, 2026-05-25, 2026-05-26, 2026-05-27. Next review recommended after Priority Items 1–6 are addressed.*
 
 ---
 
