@@ -388,7 +388,7 @@ The orphan reclaimer will eventually reset the job to `queued` (after 90s), but 
 
 ---
 
-### Bug 3 — `dequeueLoop` Goroutine Leak on Shutdown (LOW-MEDIUM)
+### Bug 3 — `dequeueLoop` Goroutine Leak on Shutdown (LOW-MEDIUM) ✅ RESOLVED
 
 **Location:** `internal/worker/pool.go` — `dequeueLoop`
 
@@ -405,6 +405,12 @@ These goroutines are not added to `p.wg`. When `ctx` is cancelled, they exit the
 The `select` in the goroutine does check `ctx.Done()` before sending, but there is a race: `ctx` can be cancelled between the `XREADGROUP` return and the `select` check.
 
 **Fix:** Add dequeue goroutines to `p.wg`, or use a separate `sync.WaitGroup` for them. Close `jobCh` only after all dequeue goroutines have exited.
+
+> **Solution:** Added a dedicated `dequeueWg sync.WaitGroup` to `Pool` (separate from `wg`, which tracks worker goroutines). In `dequeueLoop`, each goroutine calls `p.dequeueWg.Add(1)` before launch and `defer p.dequeueWg.Done()` as its first statement. In `drain()`, `p.dequeueWg.Wait()` is called before `close(jobCh)`.
+>
+> **Why a separate WaitGroup:** `p.wg` tracks worker goroutines — the ones reading from `jobCh`. Mixing dequeue goroutines into the same WaitGroup would create a deadlock: `drain()` would wait for dequeue goroutines to finish, but dequeue goroutines block on `p.jobCh <-` when all workers are busy, and workers only finish after `jobCh` is closed. The separate `dequeueWg` breaks this cycle — `drain()` first waits for all dequeue goroutines to stop producing, then closes `jobCh`, then waits for workers to drain the remaining tasks.
+>
+> **Why this eliminates the panic:** once `dequeueWg.Wait()` returns, every dequeue goroutine has exited its loop and will never send on `jobCh` again. `close(jobCh)` is then safe. The race between `XREADGROUP` returning a job and `ctx.Done()` being checked is resolved by the guarantee that `dequeueWg.Wait()` only returns after every goroutine has passed its `defer Done()` — meaning every goroutine has fully exited, not just checked `ctx.Done()`.
 
 ---
 
