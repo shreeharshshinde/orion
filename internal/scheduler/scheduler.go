@@ -105,7 +105,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		default:
 		}
 
-		held, err := s.tryAcquireLeaderLock(ctx)
+		conn, held, err := s.tryAcquireLeaderLock(ctx)
 		if err != nil {
 			s.logger.Error("error acquiring leader lock", "err", err)
 			select {
@@ -127,28 +127,52 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		}
 
 		s.logger.Info("acquired scheduler leader lock")
-		s.runAsLeader(ctx)
+		s.runAsLeader(ctx, conn)
 		s.logger.Warn("lost scheduler leader lock, re-contending")
 	}
 }
 
-// tryAcquireLeaderLock attempts to acquire a PostgreSQL session advisory lock.
-// pg_try_advisory_lock returns true if the lock was acquired, false otherwise.
-// The lock is automatically released when the DB connection is closed.
-func (s *Scheduler) tryAcquireLeaderLock(ctx context.Context) (bool, error) {
+// tryAcquireLeaderLock acquires a dedicated connection from the pool and attempts
+// to acquire a PostgreSQL session advisory lock on it. The caller must call
+// conn.Release() when leadership ends — releasing the connection returns it to
+// the pool, which causes PostgreSQL to close the session and automatically
+// release the advisory lock.
+//
+// Using a dedicated connection (rather than s.db.QueryRow) is critical: advisory
+// locks are session-scoped. If the lock were acquired via the shared pool, pgxpool
+// could close the underlying connection due to MaxConnIdleTime or MaxConnLifetime,
+// silently releasing the lock and allowing a second scheduler to become leader.
+func (s *Scheduler) tryAcquireLeaderLock(ctx context.Context) (*pgxpool.Conn, bool, error) {
+	conn, err := s.db.Acquire(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("acquiring dedicated connection for advisory lock: %w", err)
+	}
 	var held bool
-	err := s.db.QueryRow(ctx,
+	if err := conn.QueryRow(ctx,
 		"SELECT pg_try_advisory_lock($1)", advisoryLockKey,
-	).Scan(&held)
-	return held, err
+	).Scan(&held); err != nil {
+		conn.Release()
+		return nil, false, err
+	}
+	if !held {
+		conn.Release()
+		return nil, false, nil
+	}
+	return conn, true, nil
 }
 
-// releaseLeaderLock explicitly releases the advisory lock.
-func (s *Scheduler) releaseLeaderLock(ctx context.Context) {
-	_, err := s.db.Exec(ctx, "SELECT pg_advisory_unlock($1)", advisoryLockKey)
-	if err != nil {
+// releaseLeaderLock explicitly releases the advisory lock on the dedicated
+// connection, then returns the connection to the pool.
+func (s *Scheduler) releaseLeaderLock(conn *pgxpool.Conn) {
+	if conn == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", advisoryLockKey); err != nil {
 		s.logger.Error("failed to release leader lock", "err", err)
 	}
+	conn.Release()
 }
 
 // runAsLeader runs the scheduling loops while this instance holds the leader lock.
@@ -160,8 +184,8 @@ func (s *Scheduler) releaseLeaderLock(ctx context.Context) {
 //   - StartScheduledSweeper: promotes future-scheduled jobs from sorted set to streams
 //
 // Phase 6 change: scheduleQueuedJobs now measures cycle latency and emits spans.
-func (s *Scheduler) runAsLeader(ctx context.Context) {
-	defer s.releaseLeaderLock(ctx)
+func (s *Scheduler) runAsLeader(ctx context.Context, conn *pgxpool.Conn) {
+	defer s.releaseLeaderLock(conn)
 
 	// Only the leader runs the scheduled sweeper to prevent double-promotion.
 	go s.queue.StartScheduledSweeper(ctx)
