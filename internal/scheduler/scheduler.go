@@ -336,28 +336,19 @@ func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
 
 // promoteRetryableJobs finds failed jobs whose next_retry_at has passed
 // and requeues them.
+//
+// Uses store.ListRetryableJobs which targets the idx_jobs_retry_eligible
+// partial index (WHERE status='failed' AND next_retry_at IS NOT NULL).
+// The DB filters next_retry_at <= NOW() and attempt < max_retries, so
+// no Go-side filtering is needed and no failed-but-not-yet-due rows are
+// fetched.
 func (s *Scheduler) promoteRetryableJobs(ctx context.Context) error {
-	// In the postgres implementation, this query is:
-	// SELECT * FROM jobs WHERE status = 'failed' AND attempt < max_retries
-	//   AND next_retry_at <= NOW() LIMIT N
-	// For now we reuse the filter mechanism; the postgres impl handles the time filter.
-	status := domain.JobStatusFailed
-	jobs, err := s.store.ListJobs(ctx, store.JobFilter{
-		Status: &status,
-		Limit:  s.cfg.BatchSize,
-	})
+	jobs, err := s.store.ListRetryableJobs(ctx, s.cfg.BatchSize)
 	if err != nil {
 		return fmt.Errorf("listing retryable jobs: %w", err)
 	}
 
 	for _, job := range jobs {
-		if !job.IsRetryable() {
-			continue
-		}
-		if job.NextRetryAt != nil && time.Now().Before(*job.NextRetryAt) {
-			continue
-		}
-
 		// failed → retrying → queued (two-step to preserve audit clarity)
 		if err := s.store.TransitionJobState(ctx, job.ID,
 			domain.JobStatusFailed, domain.JobStatusRetrying); err != nil {
