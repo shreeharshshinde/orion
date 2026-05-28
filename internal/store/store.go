@@ -21,19 +21,62 @@ import (
 // ============================================================
 
 type JobStore interface {
+	// CreateJob inserts a new job. Handles idempotency: if job.IdempotencyKey is
+	// set and a matching row already exists, the existing job is returned unchanged.
+	// Returns ErrDuplicate on a concurrent-insert race that is resolved by re-fetch.
 	CreateJob(ctx context.Context, job *domain.Job) (*domain.Job, error)
+
+	// GetJob fetches a single job by its UUID primary key.
+	// Returns ErrNotFound if no row exists.
 	GetJob(ctx context.Context, id uuid.UUID) (*domain.Job, error)
+
+	// GetJobByIdempotencyKey looks up a job by the client-supplied idempotency key.
+	// Returns ErrNotFound if the key has never been used.
 	GetJobByIdempotencyKey(ctx context.Context, key string) (*domain.Job, error)
+
+	// TransitionJobState is the single CAS (Compare-And-Swap) state transition.
+	// Updates status from expectedStatus → newStatus only if the current DB status
+	// matches expectedStatus. Returns ErrStateConflict if the CAS guard fails
+	// (another process already transitioned the job). Optional TransitionOption
+	// funcs set additional fields (worker_id, timestamps, error) atomically.
 	TransitionJobState(ctx context.Context, id uuid.UUID, expectedStatus, newStatus domain.JobStatus, opts ...TransitionOption) error
+
+	// ListJobs returns jobs matching the filter, ordered by priority DESC, created_at ASC.
+	// Used by the scheduler dispatch loop and the GET /jobs API endpoint.
 	ListJobs(ctx context.Context, filter JobFilter) ([]*domain.Job, error)
+
+	// ClaimPendingJobs atomically claims up to limit queued jobs for a worker using
+	// SELECT FOR UPDATE SKIP LOCKED. Guarantees no two workers receive the same job.
+	// Called by the worker pool's dequeue loop.
 	ClaimPendingJobs(ctx context.Context, queueName, workerID string, limit int) ([]*domain.Job, error)
+
+	// MarkJobRunning transitions scheduled → running, setting worker_id and started_at.
+	// Thin wrapper around TransitionJobState. Returns ErrStateConflict if another
+	// worker already claimed the job.
 	MarkJobRunning(ctx context.Context, id uuid.UUID, workerID string) error
+
+	// MarkJobCompleted transitions running → completed, setting completed_at.
+	// Called by the worker after the executor returns nil.
 	MarkJobCompleted(ctx context.Context, id uuid.UUID) error
+
+	// MarkJobFailed transitions running → failed, incrementing attempt and setting
+	// error_message and next_retry_at. nextRetryAt may be nil for non-retryable jobs.
+	// Called by the worker after the executor returns a non-nil error.
 	MarkJobFailed(ctx context.Context, id uuid.UUID, errMsg string, nextRetryAt *time.Time) error
+
+	// ReclaimOrphanedJobs resets running jobs whose worker has missed heartbeats
+	// (last_heartbeat older than staleThreshold) back to queued. Returns the count
+	// of reclaimed jobs. Called by the scheduler's orphan sweeper every 30s.
 	ReclaimOrphanedJobs(ctx context.Context, staleThreshold time.Duration) (int, error)
+
+	// DeleteJob hard-deletes a job by ID. Prefer cancelling over deleting to preserve
+	// the execution audit trail. Returns ErrNotFound if the job does not exist.
 	DeleteJob(ctx context.Context, id uuid.UUID) error
+
 	// ListRetryableJobs returns failed jobs whose next_retry_at <= NOW() and
-	// attempt < max_retries. Uses the idx_jobs_retry_eligible partial index.
+	// attempt < max_retries, ordered by next_retry_at ASC (earliest-due first).
+	// Uses the idx_jobs_retry_eligible partial index — does not scan all failed jobs.
+	// Called by the scheduler's retry promoter on every 2s tick.
 	ListRetryableJobs(ctx context.Context, limit int) ([]*domain.Job, error)
 }
 
