@@ -95,6 +95,9 @@ func (f *fakeStore) DeleteJob(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+func (f *fakeStore) ListRetryableJobs(_ context.Context, _ int) ([]*domain.Job, error) {
+	return nil, nil
+}
 func (f *fakeStore) RecordExecution(ctx context.Context, exec *domain.JobExecution) error {
 	return nil
 }

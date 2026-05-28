@@ -184,6 +184,9 @@ func (f *fakeStore) ReclaimOrphanedJobs(_ context.Context, _ time.Duration) (int
 	panic("not implemented")
 }
 func (f *fakeStore) DeleteJob(_ context.Context, _ uuid.UUID) error { panic("not implemented") }
+func (f *fakeStore) ListRetryableJobs(_ context.Context, _ int) ([]*domain.Job, error) {
+	return nil, nil
+}
 func (f *fakeStore) RecordExecution(_ context.Context, _ *domain.JobExecution) error {
 	panic("not implemented")
 }

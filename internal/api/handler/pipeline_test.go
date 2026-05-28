@@ -134,6 +134,9 @@ func (f *pipelineFakeStore) ReclaimOrphanedJobs(_ context.Context, _ time.Durati
 	return 0, nil
 }
 func (f *pipelineFakeStore) DeleteJob(_ context.Context, _ uuid.UUID) error { return nil }
+func (f *pipelineFakeStore) ListRetryableJobs(_ context.Context, _ int) ([]*domain.Job, error) {
+	return nil, nil
+}
 func (f *pipelineFakeStore) RecordExecution(_ context.Context, _ *domain.JobExecution) error {
 	return nil
 }

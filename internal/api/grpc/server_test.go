@@ -109,6 +109,9 @@ func (f *fakeStore) ReclaimOrphanedJobs(_ context.Context, _ time.Duration) (int
 	return 0, nil
 }
 func (f *fakeStore) DeleteJob(_ context.Context, _ uuid.UUID) error { return nil }
+func (f *fakeStore) ListRetryableJobs(_ context.Context, _ int) ([]*domain.Job, error) {
+	return nil, nil
+}
 func (f *fakeStore) RecordExecution(_ context.Context, _ *domain.JobExecution) error { return nil }
 func (f *fakeStore) GetExecutions(_ context.Context, _ uuid.UUID) ([]*domain.JobExecution, error) {
 	return nil, nil
