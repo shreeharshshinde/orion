@@ -32,6 +32,9 @@ type JobStore interface {
 	MarkJobFailed(ctx context.Context, id uuid.UUID, errMsg string, nextRetryAt *time.Time) error
 	ReclaimOrphanedJobs(ctx context.Context, staleThreshold time.Duration) (int, error)
 	DeleteJob(ctx context.Context, id uuid.UUID) error
+	// ListRetryableJobs returns failed jobs whose next_retry_at <= NOW() and
+	// attempt < max_retries. Uses the idx_jobs_retry_eligible partial index.
+	ListRetryableJobs(ctx context.Context, limit int) ([]*domain.Job, error)
 }
 
 // ============================================================
