@@ -491,6 +491,50 @@ func (db *DB) DeleteJob(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// ListRetryableJobs returns failed jobs whose backoff delay has expired and
+// that still have remaining retry attempts.
+//
+// The query is designed to use the idx_jobs_retry_eligible partial index:
+//
+//	CREATE INDEX idx_jobs_retry_eligible
+//	    ON jobs (next_retry_at ASC)
+//	    WHERE status = 'failed' AND next_retry_at IS NOT NULL;
+//
+// Because the index already filters status='failed' AND next_retry_at IS NOT NULL,
+// PostgreSQL only scans the small subset of failed-but-retryable rows, ordered
+// by next_retry_at ASC (earliest due first). The attempt < max_retries guard
+// skips jobs that have exhausted their retries without a full table scan.
+func (db *DB) ListRetryableJobs(ctx context.Context, limit int) ([]*domain.Job, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 50
+	}
+	const q = `
+		SELECT ` + jobColumns + `
+		FROM jobs
+		WHERE status = 'failed'
+		  AND next_retry_at IS NOT NULL
+		  AND next_retry_at <= NOW()
+		  AND attempt < max_retries
+		ORDER BY next_retry_at ASC
+		LIMIT $1`
+
+	rows, err := db.pool.Query(ctx, q, limit)
+	if err != nil {
+		return nil, fmt.Errorf("listing retryable jobs: %w", err)
+	}
+	defer rows.Close()
+
+	var jobs []*domain.Job
+	for rows.Next() {
+		job, err := scanJob(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scanning retryable job row: %w", err)
+		}
+		jobs = append(jobs, job)
+	}
+	return jobs, rows.Err()
+}
+
 // ============================================================
 // ExecutionStore implementation
 // ============================================================
