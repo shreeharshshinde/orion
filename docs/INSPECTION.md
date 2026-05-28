@@ -414,7 +414,7 @@ The `select` in the goroutine does check `ctx.Done()` before sending, but there 
 
 ---
 
-### Bug 4 — `promoteRetryableJobs` Fetches All Failed Jobs (MEDIUM — Performance)
+### Bug 4 — `promoteRetryableJobs` Fetches All Failed Jobs (MEDIUM — Performance) ✅ RESOLVED
 
 **Location:** `internal/scheduler/scheduler.go` — `promoteRetryableJobs`
 
@@ -426,6 +426,22 @@ jobs, err := s.store.ListJobs(ctx, store.JobFilter{Status: &status, Limit: s.cfg
 This fetches up to `BatchSize` failed jobs regardless of `next_retry_at`. The Go-side filter `job.NextRetryAt != nil && time.Now().Before(*job.NextRetryAt)` then skips most of them. At scale with many failed jobs in backoff, this wastes a DB round-trip and returns rows that are immediately discarded.
 
 The partial index `idx_jobs_retry_eligible` (`WHERE status='failed' AND next_retry_at IS NOT NULL`) exists but is unused. A dedicated store method would fix this.
+
+> **Solution:** Added `ListRetryableJobs(ctx context.Context, limit int) ([]*domain.Job, error)` to the `store.JobStore` interface and implemented it in `postgres.DB` with a query that targets the partial index directly:
+>
+> ```sql
+> SELECT <columns> FROM jobs
+> WHERE status = 'failed'
+>   AND next_retry_at IS NOT NULL
+>   AND next_retry_at <= NOW()
+>   AND attempt < max_retries
+> ORDER BY next_retry_at ASC
+> LIMIT $1
+> ```
+>
+> PostgreSQL uses `idx_jobs_retry_eligible` for the `status='failed' AND next_retry_at IS NOT NULL` predicate, then applies `next_retry_at <= NOW()` and `attempt < max_retries` as residual filters on the already-small index scan. Jobs are ordered by `next_retry_at ASC` so the longest-waiting jobs are promoted first (FIFO fairness within the retry queue).
+>
+> `promoteRetryableJobs` now calls `s.store.ListRetryableJobs(ctx, s.cfg.BatchSize)` directly. The Go-side `IsRetryable()` and `time.Now().Before()` guards are removed — all filtering is done in SQL. At scale with 10,000 failed jobs in backoff and none due, the old code fetched 50 rows and promoted 0; the new code returns 0 rows from the index scan immediately.
 
 ---
 
