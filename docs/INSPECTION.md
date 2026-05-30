@@ -445,7 +445,7 @@ The partial index `idx_jobs_retry_eligible` (`WHERE status='failed' AND next_ret
 
 ---
 
-### Bug 5 — `isUniqueViolation` Uses String Matching (LOW)
+### Bug 5 — `isUniqueViolation` Uses String Matching (LOW) ✅ RESOLVED
 
 **Location:** `internal/store/postgres/db.go`
 
@@ -466,6 +466,17 @@ if errors.As(err, &pgErr) {
 ```
 
 The string match works in practice but will break if pgx changes its error message format.
+
+> **Solution:** Replaced the string-matching implementation with a `pgconn.PgError` type assertion. Added `"github.com/jackc/pgx/v5/pgconn"` to imports. The new implementation:
+>
+> ```go
+> func isUniqueViolation(err error) bool {
+>     var pgErr *pgconn.PgError
+>     return errors.As(err, &pgErr) && pgErr.Code == "23505"
+> }
+> ```
+>
+> `errors.As` unwraps the error chain correctly regardless of how pgx wraps it, and `pgErr.Code` is the stable SQLSTATE code defined by the PostgreSQL protocol — it will never change.
 
 ---
 
