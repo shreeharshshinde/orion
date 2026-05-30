@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shreeharshshinde/orion/internal/domain"
 	"github.com/shreeharshshinde/orion/internal/store"
@@ -853,16 +854,13 @@ func nullableString(s string) *string {
 }
 
 // isUniqueViolation returns true if err is a PostgreSQL unique constraint
-// violation (error code 23505). We check the error message string because
-// pgx wraps the error and the concrete type may vary.
+// isUniqueViolation returns true if err is a PostgreSQL unique constraint
+// violation (error code 23505). Uses pgconn.PgError type assertion — the
+// correct approach for pgx v5 — rather than string matching on the error
+// message, which is fragile and breaks if pgx changes its formatting.
 func isUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "23505") ||
-		strings.Contains(msg, "unique_violation") ||
-		strings.Contains(msg, "duplicate key")
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // ============================================================
