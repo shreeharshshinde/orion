@@ -480,13 +480,29 @@ The string match works in practice but will break if pgx changes its error messa
 
 ---
 
-### Bug 6 — `ReclaimStalePending` Consumer ID is `"reclaimer"` (LOW)
+### Bug 6 — `ReclaimStalePending` Consumer ID is `"reclaimer"` (LOW) ✅ RESOLVED
 
 **Location:** `internal/queue/redis/redis_queue.go`
 
 `XAUTOCLAIM` transfers messages to consumer `"reclaimer"`. This consumer is never registered in the consumer group and never calls `XACK`. Messages claimed by `"reclaimer"` will accumulate in its PEL indefinitely and be re-claimed on every sweep. This is functionally correct (messages get redelivered) but the `"reclaimer"` consumer's PEL will grow without bound in Redis memory.
 
 **Fix:** After `XAUTOCLAIM`, re-add the claimed messages back to the stream with `XADD` and then `XACK` them from the reclaimer's PEL, or use a real consumer ID that processes and acks the messages.
+
+> **Solution:** `reclaimForStream` now performs three steps after `XAUTOCLAIM`:
+>
+> 1. **`XADD` each claimed message back to the stream** — the original message values (`job_id`, `payload`) are re-inserted as a new stream entry. This makes the message visible to real workers via `XREADGROUP` on their next poll.
+>
+> 2. **`XACK` all successfully re-added IDs from `"reclaimer"`'s PEL** — this removes the entries from the PEL entirely, preventing unbounded growth. Only IDs whose `XADD` succeeded are ACKed; if `XADD` fails for a message, its ID is not ACKed and it remains in `"reclaimer"`'s PEL to be retried on the next sweep.
+>
+> 3. **Log the count** — the info log now only fires when at least one message was successfully processed, avoiding noise on quiet sweeps.
+>
+> **Why XADD + XACK rather than just XACK:** `XAUTOCLAIM` moves a message from a crashed worker's PEL into `"reclaimer"`'s PEL — it does not re-deliver it to the stream. If we only called `XACK`, the message would be removed from the PEL and lost entirely (no worker would ever process it). The `XADD` step re-inserts the message as a fresh stream entry so a real worker picks it up via `XREADGROUP ">"`. The original stream entry (now owned by `"reclaimer"`) is then cleaned up by the `XACK`.
+>
+> **Why not use a real worker consumer ID:** `ReclaimStalePending` runs in the scheduler process, not in a worker. There is no worker goroutine in the scheduler to call `Dequeue` and process the message. Re-adding to the stream is the correct pattern for a background reclaimer that does not itself consume jobs.
+>
+> **`MinIdle` simplification:** the redundant `timeout.Milliseconds()` → `time.Duration(ms) * time.Millisecond` round-trip was replaced with passing `timeout` directly to `MinIdle`, which accepts `time.Duration`.
+
+
 
 ---
 
@@ -755,7 +771,7 @@ Ordered by impact × urgency for making Orion production-ready.
 15. **Fix `promoteRetryableJobs`** — add `ListRetryableJobs` store method using the partial index.
 16. **Fix `isUniqueViolation`** — use `pgconn.PgError` type assertion.
 17. **Fix stable consumer ID in `Dequeue`** — prevent consumer group bloat.
-18. **Fix `ReclaimStalePending` PEL accumulation** — prevent Redis memory growth.
+18. **Fix `ReclaimStalePending` PEL accumulation** — ✅ RESOLVED. After `XAUTOCLAIM`, `XADD` each message back to the stream and `XACK` it from `"reclaimer"`'s PEL. Prevents unbounded Redis memory growth.
 19. **Add Prometheus alerting rules** — `orion_jobs_dead_total` rate, queue depth thresholds, scheduler cycle latency.
 20. **Add cascade cancellation job records** — downstream nodes should appear as `cancelled` in the API.
 21. **Enable TLS on HTTP and gRPC servers**.
