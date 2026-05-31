@@ -228,14 +228,12 @@ func (r *RedisQueue) ReclaimStalePending(ctx context.Context, visibilityTimeout 
 }
 
 func (r *RedisQueue) reclaimForStream(ctx context.Context, streamName string, timeout time.Duration) {
-	minIdleMs := timeout.Milliseconds()
-
-	// XAUTOCLAIM transfers idle messages from other consumers to us for redelivery
+	// XAUTOCLAIM transfers idle messages from other consumers into "reclaimer"'s PEL.
 	msgs, _, err := r.client.XAutoClaim(ctx, &redis.XAutoClaimArgs{
 		Stream:   streamName,
 		Group:    consumerGroup,
 		Consumer: "reclaimer",
-		MinIdle:  time.Duration(minIdleMs) * time.Millisecond,
+		MinIdle:  timeout,
 		Start:    "0",
 		Count:    100,
 	}).Result()
@@ -243,9 +241,31 @@ func (r *RedisQueue) reclaimForStream(ctx context.Context, streamName string, ti
 		r.logger.Error("XAUTOCLAIM failed", "stream", streamName, "err", err)
 		return
 	}
+	if len(msgs) == 0 {
+		return
+	}
 
-	if len(msgs) > 0 {
-		r.logger.Info("reclaimed stale pending messages", "stream", streamName, "count", len(msgs))
+	// Re-add each claimed message back to the stream so a real worker picks it
+	// up via XREADGROUP, then XACK it from "reclaimer"'s PEL. Without the XACK
+	// the messages accumulate in "reclaimer"'s PEL indefinitely and are
+	// re-claimed on every sweep without ever being delivered to a worker.
+	ids := make([]string, 0, len(msgs))
+	for _, msg := range msgs {
+		if err := r.client.XAdd(ctx, &redis.XAddArgs{
+			Stream: streamName,
+			Values: msg.Values,
+		}).Err(); err != nil {
+			r.logger.Error("reclaim: XADD failed", "stream", streamName, "msg_id", msg.ID, "err", err)
+			continue
+		}
+		ids = append(ids, msg.ID)
+	}
+
+	if len(ids) > 0 {
+		if err := r.client.XAck(ctx, streamName, consumerGroup, ids...).Err(); err != nil {
+			r.logger.Error("reclaim: XACK failed", "stream", streamName, "err", err)
+		}
+		r.logger.Info("reclaimed stale pending messages", "stream", streamName, "count", len(ids))
 	}
 }
 // QueueDepth Prometheus gauge every 5 seconds for all given queue names.
