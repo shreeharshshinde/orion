@@ -114,7 +114,7 @@ func main() {
 	logger.Info("connected to redis", "addr", cfg.Redis.Addr)
 
 	// Phase 6: pass metrics so the queue can report depth
-	q, err := redisqueue.New(redisClient, metrics, logger)
+	q, err := redisqueue.New(redisClient, metrics, logger, cfg.Worker.WorkerID)
 	if err != nil {
 		logger.Error("failed to initialize redis queue", "err", err)
 		os.Exit(1)

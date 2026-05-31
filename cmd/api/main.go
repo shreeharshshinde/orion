@@ -102,7 +102,7 @@ func main() {
 		DB:       cfg.Redis.DB,
 		PoolSize: cfg.Redis.PoolSize,
 	})
-	redisQ, err := redisqueue.New(redisClient, metrics, logger)
+	redisQ, err := redisqueue.New(redisClient, metrics, logger, "")
 	if err != nil {
 		logger.Warn("redis queue init failed, /queues stats will show depth=0", "err", err)
 		redisQ = nil
