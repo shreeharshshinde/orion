@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -29,15 +30,25 @@ const (
 // We do NOT use Redis Lists (LPUSH/BRPOP) because they offer no delivery
 // guarantee — a crashed worker drops the message permanently.
 type RedisQueue struct {
-	client  *redis.Client
-	metrics *observability.Metrics // Phase 6: nil-safe
-	logger  *slog.Logger
+	client     *redis.Client
+	consumerID string             // stable per-instance ID used in XREADGROUP
+	metrics    *observability.Metrics // Phase 6: nil-safe
+	logger     *slog.Logger
 }
 
 // New creates a RedisQueue and ensures consumer groups exist for all known queues.
-// Phase 6 change: accepts *observability.Metrics. Pass nil in tests.
-func New(client *redis.Client, m *observability.Metrics, logger *slog.Logger) (*RedisQueue, error) {
-	q := &RedisQueue{client: client, metrics: m, logger: logger}
+// consumerID is a stable identifier for this process instance (e.g. worker ID or
+// hostname). Every Dequeue call uses this ID so the consumer group never
+// accumulates stale per-call consumer entries. Pass "" to fall back to hostname.
+func New(client *redis.Client, m *observability.Metrics, logger *slog.Logger, consumerID string) (*RedisQueue, error) {
+	if consumerID == "" {
+		if h, err := os.Hostname(); err == nil {
+			consumerID = h
+		} else {
+			consumerID = "orion-worker"
+		}
+	}
+	q := &RedisQueue{client: client, consumerID: consumerID, metrics: m, logger: logger}
 
 	knownQueues := []string{
 		queue.QueueDefault,
@@ -105,11 +116,10 @@ func (r *RedisQueue) enqueueScheduled(ctx context.Context, job *domain.Job, body
 // will redeliver the message after visibilityTimeout.
 func (r *RedisQueue) Dequeue(ctx context.Context, queueName string, visibilityTimeout time.Duration) (*domain.Job, queue.AckFunc, error) {
 	streamName := r.streamForQueue(queueName)
-	consumerID := fmt.Sprintf("worker-%d", time.Now().UnixNano()) // per-call consumer ID
 
 	args := &redis.XReadGroupArgs{
 		Group:    consumerGroup,
-		Consumer: consumerID,
+		Consumer: r.consumerID,
 		Streams:  []string{streamName, ">"},
 		Count:    1,
 		Block:    5 * time.Second, // block up to 5s, then return for ctx check
