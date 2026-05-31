@@ -506,7 +506,7 @@ The string match works in practice but will break if pgx changes its error messa
 
 ---
 
-### Bug 7 — `Dequeue` Creates a New Consumer ID Per Call (LOW)
+### Bug 7 — `Dequeue` Creates a New Consumer ID Per Call (LOW) ✅ RESOLVED
 
 **Location:** `internal/queue/redis/redis_queue.go`
 
@@ -517,6 +517,16 @@ consumerID := fmt.Sprintf("worker-%d", time.Now().UnixNano())
 Every `Dequeue` call creates a new consumer in the Redis consumer group. Over time, the consumer group accumulates thousands of stale consumer entries. Redis does not automatically clean these up. `XGROUP DELCONSUMER` must be called periodically.
 
 **Fix:** Use a stable consumer ID per worker instance (e.g., `p.cfg.WorkerID`) and pass it through to `Dequeue`. The `Queue` interface may need a `consumerID` parameter or the `RedisQueue` should be constructed with a consumer ID.
+
+> **Solution:** Added a `consumerID string` field to `RedisQueue`. `New()` now accepts a `consumerID` parameter; if empty, it falls back to `os.Hostname()` (and then `"orion-worker"` if that fails). `Dequeue` uses `r.consumerID` instead of generating a new timestamp-based ID on every call.
+>
+> **Caller changes:**
+> - `cmd/worker/main.go` — passes `cfg.Worker.WorkerID` (the stable, configured worker identity already used for heartbeats and job ownership).
+> - `cmd/scheduler/main.go` and `cmd/api/main.go` — pass `""` (hostname fallback). Neither calls `Dequeue`, so the consumer ID only matters for the worker; the fallback is sufficient for the scheduler's `ReclaimStalePending` sweeper.
+>
+> **Why not change the `Queue` interface:** adding `consumerID` to the `Dequeue` signature would require updating every caller and every mock. Storing it on the struct at construction time is the correct encapsulation — the consumer ID is a property of the queue *instance*, not of each individual dequeue call.
+>
+> **Effect:** with a 10-worker deployment running for a week at 1 dequeue/second per goroutine, the old code created ~6 million stale consumer entries in the consumer group. With the fix, each worker instance registers exactly one consumer entry for its lifetime, and that entry is reused across all `Dequeue` calls. `XGROUP DELCONSUMER` is no longer needed as a maintenance operation.
 
 ---
 
@@ -770,7 +780,7 @@ Ordered by impact × urgency for making Orion production-ready.
 
 15. **Fix `promoteRetryableJobs`** — add `ListRetryableJobs` store method using the partial index.
 16. **Fix `isUniqueViolation`** — use `pgconn.PgError` type assertion.
-17. **Fix stable consumer ID in `Dequeue`** — prevent consumer group bloat.
+17. **Fix stable consumer ID in `Dequeue`** — ✅ RESOLVED. Added `consumerID` field to `RedisQueue`; `New()` accepts it with hostname fallback; worker passes `cfg.Worker.WorkerID`. Eliminates per-call consumer group bloat.
 18. **Fix `ReclaimStalePending` PEL accumulation** — ✅ RESOLVED. After `XAUTOCLAIM`, `XADD` each message back to the stream and `XACK` it from `"reclaimer"`'s PEL. Prevents unbounded Redis memory growth.
 19. **Add Prometheus alerting rules** — `orion_jobs_dead_total` rate, queue depth thresholds, scheduler cycle latency.
 20. **Add cascade cancellation job records** — downstream nodes should appear as `cancelled` in the API.
