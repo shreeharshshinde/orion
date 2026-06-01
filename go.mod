@@ -1,6 +1,6 @@
 module github.com/shreeharshshinde/orion
 
-go 1.25.0
+go 1.22.0
 
 require (
 	// UUID generation for job IDs
