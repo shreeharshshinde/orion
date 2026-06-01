@@ -560,7 +560,7 @@ Go 1.25 does not exist as of this writing. This is likely a typo for `go 1.22.0`
 
 ### What Is Missing Tests
 
-- `internal/scheduler/` — **no tests at all**. The scheduler is the most complex component (leader election, dispatch loop, orphan reclaim, retry promotion, pipeline advancement wiring) and has zero test coverage.
+- `internal/scheduler/` — ✅ RESOLVED. See below.
 - `internal/queue/redis/` — no tests. The Redis queue implementation (XREADGROUP, XAUTOCLAIM, PEL management) is untested.
 - `internal/observability/` — no tests for metric registration or tracing setup.
 - `cmd/` entrypoints — no smoke tests or integration tests for the full startup sequence.
@@ -569,6 +569,28 @@ Go 1.25 does not exist as of this writing. This is likely a typo for `go 1.22.0`
 ### Integration Test Gap
 
 `postgres_integration_test.go` requires a live PostgreSQL instance. There is no `docker-compose.test.yml` or `make test-integration` target that spins up the test database automatically. Running `go test ./...` will skip or fail integration tests in CI without manual setup.
+
+### Scheduler Tests — ✅ RESOLVED
+
+**Location:** `internal/scheduler/scheduler_test.go`
+
+The scheduler had zero test coverage despite being the most critical component in the system. Added 11 unit tests using a `fakeStore` and `fakeQueue` — no real database or Redis required.
+
+| Test | What it covers |
+|---|---|
+| `TestScheduleQueuedJobs_DispatchesQueuedJobs` | Two queued jobs → both transitioned queued→scheduled and enqueued |
+| `TestScheduleQueuedJobs_StateConflictSkipsJob` | CAS conflict on one job → skipped, remaining job still dispatched |
+| `TestScheduleQueuedJobs_EnqueueFailureRollsBack` | Redis failure → job rolled back scheduled→queued |
+| `TestScheduleQueuedJobs_EmptyQueue` | No queued jobs → no enqueues, no error |
+| `TestPromoteRetryableJobs_PromotesDueJobs` | Due failed job → failed→retrying→queued (two-step) |
+| `TestPromoteRetryableJobs_NoDueJobs` | No retryable jobs → zero transitions |
+| `TestPromoteRetryableJobs_StateConflictContinues` | Conflict on first job → second job still promoted |
+| `TestReclaimOrphanedJobs_CallsStoreWithCorrectThreshold` | Store called with `workerHeartbeatTTL × 2` |
+| `TestReclaimOrphanedJobs_StoreError` | Store error propagated correctly |
+| `TestRun_ContextCancelledBeforeLockAcquired` | Pre-cancelled context → `Run` returns `context.Canceled` immediately |
+| `TestRunAsLeader_ExitsOnContextCancel` | `runAsLeader` exits within 2s of context cancellation |
+
+All 11 tests pass (`go test ./internal/scheduler/... -v`).
 
 ---
 
