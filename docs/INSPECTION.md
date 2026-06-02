@@ -558,13 +558,14 @@ Go 1.25 does not exist as of this writing. This is likely a typo for `go 1.22.0`
 | `internal/api/grpc` | `server_test.go` | Unit — gRPC server methods |
 | `internal/scheduler` | `scheduler_test.go` | Unit — dispatch, retry promotion, orphan reclaim |
 | `internal/queue/redis` | `redis_queue_test.go`, `sweep_test.go` | Unit — XREADGROUP, PEL, scheduled jobs |
+| `internal/observability` | `observability_test.go` | Unit — metrics, tracing, logging, HTTP endpoints |
 | `pkg/retry` | `retry_test.go` | Unit — backoff distribution |
 
 ### What Is Missing Tests
 
 - `internal/scheduler/` — ✅ RESOLVED. See below.
 - `internal/queue/redis/` — ✅ RESOLVED. See below.
-- `internal/observability/` — no tests for metric registration or tracing setup.
+- `internal/observability/` — ✅ RESOLVED. See below.
 - `cmd/` entrypoints — no smoke tests or integration tests for the full startup sequence.
 - End-to-end test: no test that submits a job via HTTP and verifies it reaches `completed` status through the full pipeline.
 
@@ -616,6 +617,32 @@ The Redis queue implementation had zero unit test coverage beyond the scheduled 
 | `TestConsumerIDStability` | Single stable consumer per worker instance (no per-call consumer bloat) |
 
 All 12 tests pass (`go test ./internal/queue/redis/... -v`).
+
+### Observability Tests — ✅ RESOLVED
+
+**Location:** `internal/observability/observability_test.go`
+
+The observability package had zero test coverage despite being foundational to monitoring the entire system. Added 15 comprehensive unit tests covering metrics registration, tracing setup, logging configuration, and HTTP server endpoints.
+
+| Test | What it covers |
+|---|---|
+| `TestNewMetrics_RegistersAllMetrics` | All Prometheus metrics properly initialized |
+| `TestNewMetrics_MetricsCanBeUsed` | Counter increment, gauge set, histogram observe functionality |
+| `TestNewMetrics_PanicsOnDuplicateRegistration` | Duplicate registration detection (prevents startup errors) |
+| `TestNewLogger_Development` | Text handler for development environment |
+| `TestNewLogger_Production` | JSON handler for production environment |
+| `TestNewLogger_Staging` | JSON handler for staging environment |
+| `TestNewLogger_UnknownEnvironment` | Default text handler for unknown environments |
+| `TestSetupTracing_ValidEndpoint` | OTLP exporter setup with mock endpoint |
+| `TestSetupTracing_EmptyEndpoint` | No-op tracer setup when endpoint not provided |
+| `TestTracer_ReturnsGlobalTracer` | Global tracer instance consistency |
+| `TestMetricsServer_StartsAndServesMetrics` | HTTP `/metrics` endpoint serves Prometheus format |
+| `TestMetricsServer_HealthCheckEndpoint` | HTTP `/health` endpoint returns OK |
+| `TestMetrics_NilSafety` | Nil metrics don't cause panics (test safety) |
+| `TestSetupTracing_ServiceNameValidation` | Service name handling (empty and valid names) |
+| `TestMetrics_AllLabelsLowCardinality` | Label validation prevents cardinality explosion |
+
+All 15 tests pass (`go test ./internal/observability/... -v`).
 
 ---
 
