@@ -556,12 +556,14 @@ Go 1.25 does not exist as of this writing. This is likely a typo for `go 1.22.0`
 | `internal/pipeline` | `advancement_test.go` | Unit — DAG advancement algorithm, cascade cancel |
 | `internal/api/handler` | `job_test.go`, `pipeline_test.go` | Unit — HTTP handler request/response |
 | `internal/api/grpc` | `server_test.go` | Unit — gRPC server methods |
+| `internal/scheduler` | `scheduler_test.go` | Unit — dispatch, retry promotion, orphan reclaim |
+| `internal/queue/redis` | `redis_queue_test.go`, `sweep_test.go` | Unit — XREADGROUP, PEL, scheduled jobs |
 | `pkg/retry` | `retry_test.go` | Unit — backoff distribution |
 
 ### What Is Missing Tests
 
 - `internal/scheduler/` — ✅ RESOLVED. See below.
-- `internal/queue/redis/` — no tests. The Redis queue implementation (XREADGROUP, XAUTOCLAIM, PEL management) is untested.
+- `internal/queue/redis/` — ✅ RESOLVED. See below.
 - `internal/observability/` — no tests for metric registration or tracing setup.
 - `cmd/` entrypoints — no smoke tests or integration tests for the full startup sequence.
 - End-to-end test: no test that submits a job via HTTP and verifies it reaches `completed` status through the full pipeline.
@@ -591,6 +593,29 @@ The scheduler had zero test coverage despite being the most critical component i
 | `TestRunAsLeader_ExitsOnContextCancel` | `runAsLeader` exits within 2s of context cancellation |
 
 All 11 tests pass (`go test ./internal/scheduler/... -v`).
+
+### Queue/Redis Tests — ✅ RESOLVED
+
+**Location:** `internal/queue/redis/redis_queue_test.go`
+
+The Redis queue implementation had zero unit test coverage beyond the scheduled job sweep tests. Added 12 comprehensive unit tests using `miniredis` (in-memory Redis for tests) — no real Redis instance required.
+
+| Test | What it covers |
+|---|---|
+| `TestNew_CreatesConsumerGroups` | Consumer groups created for high/default/low queues on initialization |
+| `TestEnqueue_ImmediateJob` | Immediate jobs added to Redis Streams with correct job_id and payload |
+| `TestEnqueue_ScheduledJob` | Future scheduled jobs routed to sorted set, not immediate stream |
+| `TestEnqueue_QueueRouting` | Queue name routing (high/default/low → correct stream, unknown → default) |
+| `TestDequeue_Basic` | XREADGROUP dequeue with ACK success path |
+| `TestDequeue_AckFailure` | NACK behavior (processing failure) leaves message in PEL |
+| `TestLen` | Queue depth calculation via consumer group pending count |
+| `TestDead` | Dead letter queue routing with job + reason + timestamp |
+| `TestFlush` | Stream deletion for testing/admin (queue becomes empty) |
+| `TestReclaimStalePending_ReclaimsStaleMessages` | PEL reclaim via XAUTOCLAIM + XADD + XACK pattern |
+| `TestStartQueueDepthPoller_UpdatesMetrics` | Nil-safe metrics polling (no panic when metrics disabled) |
+| `TestConsumerIDStability` | Single stable consumer per worker instance (no per-call consumer bloat) |
+
+All 12 tests pass (`go test ./internal/queue/redis/... -v`).
 
 ---
 
@@ -744,10 +769,10 @@ The scheduler is the most critical untested component. Add:
 
 ### Phase 15 — Redis Queue Tests
 
-- Unit tests for `Enqueue` / `Dequeue` using `miniredis` (in-memory Redis for tests)
-- Test PEL reclaim: enqueue, dequeue without ack, advance time, verify reclaim
-- Test `Dead` queue routing
-- Test `StartQueueDepthPoller` metric updates
+- Unit tests for `Enqueue` / `Dequeue` using `miniredis` (in-memory Redis for tests) — ✅ RESOLVED
+- Test PEL reclaim: enqueue, dequeue without ack, advance time, verify reclaim — ✅ RESOLVED
+- Test `Dead` queue routing — ✅ RESOLVED
+- Test `StartQueueDepthPoller` metric updates — ✅ RESOLVED
 
 ### Phase 16 — Multi-Tenancy
 
@@ -794,7 +819,7 @@ Ordered by impact × urgency for making Orion production-ready.
 9. **Add `GET /workers`** — ✅ RESOLVED. `WorkerHandler.ListWorkers` returns active workers with queue assignments and active job counts.
 10. **Fix `dequeueLoop` goroutine lifecycle** — prevents potential panic on shutdown.
 11. **Add scheduler unit tests** — the most critical untested component.
-12. **Add Redis queue tests with miniredis** — PEL and reclaim logic needs coverage.
+12. **Add Redis queue tests with miniredis** — ✅ RESOLVED. See below.
 13. **Add `NetworkPolicy` to Helm chart** — ✅ RESOLVED. `deploy/helm/templates/network-policy.yaml` added; gated on `networkPolicy.enabled` (default `false`); restricts api/scheduler/worker to PostgreSQL, Redis, OTLP, K8s API server, and DNS only.
 14. **Add `PodDisruptionBudget` to Helm chart** — ✅ RESOLVED. Worker PDB (`maxUnavailable: 1`) added to `worker-deployment.yaml`; API (`minAvailable: 2`) and scheduler (`minAvailable: 1`) PDBs were already present.
 
