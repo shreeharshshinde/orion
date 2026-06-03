@@ -226,17 +226,17 @@
 
 > **Solution:** Verified fully implemented. Handler returns `{"job_id": ..., "executions": [...], "count": N}`. Returns 404 for unknown jobs (not an ambiguous empty list). Store scans all 11 columns: `id`, `job_id`, `attempt`, `worker_id`, `status`, `started_at`, `finished_at`, `exit_code`, `logs_ref`, `error`, `created_at`. Four unit tests in `internal/api/handler/job_test.go` cover: found with executions (200), job not found (404), invalid UUID (400), empty history (200).
 
-**4. Cascade cancellation creates no job records** — ✅ RESOLVED  
+**4. Cascade cancellation creates no job records** — ✅ RESOLVED
 When a pipeline node reaches `dead` status, `logCascadeCancellation` only logs which downstream nodes will not start. It does not create `cancelled` job records for those nodes. The `GET /pipelines/{id}/jobs` endpoint will show those nodes as simply absent rather than explicitly cancelled, making it hard to understand why a pipeline failed.
 
 > **Solution:** Replaced `logCascadeCancellation` with `createCancelledDownstreamJobs` in `internal/pipeline/advancement.go`. For each downstream node that hasn't started, it calls `CreateJob` with `status=cancelled` and links it via `AddPipelineJob`. Nodes that already have a job (running or completed before the failure) are skipped. On `CreateJob` or `AddPipelineJob` failure the error is logged and the loop continues — a partial cancel is better than blocking the pipeline failure transition. One test added: `TestAdvanceAll_CascadeCancel_CreatesJobRecordsForDownstreamNodes` verifies that a 4-node linear pipeline with `train` dead produces cancelled job records for `evaluate` and `deploy` in `pipeline_jobs`.
 
-**5. Worker `Queues` config not wired from `config.WorkerPoolConfig`** — ✅ RESOLVED  
+**5. Worker `Queues` config not wired from `config.WorkerPoolConfig`** — ✅ RESOLVED
 In `config.go`, `WorkerPoolConfig.Queues` is defined as `[]string` but has no default value and no `ORION_WORKER_QUEUES` env var parsing. The worker entrypoint (`cmd/worker/main.go`) must manually set this. If it is left empty, the worker dequeues from no queues and processes nothing silently.
 
 > **Solution:** Added `ORION_WORKER_QUEUES` parsing in `Load()` via a new `getEnvStringSlice` helper (comma-separated, trims whitespace). Default is `["orion:queue:high", "orion:queue:default", "orion:queue:low"]`. Removed the manual fallback from `cmd/worker/main.go` — the config layer now owns the default.
 
-**6. `InstrumentedStore` does not wrap all state transitions** — ✅ RESOLVED  
+**6. `InstrumentedStore` does not wrap all state transitions** — ✅ RESOLVED
 `grpc.InstrumentedStore` wraps `MarkJobRunning`, `MarkJobCompleted`, `MarkJobFailed` — but not `TransitionJobState` directly. The scheduler calls `TransitionJobState` (queued→scheduled, failed→retrying, retrying→queued) and those transitions are never broadcast to `WatchJob` gRPC streams. Clients watching a job will miss the `scheduled` and `retrying` state transitions.
 
 > **Solution:** Added `TransitionJobState` override to `InstrumentedStore` in `internal/api/grpc/instrumented_store.go`. Publishes a `JobEvent` with `new_status` set to the target status after every successful transition. Four tests added in `internal/api/grpc/instrumented_store_test.go` covering all four methods and the four scheduler-driven transitions (queued→scheduled, failed→retrying, retrying→queued, queued→cancelled).
@@ -560,13 +560,16 @@ Go 1.25 does not exist as of this writing. This is likely a typo for `go 1.22.0`
 | `internal/queue/redis` | `redis_queue_test.go`, `sweep_test.go` | Unit — XREADGROUP, PEL, scheduled jobs |
 | `internal/observability` | `observability_test.go` | Unit — metrics, tracing, logging, HTTP endpoints |
 | `pkg/retry` | `retry_test.go` | Unit — backoff distribution |
+| `cmd/api` | `main_test.go` | Smoke — config load, healthz/readyz probes, HTTP lifecycle |
+| `cmd/scheduler` | `main_test.go` | Smoke — config load, queue weight defaults |
+| `cmd/worker` | `main_test.go` | Smoke — config load, inline handler registry wiring |
 
 ### What Is Missing Tests
 
 - `internal/scheduler/` — ✅ RESOLVED. See below.
 - `internal/queue/redis/` — ✅ RESOLVED. See below.
 - `internal/observability/` — ✅ RESOLVED. See below.
-- `cmd/` entrypoints — no smoke tests or integration tests for the full startup sequence.
+- `cmd/` entrypoints — ✅ RESOLVED. See below.
 - End-to-end test: no test that submits a job via HTTP and verifies it reaches `completed` status through the full pipeline.
 
 ### Integration Test Gap
@@ -643,6 +646,38 @@ The observability package had zero test coverage despite being foundational to m
 | `TestMetrics_AllLabelsLowCardinality` | Label validation prevents cardinality explosion |
 
 All 15 tests pass (`go test ./internal/observability/... -v`).
+
+### cmd/ Entrypoint Smoke Tests — ✅ RESOLVED
+
+**Location:** `cmd/api/main_test.go`, `cmd/scheduler/main_test.go`, `cmd/worker/main_test.go`
+
+The three binary entrypoints had zero test coverage. Each `main()` is a ~150–200 line function that dials Postgres, Redis, and optionally Kubernetes — with hard `os.Exit(1)` calls throughout — making the full startup untestable without live infrastructure. Added smoke tests in `package main` (same package as the entrypoint) so they compile against the binary and catch import/build regressions without requiring any external services.
+
+#### `cmd/api/main_test.go` — 5 tests
+
+| Test | What it covers |
+|---|---|
+| `TestConfigLoad` | `config.Load()` returns valid `*Config` with non-zero `HTTPPort` and `GRPCPort` |
+| `TestHealthzHandler` | `/healthz` → `200 application/json {"status":"ok"}` |
+| `TestReadyzHandler_NoDB` | `/readyz` → `503` when DB ping fails (unavailable branch) |
+| `TestReadyzHandler_WithDB` | `/readyz` → `200 application/json {"status":"ready"}` on success |
+| `TestHTTPServerStartStop` | `httptest.NewServer` starts, serves one request, shuts down without blocking |
+
+#### `cmd/scheduler/main_test.go` — 2 tests
+
+| Test | What it covers |
+|---|---|
+| `TestConfigLoad` | `config.Load()` returns positive `BatchSize`, `ScheduleInterval`, `OrphanInterval` |
+| `TestSchedulerConfigDefaults` | Per-queue `Weight` defaults for `high`, `default`, `low` are all non-zero |
+
+#### `cmd/worker/main_test.go` — 2 tests
+
+| Test | What it covers |
+|---|---|
+| `TestConfigLoad` | `config.Load()` returns positive `Concurrency`, ≥1 queue name, non-empty `WorkerID` |
+| `TestWorkerRegistryStartup` | `NewRegistry` + `Register` + `List` wiring matches the real `worker.HandlerFunc` signature |
+
+All 9 tests pass (`go test ./cmd/api/... ./cmd/scheduler/... ./cmd/worker/... -v`) with zero infrastructure.
 
 ---
 
