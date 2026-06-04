@@ -65,7 +65,8 @@ submit ──► queued ──► scheduled ──► running ──► complete
                           │                        │
                        cancel                   failed ──► retrying ──► queued
                                                    │         (backoff)
-                                                 dead (max retries exhausted)
+                                                 dead ──► queued  (replay)
+                                       (max retries exhausted)
 ```
 
 State transitions are atomic CAS operations (`UPDATE … WHERE status = expected`). Concurrent schedulers and workers cannot double-claim a job.
@@ -138,7 +139,7 @@ grpcurl -plaintext -d '{"job_id": "<id>"}' \
 
 ### Leader election
 
-The scheduler acquires a PostgreSQL advisory lock (`pg_try_advisory_lock`) on startup. Only one scheduler instance dispatches at a time; others stand by and take over within one poll interval on failure.
+The scheduler acquires a PostgreSQL advisory lock (`pg_try_advisory_lock`) on a dedicated connection held for the entire leader tenure. Only one scheduler instance dispatches at a time; others stand by and take over within one poll interval on failure. The dedicated connection ensures the lock cannot be silently released by connection pool rotation.
 
 ---
 
@@ -152,13 +153,17 @@ The scheduler acquires a PostgreSQL advisory lock (`pg_try_advisory_lock`) on st
 | `GET` | `/jobs` | List jobs |
 | `GET` | `/jobs/{id}` | Get job |
 | `GET` | `/jobs/{id}/executions` | Execution history |
-| `POST` | `/jobs/{id}/cancel` | Cancel job |
+| `POST` | `/jobs/{id}/cancel` | Cancel queued/scheduled job; signals running job via Redis pub/sub |
+| `POST` | `/jobs/{id}/replay` | Re-enqueue a `dead` or `failed` job |
+| `DELETE` | `/jobs/{id}` | Delete a job record (not allowed for running/scheduled) |
 | `POST` | `/pipelines` | Create DAG pipeline |
 | `GET` | `/pipelines/{id}` | Pipeline status |
 | `GET` | `/pipelines/{id}/jobs` | Node statuses |
+| `POST` | `/pipelines/{id}/cancel` | Cancel a pending or running pipeline |
 | `GET` | `/queues` | List queue configs |
 | `PUT` | `/queues/{name}` | Update queue config (live reload) |
 | `GET` | `/queues/{name}/stats` | Depth + rate limiter state |
+| `GET` | `/workers` | List active workers |
 | `GET` | `/healthz` | Liveness |
 | `GET` | `/readyz` | Readiness (checks DB) |
 
@@ -190,7 +195,7 @@ Proto definition: [`proto/orion/v1/jobs.proto`](proto/orion/v1/jobs.proto)
 }
 ```
 
-Orion advances nodes topologically. If any node reaches `dead`, downstream nodes are cascade-cancelled and the pipeline transitions to `failed`.
+Orion advances nodes topologically. If any node reaches `dead`, downstream nodes are cascade-cancelled (explicit `cancelled` job records are created) and the pipeline transitions to `failed`.
 
 ---
 
@@ -228,6 +233,7 @@ helm install orion ./deploy/helm \
 | `ORION_HTTP_PORT` | `8080` | HTTP port |
 | `ORION_GRPC_PORT` | `9090` | gRPC port |
 | `ORION_WORKER_CONCURRENCY` | `10` | Max concurrent jobs per worker |
+| `ORION_WORKER_QUEUES` | `orion:queue:high,orion:queue:default,orion:queue:low` | Comma-separated queue names for the worker to consume |
 | `ORION_OTLP_ENDPOINT` | `localhost:4317` | OTel collector endpoint |
 | `ORION_LOG_LEVEL` | `info` | `debug` · `info` · `warn` · `error` |
 
