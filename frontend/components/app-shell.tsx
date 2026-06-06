@@ -3,120 +3,148 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
-  BookOpen,
-  Boxes,
-  BriefcaseBusiness,
-  Gauge,
-  GitBranch,
-  Home,
-  Search,
-  Server,
-  Waypoints
+  Activity, BookOpen, Boxes, BriefcaseBusiness,
+  GitBranch, Home, Search, Server, Waypoints, ChevronRight, Zap
 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button, StatusDot } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { jobs, overview, workers } from "@/lib/api";
 
 const navItems = [
-  { href: "/dashboard", label: "Overview", icon: Gauge },
-  { href: "/dashboard/jobs", label: "Jobs", icon: BriefcaseBusiness },
-  { href: "/dashboard/pipelines", label: "Pipelines", icon: GitBranch },
-  { href: "/dashboard/queues", label: "Queues", icon: Waypoints },
-  { href: "/dashboard/workers", label: "Workers", icon: Server },
-  { href: "/docs", label: "Docs", icon: BookOpen },
-  { href: "/", label: "Home", icon: Home }
+  { href: "/dashboard",            label: "Overview",  icon: Activity },
+  { href: "/dashboard/jobs",       label: "Jobs",      icon: BriefcaseBusiness,
+    count: jobs.filter(j => j.status === "running" || j.status === "queued").length },
+  { href: "/dashboard/pipelines",  label: "Pipelines", icon: GitBranch },
+  { href: "/dashboard/queues",     label: "Queues",    icon: Waypoints },
+  { href: "/dashboard/workers",    label: "Workers",   icon: Server,
+    count: workers.length },
+  { href: "/docs",                 label: "Docs",      icon: BookOpen },
+  { href: "/",                     label: "Home",      icon: Home },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen">
-      {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-card/75 backdrop-blur-xl lg:flex lg:flex-col">
+    <div className="min-h-screen bg-grid">
+      {/* ── Sidebar ─────────────────────────────────────────── */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border/60 bg-card/60 backdrop-blur-xl lg:flex">
         {/* Logo */}
-        <div className="flex h-16 shrink-0 items-center gap-3 border-b px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md border border-primary/40 bg-primary/20 text-primary shadow-neon">
-            <Boxes className="h-5 w-5" />
+        <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/40 bg-primary/15 text-primary glow-primary">
+            <Boxes className="h-4 w-4" />
           </div>
-          <div>
-            <p className="font-display font-semibold tracking-normal">Orion</p>
-            <p className="text-xs text-muted-foreground">ML orchestration</p>
+          <div className="min-w-0">
+            <p className="font-display text-sm font-semibold tracking-wide text-gradient">Orion</p>
+            <p className="text-[10px] text-muted-foreground">ML Orchestration</p>
           </div>
+          {/* env badge */}
+          <span className="ml-auto shrink-0 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning">
+            LOCAL
+          </span>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
+          {/* section label */}
+          <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+            Platform
+          </p>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active =
               item.href === "/dashboard"
                 ? pathname === item.href
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                : pathname.startsWith(item.href);
 
             return (
               <Link
-                className={cn(
-                  "group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors duration-150",
-                  active
-                    ? "border border-primary/30 bg-primary/10 text-primary shadow-neon"
-                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                )}
-                href={item.href}
                 key={item.href}
+                href={item.href}
+                className={cn(
+                  "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                  active
+                    ? "border border-primary/25 bg-primary/10 text-primary shadow-sm"
+                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                )}
               >
-                {/* Active accent line */}
                 {active && (
-                  <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary shadow-neon" />
+                  <span className="absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-primary" />
                 )}
                 <Icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {"count" in item && item.count != null && item.count > 0 && (
+                  <span className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+                    active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+                  )}>
+                    {item.count}
+                  </span>
+                )}
+                {!active && <ChevronRight className="h-3 w-3 opacity-0 transition group-hover:opacity-40" />}
               </Link>
             );
           })}
         </nav>
 
-        {/* Health indicator */}
-        <div className="shrink-0 p-3">
-          <div className="rounded-lg border bg-muted/50 p-3 shadow-neon">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <StatusDot />
-              <span>API ready</span>
+        {/* System status footer */}
+        <div className="shrink-0 border-t border-border/60 p-3">
+          <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <StatusDot tone="success" pulse />
+                <span className="font-medium">API ready</span>
+              </div>
+              <span className="text-muted-foreground">5s refresh</span>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Local · refresh 5s</p>
+            <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-muted-foreground">
+              <span>{overview.activeWorkers} workers</span>
+              <span>{overview.runningJobs} running</span>
+              <span>{overview.queuedJobs} queued</span>
+              <span>{overview.failedJobs} failed</span>
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* Main */}
-      <div className="lg:pl-64">
+      {/* ── Main area ───────────────────────────────────────── */}
+      <div className="lg:pl-60">
         {/* Header */}
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-xl lg:px-6">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border/50 bg-background/70 px-4 backdrop-blur-xl lg:px-5">
           {/* Mobile logo */}
-          <Link className="flex items-center gap-2 font-semibold lg:hidden" href="/">
+          <Link href="/" className="flex items-center gap-2 font-semibold lg:hidden">
             <Boxes className="h-5 w-5 text-primary" />
-            <span className="font-display">Orion</span>
+            <span className="font-display text-sm">Orion</span>
           </Link>
 
-          {/* Search bar */}
-          <div className="hidden h-9 flex-1 items-center gap-2 rounded-md border bg-card/70 px-3 text-sm text-muted-foreground transition-colors hover:border-primary/60 md:flex">
-            <Search className="h-4 w-4 shrink-0" />
-            <span>Search jobs, pipelines, queues…</span>
-            <kbd className="ml-auto hidden rounded border bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground sm:inline">⌘K</kbd>
+          {/* Search */}
+          <div className="hidden h-8 flex-1 max-w-md items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 text-xs text-muted-foreground transition hover:border-primary/40 hover:bg-muted/50 md:flex cursor-pointer">
+            <Search className="h-3.5 w-3.5 shrink-0" />
+            <span>Search jobs, pipelines…</span>
+            <kbd className="ml-auto rounded border border-border/80 bg-card px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <div className="hidden items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-3 py-1.5 text-xs sm:flex">
+              <Zap className="h-3 w-3 text-primary" />
+              <span className="font-medium text-primary">{overview.runningJobs}</span>
+              <span className="text-muted-foreground">running</span>
+            </div>
             <Button size="sm" variant="outline">
-              <Activity className="h-4 w-4" />
+              <Activity className="h-3.5 w-3.5" />
               Live
             </Button>
-            <Button size="sm">Submit Job</Button>
+            <Button size="sm">
+              Submit Job
+            </Button>
           </div>
         </header>
 
-        <main className="px-4 py-6 lg:px-6">{children}</main>
+        <main className="min-h-[calc(100vh-3.5rem)] px-4 py-6 lg:px-6">
+          {children}
+        </main>
       </div>
     </div>
   );
