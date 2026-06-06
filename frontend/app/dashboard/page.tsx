@@ -1,128 +1,133 @@
-import { Activity, AlertTriangle, BriefcaseBusiness, GitBranch, Server, Waypoints } from "lucide-react";
+import {
+  Activity, AlertTriangle, BriefcaseBusiness,
+  GitBranch, Server, Waypoints, TrendingUp, Skull
+} from "lucide-react";
 
-import { Card, MetricCard, PageHeader } from "@/components/ui";
+import { Card, CardHeader, CardTitle, MetricCard, PageHeader, ProgressBar, SectionHeader, Table, Td, Th } from "@/components/ui";
 import { StatusBadge } from "@/components/status-badge";
 import { jobs, overview, pipelines, queues, workers } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 
+// Tiny inline sparkline using SVG — no chart library needed
+function Sparkline({ values, color = "hsl(var(--primary))" }: { values: number[]; color?: string }) {
+  const max = Math.max(...values, 1);
+  const w = 80; const h = 28;
+  const step = w / (values.length - 1);
+  const pts = values.map((v, i) => `${i * step},${h - (v / max) * h}`).join(" ");
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0 opacity-70">
+      <polyline fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={pts} />
+    </svg>
+  );
+}
+
+// Fake sparkline data (will be real timeseries once API is wired)
+const throughputSpark = [2, 5, 3, 8, 6, 9, 7, 12, 10, 14, 11, 8];
+const errorSpark      = [0, 1, 0, 0, 2, 1, 0, 0, 1, 0, 0, 0];
+
 export default function DashboardPage() {
-  const incidents = jobs.filter((j) => j.status === "failed" || j.status === "dead" || j.status === "retrying");
+  const incidents = jobs.filter(j => j.status === "failed" || j.status === "dead" || j.status === "retrying");
+  const totalSlots = workers.reduce((s, w) => s + w.concurrency, 0);
+  const usedSlots  = workers.reduce((s, w) => s + w.active_jobs, 0);
 
   return (
     <>
       <PageHeader
         title="Overview"
-        description="Operational cockpit for Orion jobs, pipelines, queue pressure, worker capacity, and system health."
+        description="Operational cockpit — jobs, pipelines, queues, workers, and system health."
+        badge={<span className="rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">Live</span>}
       />
 
       {/* Incident strip */}
       {incidents.length > 0 && (
-        <div className="mb-6 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm shadow-neon">
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/8 px-4 py-3 text-sm">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div>
-            <span className="font-medium text-warning">
-              {incidents.length} job{incidents.length > 1 ? "s" : ""} need attention:
-            </span>{" "}
-            <span className="text-muted-foreground">
-              {incidents.map((j) => j.name).join(", ")}
-            </span>
+            <span className="font-semibold text-warning">{incidents.length} job{incidents.length > 1 ? "s" : ""} need attention — </span>
+            <span className="text-muted-foreground">{incidents.map(j => j.name).join(", ")}</span>
           </div>
         </div>
       )}
 
       {/* Metric cards */}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard
-          label="API"
-          value="Ready"
-          detail="healthz and readyz responding"
-          icon={<Activity className="h-5 w-5" />}
-          tone="success"
-        />
-        <MetricCard
-          label="Workers"
-          value={overview.activeWorkers}
-          detail={`${overview.totalConcurrency} total slots`}
-          icon={<Server className="h-5 w-5" />}
-        />
-        <MetricCard
-          label="Running jobs"
-          value={overview.runningJobs}
-          detail={`${overview.activeSlots} slots in use`}
-          icon={<BriefcaseBusiness className="h-5 w-5" />}
-        />
-        <MetricCard
-          label="Queued jobs"
-          value={overview.queuedJobs}
-          detail="waiting for dispatch"
-          icon={<Waypoints className="h-5 w-5" />}
-          tone="warning"
-        />
-        <MetricCard
-          label="Failed / dead"
-          value={overview.failedJobs}
-          detail="needs attention"
-          icon={<AlertTriangle className="h-5 w-5" />}
-          tone={overview.failedJobs ? "danger" : "success"}
-        />
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricCard label="API Status"    value="Ready"                  detail="healthz · readyz responding"            icon={<Activity className="h-5 w-5" />}           tone="success" />
+        <MetricCard label="Workers"       value={overview.activeWorkers}  detail={`${usedSlots}/${totalSlots} slots used`} icon={<Server className="h-5 w-5" />}            tone="aqua"    />
+        <MetricCard label="Running"       value={overview.runningJobs}    detail="active executions"                      icon={<BriefcaseBusiness className="h-5 w-5" />}  tone="aqua"    delta={2} deltaLabel="vs 1h ago" />
+        <MetricCard label="Queued"        value={overview.queuedJobs}     detail="waiting for dispatch"                   icon={<Waypoints className="h-5 w-5" />}          tone="warning" />
+        <MetricCard label="Failed / Dead" value={overview.failedJobs}     detail="needs attention"                        icon={<Skull className="h-5 w-5" />}              tone={overview.failedJobs > 0 ? "danger" : "success"} />
       </section>
 
-      {/* Recent jobs + Queue pressure */}
-      <section className="mt-6 grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <Card className="p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold">Recent jobs</h2>
-            <span className="text-xs text-muted-foreground">mock data · API mapped</span>
-          </div>
-          <div className="overflow-hidden rounded-md border bg-background/40">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-muted/60 text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="px-4 py-2.5 font-medium">Name</th>
-                  <th className="px-4 py-2.5 font-medium">Queue</th>
-                  <th className="px-4 py-2.5 font-medium">Updated</th>
+      {/* Throughput + Queue pressure */}
+      <section className="mt-5 grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
+        {/* Recent jobs */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent jobs</CardTitle>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <TrendingUp className="h-3.5 w-3.5" />
+                <span>Throughput</span>
+                <Sparkline values={throughputSpark} />
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <AlertTriangle className="h-3.5 w-3.5 text-danger" />
+                <span>Errors</span>
+                <Sparkline values={errorSpark} color="hsl(var(--danger))" />
+              </div>
+            </div>
+          </CardHeader>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Status</Th>
+                <Th>Name</Th>
+                <Th>Queue</Th>
+                <Th>Attempt</Th>
+                <Th>Updated</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {jobs.map((job) => (
+                <tr key={job.id} className="hover:bg-muted/20 cursor-pointer">
+                  <Td><StatusBadge status={job.status} /></Td>
+                  <Td>
+                    <p className="font-medium text-sm">{job.name}</p>
+                    {job.error_message && (
+                      <p className="mt-0.5 text-xs text-danger truncate max-w-xs">{job.error_message}</p>
+                    )}
+                  </Td>
+                  <Td><span className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-xs">{job.queue_name.replace("orion:queue:", "")}</span></Td>
+                  <Td className="tabular-nums text-muted-foreground">{job.attempt}/{job.max_retries}</Td>
+                  <Td className="text-muted-foreground text-xs">{formatRelativeTime(job.updated_at)}</Td>
                 </tr>
-              </thead>
-              <tbody className="divide-y bg-card/50">
-                {jobs.map((job) => (
-                  <tr className="hover:bg-muted/30" key={job.id}>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={job.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{job.name}</p>
-                      {job.error_message && (
-                        <p className="mt-0.5 text-xs text-danger">{job.error_message}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{job.queue_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatRelativeTime(job.updated_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </Table>
         </Card>
 
-        <Card className="p-5">
-          <h2 className="mb-4 font-semibold">Queue pressure</h2>
-          <div className="space-y-5">
-            {queues.map((queue) => {
-              const pct = Math.min((queue.depth ?? 0) * 3, 100);
-              const color = pct > 70 ? "bg-danger" : pct > 40 ? "bg-warning" : "bg-primary";
+        {/* Queue pressure */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Queue depth</CardTitle>
+            <span className="text-xs text-muted-foreground">3 active</span>
+          </CardHeader>
+          <div className="p-5 space-y-5">
+            {queues.map((q) => {
+              const name = q.queue_name.replace("orion:queue:", "");
+              const pct  = Math.min((q.depth ?? 0) * 3, 100);
+              const tone = pct > 70 ? "danger" : pct > 40 ? "warning" : "primary";
               return (
-                <div key={queue.queue_name}>
+                <div key={q.queue_name}>
                   <div className="mb-1.5 flex items-center justify-between text-sm">
-                    <span className="font-medium">{queue.queue_name.replace("orion:queue:", "")}</span>
-                    <span className="text-muted-foreground">{queue.depth} depth</span>
+                    <span className="font-medium capitalize">{name}</span>
+                    <span className="tabular-nums font-semibold">{q.depth}</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+                  <ProgressBar value={pct} tone={tone} />
+                  <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+                    <span>{q.rate_tokens_avail?.toFixed(1)} tokens</span>
+                    <span>{q.max_concurrent} concurrent</span>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {queue.rate_tokens_avail} tokens · {queue.max_concurrent} max concurrent
-                  </p>
                 </div>
               );
             })}
@@ -131,56 +136,75 @@ export default function DashboardPage() {
       </section>
 
       {/* Pipelines + Workers */}
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="mb-4 flex items-center gap-2 font-semibold">
-            <GitBranch className="h-4 w-4 text-primary" />
-            Active pipelines
-          </h2>
-          <div className="space-y-3">
-            {pipelines.map((pipeline) => (
-              <div
-                className="flex items-center justify-between rounded-md border bg-muted/25 p-3 hover:bg-primary/10"
-                key={pipeline.id}
-              >
+      <section className="mt-4 grid gap-4 lg:grid-cols-2">
+        {/* Active pipelines */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4 text-primary" />
+              <CardTitle>Active pipelines</CardTitle>
+            </div>
+            <span className="text-xs text-muted-foreground">{pipelines.length} total</span>
+          </CardHeader>
+          <div className="p-4 space-y-2">
+            {pipelines.map((p) => (
+              <div key={p.id} className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-4 py-3 hover:bg-primary/5 cursor-pointer transition-colors">
                 <div>
-                  <p className="font-medium">{pipeline.name}</p>
+                  <p className="font-medium text-sm">{p.name}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {pipeline.dag_spec.nodes.length} nodes · {pipeline.dag_spec.edges.length} edges · {formatRelativeTime(pipeline.updated_at)}
+                    {p.dag_spec.nodes.length} nodes · {p.dag_spec.edges.length} edges · {formatRelativeTime(p.updated_at)}
                   </p>
                 </div>
-                <StatusBadge status={pipeline.status} />
+                <StatusBadge status={p.status} />
               </div>
             ))}
           </div>
         </Card>
 
-        <Card className="p-5">
-          <h2 className="mb-4 flex items-center gap-2 font-semibold">
-            <Server className="h-4 w-4 text-primary" />
-            Worker capacity
-          </h2>
-          <div className="space-y-4">
-            {workers.map((worker) => {
-              const pct = (worker.active_jobs / worker.concurrency) * 100;
-              const barColor = pct > 80 ? "bg-danger" : pct > 50 ? "bg-warning" : "bg-primary";
+        {/* Worker capacity */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Server className="h-4 w-4 text-primary" />
+              <CardTitle>Worker capacity</CardTitle>
+            </div>
+            <div className="text-xs text-muted-foreground">{usedSlots}/{totalSlots} slots</div>
+          </CardHeader>
+          <div className="p-4 space-y-4">
+            {workers.map((w) => {
+              const pct   = Math.round((w.active_jobs / w.concurrency) * 100);
+              const tone  = pct > 80 ? "danger" : pct > 50 ? "warning" : "primary";
               return (
-                <div key={worker.id}>
+                <div key={w.id}>
                   <div className="mb-1.5 flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{worker.hostname}</span>
-                      <StatusBadge status={worker.status} />
+                      <span className="font-medium">{w.hostname}</span>
+                      <StatusBadge status={w.status} />
                     </div>
-                    <span className="text-muted-foreground">{worker.active_jobs}/{worker.concurrency}</span>
+                    <span className="tabular-nums text-muted-foreground">{w.active_jobs}/{w.concurrency}</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
-                  </div>
+                  <ProgressBar value={w.active_jobs} max={w.concurrency} tone={tone} />
                 </div>
               );
             })}
           </div>
         </Card>
+      </section>
+
+      {/* Job status distribution */}
+      <section className="mt-4">
+        <SectionHeader title="Job status distribution" />
+        <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
+          {(["queued","scheduled","running","completed","retrying","failed","dead","cancelled"] as const).map(s => {
+            const count = jobs.filter(j => j.status === s).length;
+            return (
+              <div key={s} className="rounded-xl border border-border/40 bg-card/40 p-3 text-center hover:border-primary/30 cursor-pointer transition-colors">
+                <p className="text-xl font-semibold tabular-nums">{count}</p>
+                <StatusBadge status={s} />
+              </div>
+            );
+          })}
+        </div>
       </section>
     </>
   );

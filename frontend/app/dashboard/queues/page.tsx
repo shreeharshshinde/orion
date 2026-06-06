@@ -1,6 +1,6 @@
-import { Save } from "lucide-react";
+import { Save, Zap } from "lucide-react";
 
-import { Button, Card, PageHeader } from "@/components/ui";
+import { Button, Card, PageHeader, UtilizationRing } from "@/components/ui";
 import { queues } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 
@@ -16,7 +16,6 @@ export default function QueuesPage() {
         {queues.map((queue) => {
           const shortName = queue.queue_name.replace("orion:queue:", "");
           const depthPct = Math.min((queue.depth ?? 0) * 3, 100);
-          const depthColor = depthPct > 70 ? "bg-danger" : depthPct > 40 ? "bg-warning" : "bg-primary";
 
           return (
             <Card className="overflow-hidden" key={queue.queue_name}>
@@ -30,30 +29,47 @@ export default function QueuesPage() {
                   </p>
                 </div>
                 <span
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                    queue.enabled
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${queue.enabled
                       ? "border-success/40 bg-success/10 text-success"
                       : "border-slate-500/40 bg-slate-400/10 text-slate-300"
-                  }`}
+                    }`}
                 >
                   {queue.enabled ? "enabled" : "disabled"}
                 </span>
               </div>
 
-              {/* Depth bar */}
-              <div className="border-t bg-muted/20 px-5 py-4">
-                <div className="mb-1.5 flex items-center justify-between text-sm">
-                  <span className="font-medium">Queue depth</span>
-                  <span className="font-semibold">{queue.depth}</span>
+              {/* Depth utilization ring */}
+              <div className="border-t bg-muted/20 px-5 py-5 flex flex-col items-center">
+                <div className="flex flex-col items-center gap-2 mb-4">
+                  <UtilizationRing value={queue.depth ?? 0} max={33} size={80} />
+                  <p className="text-xs text-muted-foreground text-center">Queue depth</p>
                 </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                <p className="text-xs text-muted-foreground text-center">
+                  <span className="font-semibold text-foreground">{queue.depth}</span> / <span className="text-muted-foreground">33 max</span>
+                </p>
+              </div>
+
+              {/* Token refill indicator */}
+              <div className="border-t bg-background/40 px-5 py-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-medium">Rate tokens</span>
+                  </div>
+                  <span className="text-xs font-semibold text-primary">
+                    {(queue.rate_tokens_avail ?? 0).toFixed(1)} / {queue.burst}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <div
-                    className={`h-full rounded-full transition-all ${depthColor}`}
-                    style={{ width: `${depthPct}%` }}
+                    className="h-full rounded-full transition-all duration-500 bg-primary"
+                    style={{
+                      width: `${Math.min(((queue.rate_tokens_avail ?? 0) / queue.burst) * 100, 100)}%`,
+                    }}
                   />
                 </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {queue.rate_tokens_avail} rate tokens available
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Refills at {queue.rate_per_sec}/sec
                 </p>
               </div>
 

@@ -5,12 +5,100 @@ import { Button, Card, PageHeader } from "@/components/ui";
 import { pipelines } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 
-const nodeStatusColor: Record<string, string> = {
-  running: "border-primary/40 bg-primary/10 text-primary",
-  completed: "border-success/40 bg-success/10 text-success",
-  failed: "border-danger/40 bg-danger/10 text-danger",
-  pending: "border-slate-500/40 bg-slate-400/10 text-slate-300",
-};
+// Simple DAG renderer using SVG
+function DAGPreview({ nodes, edges }: {
+  nodes: Array<{ id: string; job_id?: string }>;
+  edges: Array<{ source: string; target: string }>;
+}) {
+  const nodeWidth = 100;
+  const nodeHeight = 40;
+  const horizontalSpacing = 140;
+  const verticalSpacing = 80;
+
+  // Position nodes horizontally
+  const nodePositions: Record<string, [number, number]> = {};
+  nodes.forEach((node, index) => {
+    nodePositions[node.id] = [index * horizontalSpacing + 20, 20];
+  });
+
+  const svgWidth = Math.max(300, nodes.length * horizontalSpacing);
+  const svgHeight = verticalSpacing;
+
+  return (
+    <div className="overflow-x-auto border rounded-lg bg-muted/20 p-4">
+      <svg width={svgWidth} height={svgHeight} className="min-w-full" style={{ minHeight: `${svgHeight}px` }}>
+        {/* Draw edges (arrows) */}
+        {edges.map((edge, i) => {
+          const [x1, y1] = nodePositions[edge.source] || [0, 0];
+          const [x2, y2] = nodePositions[edge.target] || [0, 0];
+          const startX = x1 + nodeWidth / 2;
+          const startY = y1 + nodeHeight / 2;
+          const endX = x2 - nodeWidth / 2;
+          const endY = y2 + nodeHeight / 2;
+
+          return (
+            <g key={`edge-${i}`}>
+              {/* Line */}
+              <line
+                x1={startX}
+                y1={startY}
+                x2={endX}
+                y2={endY}
+                stroke="hsl(var(--muted-foreground))"
+                strokeWidth="1.5"
+                markerEnd="url(#arrowhead)"
+                opacity="0.6"
+              />
+              {/* Arrow marker definition */}
+              <defs>
+                <marker
+                  id="arrowhead"
+                  markerWidth="10"
+                  markerHeight="10"
+                  refX="9"
+                  refY="3"
+                  orient="auto"
+                >
+                  <polygon points="0 0, 10 3, 0 6" fill="hsl(var(--muted-foreground))" opacity="0.6" />
+                </marker>
+              </defs>
+            </g>
+          );
+        })}
+
+        {/* Draw nodes */}
+        {nodes.map((node) => {
+          const [x, y] = nodePositions[node.id];
+          return (
+            <g key={node.id}>
+              {/* Node rectangle */}
+              <rect
+                x={x}
+                y={y}
+                width={nodeWidth}
+                height={nodeHeight}
+                rx={4}
+                className="cursor-pointer transition-opacity hover:opacity-80 fill-primary/10 stroke-primary/40"
+                strokeWidth="1.5"
+              />
+              {/* Node label */}
+              <text
+                x={x + nodeWidth / 2}
+                y={y + nodeHeight / 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="text-xs font-medium pointer-events-none"
+                fill="currentColor"
+              >
+                {node.id}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
 
 export default function PipelinesPage() {
   return (
@@ -28,9 +116,8 @@ export default function PipelinesPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {pipelines.map((pipeline) => {
-          const nodeColor = nodeStatusColor[pipeline.status] ?? nodeStatusColor.pending;
           return (
-            <Card className="overflow-hidden" key={pipeline.id}>
+            <Card className="overflow-hidden flex flex-col" key={pipeline.id}>
               {/* Header */}
               <div className="flex items-start justify-between gap-4 p-5">
                 <div>
@@ -45,37 +132,27 @@ export default function PipelinesPage() {
                 <StatusBadge status={pipeline.status} />
               </div>
 
-              {/* DAG preview */}
-              <div className="border-t bg-muted/20 px-5 py-4">
-                <p className="mb-3 text-xs font-medium uppercase tracking-normal text-muted-foreground">
-                  DAG
+              {/* DAG preview with arrows */}
+              <div className="border-t bg-muted/20 px-0 py-3 flex-1">
+                <p className="px-5 mb-3 text-xs font-medium uppercase tracking-normal text-muted-foreground">
+                  DAG Workflow
                 </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  {pipeline.dag_spec.nodes.map((node, index) => (
-                    <div className="flex items-center gap-2" key={node.id}>
-                      <div
-                        className={`rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm ${nodeColor}`}
-                      >
-                        {node.id}
-                      </div>
-                      {index < pipeline.dag_spec.nodes.length - 1 && (
-                        <svg className="h-4 w-4 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 16 16">
-                          <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} />
-                        </svg>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <DAGPreview
+                  nodes={pipeline.dag_spec.nodes}
+                  edges={pipeline.dag_spec.edges}
+                />
               </div>
 
               {/* Footer */}
               <div className="border-t px-5 py-3 text-xs text-muted-foreground">
-                {pipeline.id}
-                {pipeline.completed_at && (
-                  <span className="ml-3 text-success">
-                    Completed {formatRelativeTime(pipeline.completed_at)}
-                  </span>
-                )}
+                <div className="flex items-center justify-between">
+                  <span className="font-mono">{pipeline.id}</span>
+                  {pipeline.completed_at && (
+                    <span className="text-success">
+                      Completed {formatRelativeTime(pipeline.completed_at)}
+                    </span>
+                  )}
+                </div>
               </div>
             </Card>
           );
