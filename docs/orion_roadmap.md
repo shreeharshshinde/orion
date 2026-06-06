@@ -2,7 +2,7 @@
 
 > **Orion** is a production-grade distributed ML job orchestrator built in Go.
 > It accepts job submissions via HTTP, stores them durably in PostgreSQL, dispatches them through Redis Streams, executes them on Kubernetes or inline, and self-heals from any failure.
-> This roadmap covers every phase from skeleton to production-ready platform.
+> This roadmap covers every phase from skeleton to production-ready platform. As of now, core Phases 1-9 are complete and in production.
 
 ---
 
@@ -21,7 +21,9 @@
 - [Phase 7 — gRPC Streaming API](#phase-7--grpc-streaming-api)
 - [Phase 8 — Rate Limiting and Priority Queues](#phase-8--rate-limiting-and-priority-queues)
 - [Phase 9 — Helm Chart and Kubernetes Deployment](#phase-9--helm-chart-and-kubernetes-deployment)
-- [End State — What Orion Looks Like When Complete](#end-state--what-orion-looks-like-when-complete)
+- [Phase 10 — Observability Hardening](#phase-10--observability-hardening)
+- [Phase 11 — Frontend Completion](#phase-11--frontend-completion)
+- [End State — What Orion Looks Like Today](#end-state--what-orion-looks-like-when-complete)
 - [File Growth by Phase](#file-growth-by-phase)
 - [Decision Log](#decision-log)
 
@@ -122,13 +124,15 @@ OBSERVABILITY (all phases)
 |---|---|---|---|---|
 | **1** | Foundation Skeleton | ✅ Complete | All interfaces, domain types, goroutine patterns, infrastructure | `make build` succeeds, all 3 services start |
 | **2** | PostgreSQL Store | ✅ Complete | Real DB layer, full job lifecycle, all SQL written | `POST /jobs` returns 201, scheduler dispatches |
-| **3** | Inline Executor | 🔲 Next | Go function jobs execute and reach `completed` | First `status: completed` in the DB |
-| **4** | Kubernetes Executor | 🔲 Planned | Real K8s Jobs launch, GPU workloads run | K8s pod created, job reaches `completed` |
-| **5** | Pipeline DAG | 🔲 Planned | Chained jobs — train depends on preprocess | `POST /pipelines` executes all nodes in order |
-| **6** | Observability | 🔲 Planned | Metrics on every operation, traces through all hops | Grafana dashboard shows job throughput |
-| **7** | gRPC Streaming | 🔲 Planned | Real-time job event streams, SDK-ready API | `WatchJob` streams live status transitions |
-| **8** | Rate Limiting & Priority | 🔲 Planned | Per-queue concurrency limits, fair scheduling | High-priority jobs preempt low-priority backlog |
-| **9** | Helm + Production | 🔲 Planned | Kubernetes deployment, TLS, autoscaling | `helm install orion` deploys all services |
+| **3** | Inline Executor | ✅ Complete | Go function jobs execute and reach `completed` | First `status: completed` in the DB |
+| **4** | Kubernetes Executor | ✅ Complete | Real K8s Jobs launch, GPU workloads run | K8s pod created, job reaches `completed` |
+| **5** | Pipeline DAG | ✅ Complete | Chained jobs — train depends on preprocess | `POST /pipelines` executes all nodes in order |
+| **6** | Observability | ✅ Complete | Metrics on every operation, traces through all hops | Grafana dashboard shows job throughput |
+| **7** | gRPC Streaming | ✅ Complete | Real-time job event streams, SDK-ready API | `WatchJob` streams live status transitions |
+| **8** | Rate Limiting & Priority | ✅ Complete | Per-queue concurrency limits, fair scheduling | High-priority jobs preempt low-priority backlog |
+| **9** | Helm + Production | ✅ Complete | Kubernetes deployment, TLS, autoscaling | `helm install orion` deploys all services |
+| **10** | Observability Hardening | 🔲 Planned | Fix missing metrics, Jaeger UI, OTel interceptors, alerting | Grafana traces work, alerts fire |
+| **11** | Frontend Completion | 🔲 Planned | Fully interactive Next.js dashboard UI | Jobs submitted via UI, live updates |
 
 ---
 
@@ -285,7 +289,7 @@ go test -tags=integration ./internal/store/postgres/... -v
 
 ## Phase 3 — Inline Executor
 
-**Status: 🔲 Next**
+**Status: ✅ Complete**
 
 ### What this phase does
 
@@ -402,7 +406,7 @@ curl localhost:8080/jobs/$JOB_ID/executions
 
 ## Phase 4 — Kubernetes Executor
 
-**Status: 🔲 Planned**
+**Status: ✅ Complete**
 
 ### What this phase does
 
@@ -507,7 +511,7 @@ curl localhost:8080/jobs/$JOB_ID | jq .status
 
 ## Phase 5 — Pipeline Orchestration (DAG)
 
-**Status: 🔲 Planned**
+**Status: ✅ Complete**
 
 ### What this phase does
 
@@ -599,7 +603,7 @@ A failed node triggers automatic cancellation of all downstream nodes.
 
 ## Phase 6 — Observability Integration
 
-**Status: 🔲 Planned**
+**Status: ✅ Complete**
 
 ### What this phase does
 
@@ -687,7 +691,7 @@ curl "localhost:9090/api/v1/query?query=orion_queue_depth{queue=\"default\"}"
 
 ## Phase 7 — gRPC Streaming API
 
-**Status: 🔲 Planned**
+**Status: ✅ Complete**
 
 ### What this phase does
 
@@ -806,7 +810,7 @@ grpcurl -plaintext -d '{"job_id":"550e8400-..."}' \
 
 ## Phase 8 — Rate Limiting and Priority Queues
 
-**Status: 🔲 Planned**
+**Status: ✅ Complete**
 
 ### What this phase does
 
@@ -871,7 +875,7 @@ curl -X POST localhost:8080/jobs -d '{"queue_name":"high","priority":10,...}'
 
 ## Phase 9 — Helm Chart and Kubernetes Deployment
 
-**Status: 🔲 Planned**
+**Status: ✅ Complete**
 
 ### What this phase does
 
@@ -996,9 +1000,50 @@ kubectl get hpa -n orion -w
 
 ---
 
-## End State — What Orion Looks Like When Complete
 
-When all 9 phases are done, Orion is a production ML orchestration platform with these capabilities:
+---
+
+## Phase 10 — Observability Hardening
+
+**Status: 🔲 Planned**
+
+### What this phase does
+
+Adds deeper robustness to the observability layer added in Phase 6. Fixes missing `DBOperationDuration` metrics, wires Jaeger natively into Grafana, adds gRPC interceptors for OTel, and sets up Prometheus alerting rules.
+
+### Why this matters
+
+A system handling production jobs needs rock-solid visibility. Resolving gaps such as lack of alerting rules (e.g. queue depth saturation alerts) and missing DB timings ensures operations can be safely monitored.
+
+### Core additions
+- `DBOperationDuration` tracking across the entire PostgreSQL store
+- `otelgrpc` interceptors for gRPC visibility
+- Pre-configured Grafana datasource provisioning
+- Prometheus alerts for dead jobs, queue saturation, and DB latency.
+
+---
+
+## Phase 11 — Frontend Completion
+
+**Status: 🔲 Planned**
+
+### What this phase does
+
+Upgrades the frontend from a polished static mockup to a fully interactive dashboard backed by live API data. 
+
+### Why this matters
+
+The orchestration platform needs an operational UI. This phase enables users to monitor pipelines and individual jobs, configure queue limits on the fly, and inspect errors or pipeline topologies intuitively.
+
+### Core additions
+- `useQuery` integrations using TanStack Query for all tables
+- Job and Pipeline detail pages (DAG rendering via React Flow)
+- Live queue configurations
+- Submission forms for jobs and pipelines
+
+## End State — What Orion Looks Like Today
+
+With Phases 1-9 completed, Orion is a production ML orchestration platform offering these capabilities. Phases 10-11 will further refine monitoring and user experience:
 
 ### Job submission (Phase 1–2)
 ```bash
@@ -1067,6 +1112,7 @@ Phase 6:  53 files  (+6: instrumentation in all packages, Grafana dashboard)
 Phase 7:  60 files  (+7: proto, generated code, gRPC server, tests)
 Phase 8:  66 files  (+6: rate limiter, fair queue, config, migration)
 Phase 9:  82 files  (+16: Helm chart templates, Dockerfiles, deploy docs)
+Phase 10 & 11: Planned addition of robust frontend client components and further observability integrations.
 ```
 
 ---
@@ -1100,4 +1146,6 @@ Key architectural decisions made early that constrain all later phases:
 | [`docs/phase2/README-tests.md`](docs/phase2/README-tests.md) | How to run tests, what each test verifies |
 | [`docs/adr/ADR-001-queue-design.md`](docs/adr/ADR-001-queue-design.md) | Why Redis Streams |
 | [`docs/adr/ADR-002-leader-election.md`](docs/adr/ADR-002-leader-election.md) | Why PostgreSQL advisory locks |
-| **This file** | Complete project roadmap, all 9 phases |
+| `docs/phases/phase-10/OBSERVABILITY_HARDENING.md` | Phase 10 observability hardening plans |
+| `docs/phases/phase-11/FRONTEND_COMPLETION.md` | Phase 11 interactive UI features |
+| **This file** | Complete project roadmap, spanning all 11 phases |
