@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/observability"
 	"github.com/shreeharshshinde/orion/internal/store"
 )
 
@@ -38,7 +39,8 @@ const pgNotifyChannel = "orion_job_events"
 // We never open or close connections manually — we call pool methods
 // and pgxpool handles acquiring/releasing connections from the pool.
 type DB struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	metrics *observability.Metrics
 }
 
 // New creates a DB from an already-dialed connection pool.
@@ -46,6 +48,21 @@ type DB struct {
 // pgxpool.NewWithConfig() and for calling pool.Close() on shutdown.
 func New(pool *pgxpool.Pool) *DB {
 	return &DB{pool: pool}
+}
+
+// WithMetrics attaches a Metrics instance so the DB records DBOperationDuration
+// for every store method. Call this after New() in production binaries.
+func (db *DB) WithMetrics(m *observability.Metrics) *DB {
+	db.metrics = m
+	return db
+}
+
+// observe records the elapsed time for a DB operation if metrics are configured.
+// Usage: defer db.observe("MethodName", time.Now())
+func (db *DB) observe(op string, start time.Time) {
+	if db.metrics != nil {
+		db.metrics.DBOperationDuration.WithLabelValues(op).Observe(time.Since(start).Seconds())
+	}
 }
 
 // ============================================================
@@ -62,6 +79,7 @@ func New(pool *pgxpool.Pool) *DB {
 //
 // The HTTP handler returns HTTP 200 for cases 2 and 3, HTTP 201 for case 1.
 func (db *DB) CreateJob(ctx context.Context, job *domain.Job) (*domain.Job, error) {
+	defer db.observe("CreateJob", time.Now())
 	// Case 2: check for existing idempotency key before attempting INSERT.
 	if job.IdempotencyKey != "" {
 		existing, err := db.GetJobByIdempotencyKey(ctx, job.IdempotencyKey)
@@ -145,6 +163,7 @@ func (db *DB) CreateJob(ctx context.Context, job *domain.Job) (*domain.Job, erro
 // GetJob retrieves a single job by its UUID primary key.
 // Returns store.ErrNotFound if no row exists with the given ID.
 func (db *DB) GetJob(ctx context.Context, id uuid.UUID) (*domain.Job, error) {
+	defer db.observe("GetJob", time.Now())
 	const q = `SELECT ` + jobColumns + ` FROM jobs WHERE id = $1`
 	row := db.pool.QueryRow(ctx, q, id)
 	job, err := scanJob(row)
@@ -160,6 +179,7 @@ func (db *DB) GetJob(ctx context.Context, id uuid.UUID) (*domain.Job, error) {
 // GetJobByIdempotencyKey looks up a job by client-provided idempotency key.
 // Returns store.ErrNotFound if the key has never been used.
 func (db *DB) GetJobByIdempotencyKey(ctx context.Context, key string) (*domain.Job, error) {
+	defer db.observe("GetJobByIdempotencyKey", time.Now())
 	const q = `SELECT ` + jobColumns + ` FROM jobs WHERE idempotency_key = $1`
 	row := db.pool.QueryRow(ctx, q, key)
 	job, err := scanJob(row)
@@ -194,6 +214,7 @@ func (db *DB) TransitionJobState(
 	expectedStatus, newStatus domain.JobStatus,
 	opts ...store.TransitionOption,
 ) error {
+	defer db.observe("TransitionJobState", time.Now())
 	// Collect all optional field updates from the caller's TransitionOption funcs.
 	u := &store.TransitionUpdateExported{}
 	for _, opt := range opts {
@@ -281,6 +302,7 @@ func (db *DB) TransitionJobState(
 // ListJobs returns jobs matching the filter, ordered by priority DESC, created_at ASC.
 // This is the same ordering the scheduler uses for its dispatch loop.
 func (db *DB) ListJobs(ctx context.Context, filter store.JobFilter) ([]*domain.Job, error) {
+	defer db.observe("ListJobs", time.Now())
 	// Build WHERE clause from whichever filter fields are non-nil.
 	// "WHERE 1=1" is a safe base so every subsequent AND is valid SQL.
 	whereClauses := []string{"1=1"}
@@ -349,6 +371,7 @@ func (db *DB) ListJobs(ctx context.Context, filter store.JobFilter) ([]*domain.J
 // Result: concurrent workers each get a unique, non-overlapping set of jobs.
 // No job is ever claimed by two workers, and no worker blocks another.
 func (db *DB) ClaimPendingJobs(ctx context.Context, queueName, workerID string, limit int) ([]*domain.Job, error) {
+	defer db.observe("ClaimPendingJobs", time.Now())
 	const q = `
 		WITH claimed AS (
 			SELECT id FROM jobs
@@ -385,6 +408,7 @@ func (db *DB) ClaimPendingJobs(ctx context.Context, queueName, workerID string, 
 // Returns store.ErrStateConflict if the job was already transitioned by
 // another worker (safe to retry on a different job).
 func (db *DB) MarkJobRunning(ctx context.Context, id uuid.UUID, workerID string) error {
+	defer db.observe("MarkJobRunning", time.Now())
 	now := time.Now().UTC()
 	return db.TransitionJobState(ctx, id,
 		domain.JobStatusScheduled,
@@ -398,6 +422,7 @@ func (db *DB) MarkJobRunning(ctx context.Context, id uuid.UUID, workerID string)
 // Sets completed_at atomically. Called by the worker after executor.Execute()
 // returns nil and BEFORE calling ackFn(nil) to remove from Redis PEL.
 func (db *DB) MarkJobCompleted(ctx context.Context, id uuid.UUID) error {
+	defer db.observe("MarkJobCompleted", time.Now())
 	now := time.Now().UTC()
 	return db.TransitionJobState(ctx, id,
 		domain.JobStatusRunning,
@@ -411,6 +436,7 @@ func (db *DB) MarkJobCompleted(ctx context.Context, id uuid.UUID) error {
 // newStatus == JobStatusFailed). Sets error_message and next_retry_at.
 // Called by the worker after executor.Execute() returns a non-nil error.
 func (db *DB) MarkJobFailed(ctx context.Context, id uuid.UUID, errMsg string, nextRetryAt *time.Time) error {
+	defer db.observe("MarkJobFailed", time.Now())
 	opts := []store.TransitionOption{store.WithError(errMsg)}
 	if nextRetryAt != nil {
 		opts = append(opts, store.WithNextRetryAt(*nextRetryAt))
@@ -431,6 +457,7 @@ func (db *DB) MarkJobFailed(ctx context.Context, id uuid.UUID, errMsg string, ne
 //
 // The scheduler calls this every 30 seconds. Returns the count of reclaimed jobs.
 func (db *DB) ReclaimOrphanedJobs(ctx context.Context, staleThreshold time.Duration) (int, error) {
+	defer db.observe("ReclaimOrphanedJobs", time.Now())
 	// The CTE finds running jobs whose worker either:
 	//   a) has no worker_id recorded (defensive)
 	//   b) has a last_heartbeat older than the threshold
@@ -482,6 +509,7 @@ func (db *DB) ReclaimOrphanedJobs(ctx context.Context, staleThreshold time.Durat
 // Prefer transitioning to 'cancelled' status — this preserves the audit trail
 // in job_executions. Hard delete removes everything permanently.
 func (db *DB) DeleteJob(ctx context.Context, id uuid.UUID) error {
+	defer db.observe("DeleteJob", time.Now())
 	result, err := db.pool.Exec(ctx, `DELETE FROM jobs WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("deleting job %s: %w", id, err)
@@ -506,6 +534,7 @@ func (db *DB) DeleteJob(ctx context.Context, id uuid.UUID) error {
 // by next_retry_at ASC (earliest due first). The attempt < max_retries guard
 // skips jobs that have exhausted their retries without a full table scan.
 func (db *DB) ListRetryableJobs(ctx context.Context, limit int) ([]*domain.Job, error) {
+	defer db.observe("ListRetryableJobs", time.Now())
 	if limit <= 0 || limit > 1000 {
 		limit = 50
 	}
@@ -550,6 +579,7 @@ func (db *DB) ListRetryableJobs(ctx context.Context, limit int) ([]*domain.Job, 
 // worker retries RecordExecution itself (e.g., due to a transient error),
 // the second call is silently ignored.
 func (db *DB) RecordExecution(ctx context.Context, exec *domain.JobExecution) error {
+	defer db.observe("RecordExecution", time.Now())
 	if exec.ID == uuid.Nil {
 		exec.ID = uuid.New()
 	}
@@ -587,6 +617,7 @@ func (db *DB) RecordExecution(ctx context.Context, exec *domain.JobExecution) er
 // GetExecutions returns all execution attempts for a job, ordered by attempt ASC.
 // Returns an empty (non-nil) slice if no executions exist yet.
 func (db *DB) GetExecutions(ctx context.Context, jobID uuid.UUID) ([]*domain.JobExecution, error) {
+	defer db.observe("GetExecutions", time.Now())
 	const q = `
 		SELECT
 			id, job_id, attempt, worker_id, status,
@@ -643,6 +674,7 @@ func (db *DB) GetExecutions(ctx context.Context, jobID uuid.UUID) ([]*domain.Job
 // active_jobs is always reset to 0 on register — a restarting worker
 // has no in-flight jobs until it dequeues and starts executing.
 func (db *DB) RegisterWorker(ctx context.Context, w *domain.Worker) error {
+	defer db.observe("RegisterWorker", time.Now())
 	w.LastHeartbeat = time.Now().UTC()
 	if w.RegisteredAt.IsZero() {
 		w.RegisteredAt = w.LastHeartbeat
@@ -681,6 +713,7 @@ func (db *DB) RegisterWorker(ctx context.Context, w *domain.Worker) error {
 // Called every 15 seconds by the worker's heartbeat goroutine.
 // The scheduler uses last_heartbeat to distinguish alive workers from crashed ones.
 func (db *DB) Heartbeat(ctx context.Context, workerID string) error {
+	defer db.observe("Heartbeat", time.Now())
 	result, err := db.pool.Exec(ctx,
 		`UPDATE workers SET last_heartbeat = NOW() WHERE id = $1`,
 		workerID,
@@ -698,6 +731,7 @@ func (db *DB) Heartbeat(ctx context.Context, workerID string) error {
 // ListActiveWorkers returns workers whose last_heartbeat is within the TTL window.
 // Workers with last_heartbeat older than ttl are considered crashed or unreachable.
 func (db *DB) ListActiveWorkers(ctx context.Context, ttl time.Duration) ([]*domain.Worker, error) {
+	defer db.observe("ListActiveWorkers", time.Now())
 	intervalStr := fmt.Sprintf("%ds", int(ttl.Seconds()))
 	const q = `
 		SELECT
@@ -735,6 +769,7 @@ func (db *DB) ListActiveWorkers(ctx context.Context, ttl time.Duration) ([]*doma
 // Setting status='offline' immediately signals the scheduler that this worker
 // is gone — it doesn't have to wait for the 90-second orphan detection timeout.
 func (db *DB) DeregisterWorker(ctx context.Context, workerID string) error {
+	defer db.observe("DeregisterWorker", time.Now())
 	_, err := db.pool.Exec(ctx,
 		`UPDATE workers SET status = 'offline', last_heartbeat = NOW() WHERE id = $1`,
 		workerID,
@@ -870,6 +905,7 @@ func isUniqueViolation(err error) bool {
 // ListQueueConfigs returns all rows from queue_config, ordered by queue_name.
 // Called by GET /queues and by the scheduler on each tick for live-reload.
 func (db *DB) ListQueueConfigs(ctx context.Context) ([]*store.QueueConfig, error) {
+	defer db.observe("ListQueueConfigs", time.Now())
 	const q = `
 		SELECT queue_name, max_concurrent, weight, rate_per_sec, burst, enabled, updated_at
 		FROM queue_config
@@ -898,6 +934,7 @@ func (db *DB) ListQueueConfigs(ctx context.Context) ([]*store.QueueConfig, error
 // GetQueueConfig returns the configuration for a single queue by name.
 // Returns store.ErrNotFound if the queue_name does not exist.
 func (db *DB) GetQueueConfig(ctx context.Context, queueName string) (*store.QueueConfig, error) {
+	defer db.observe("GetQueueConfig", time.Now())
 	const q = `
 		SELECT queue_name, max_concurrent, weight, rate_per_sec, burst, enabled, updated_at
 		FROM queue_config
@@ -921,6 +958,7 @@ func (db *DB) GetQueueConfig(ctx context.Context, queueName string) (*store.Queu
 // UpsertQueueConfig creates or updates a queue configuration row.
 // Sets updated_at = NOW() automatically. Returns the updated row.
 func (db *DB) UpsertQueueConfig(ctx context.Context, cfg *store.QueueConfig) (*store.QueueConfig, error) {
+	defer db.observe("UpsertQueueConfig", time.Now())
 	const q = `
 		INSERT INTO queue_config (queue_name, max_concurrent, weight, rate_per_sec, burst, enabled, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, NOW())
