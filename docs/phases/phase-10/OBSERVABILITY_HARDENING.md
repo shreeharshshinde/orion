@@ -30,6 +30,40 @@
 
 `Metrics.DBOperationDuration` is defined and registered, and the Grafana "DB Operation Latency p95" panel queries it — but **no code in `internal/store/postgres/` ever calls it**. The panel shows no data. The postgres store has no reference to `*observability.Metrics` at all.
 
+##### ✅ Solution
+
+Added `metrics *observability.Metrics` field to `DB`, a nil-safe `observe(op, start)` helper, and a `WithMetrics(m) *DB` chainable option so existing test callsites don't change.
+
+```go
+// internal/store/postgres/db.go
+
+func (db *DB) WithMetrics(m *observability.Metrics) *DB {
+    db.metrics = m
+    return db
+}
+
+func (db *DB) observe(op string, start time.Time) {
+    if db.metrics != nil {
+        db.metrics.DBOperationDuration.WithLabelValues(op).Observe(time.Since(start).Seconds())
+    }
+}
+```
+
+Every public method in `db.go` (21 methods) and `pipeline.go` (7 methods) now starts with:
+
+```go
+defer db.observe("MethodName", time.Now())
+```
+
+All three binaries wire it at construction:
+
+```go
+// cmd/{api,scheduler,worker}/main.go
+pgStore := postgres.New(db).WithMetrics(metrics)
+```
+
+**Files changed:** `internal/store/postgres/db.go`, `internal/store/postgres/pipeline.go`, `cmd/api/main.go`, `cmd/scheduler/main.go`, `cmd/worker/main.go`
+
 #### Gap 2 — Grafana has no Jaeger/Tempo datasource configured (HIGH)
 
 `deploy/grafana/datasources/` is **empty**. The Prometheus datasource is also missing (relying on Grafana default). There is no Jaeger datasource configured, so the Grafana "Explore" tab cannot query traces. The Helm chart references `jaeger-collector:4317` as the OTLP endpoint but provides no Jaeger UI datasource for Grafana to link traces to spans.
