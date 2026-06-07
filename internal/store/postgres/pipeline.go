@@ -39,6 +39,7 @@ import (
 // (add new node fields, edge metadata) without schema migrations.
 // UUID is generated here if not set, matching CreateJob's pattern.
 func (db *DB) CreatePipeline(ctx context.Context, p *domain.Pipeline) (*domain.Pipeline, error) {
+	defer db.observe("CreatePipeline", time.Now())
 	if p.ID == uuid.Nil {
 		p.ID = uuid.New()
 	}
@@ -73,6 +74,7 @@ func (db *DB) CreatePipeline(ctx context.Context, p *domain.Pipeline) (*domain.P
 // GetPipeline retrieves a single pipeline by ID.
 // Returns store.ErrNotFound if the pipeline does not exist.
 func (db *DB) GetPipeline(ctx context.Context, id uuid.UUID) (*domain.Pipeline, error) {
+	defer db.observe("GetPipeline", time.Now())
 	const q = `
 		SELECT id, name, status, dag_spec, created_at, updated_at, completed_at
 		FROM pipelines
@@ -96,6 +98,7 @@ func (db *DB) GetPipeline(ctx context.Context, id uuid.UUID) (*domain.Pipeline, 
 // ListPipelines returns pipelines matching the filter, newest first.
 // Used by GET /pipelines with optional ?status= query parameter.
 func (db *DB) ListPipelines(ctx context.Context, filter store.PipelineFilter) ([]*domain.Pipeline, error) {
+	defer db.observe("ListPipelines", time.Now())
 	var whereParts []string
 	var args []any
 	argIdx := 1
@@ -160,6 +163,7 @@ func (db *DB) ListPipelines(ctx context.Context, filter store.PipelineFilter) ([
 // this query constant-time even as the pipeline table grows to millions of rows,
 // because it only indexes 'pending' and 'running' rows — the tiny active set.
 func (db *DB) ListPipelinesByStatus(ctx context.Context, status domain.PipelineStatus, limit int) ([]*domain.Pipeline, error) {
+	defer db.observe("ListPipelinesByStatus", time.Now())
 	if limit <= 0 {
 		limit = 50
 	}
@@ -197,6 +201,7 @@ func (db *DB) ListPipelinesByStatus(ctx context.Context, status domain.PipelineS
 // this pipeline take?" via completed_at - created_at.
 // The updated_at trigger fires automatically (defined in migration 001).
 func (db *DB) UpdatePipelineStatus(ctx context.Context, id uuid.UUID, status domain.PipelineStatus) error {
+	defer db.observe("UpdatePipelineStatus", time.Now())
 	isTerminal := status == domain.PipelineStatusCompleted ||
 		status == domain.PipelineStatusFailed ||
 		status == domain.PipelineStatusCancelled
@@ -247,6 +252,7 @@ func (db *DB) UpdatePipelineStatus(ctx context.Context, id uuid.UUID, status dom
 // The primary key on pipeline_jobs is (pipeline_id, job_id), which means
 // the same job cannot be linked twice to the same pipeline.
 func (db *DB) AddPipelineJob(ctx context.Context, pipelineID uuid.UUID, nodeID string, jobID uuid.UUID) error {
+	defer db.observe("AddPipelineJob", time.Now())
 	const q = `
 		INSERT INTO pipeline_jobs (pipeline_id, job_id, node_id)
 		VALUES ($1, $2, $3)
@@ -277,6 +283,7 @@ func (db *DB) AddPipelineJob(ctx context.Context, pipelineID uuid.UUID, nodeID s
 // Result is ordered by node_id (alphabetical) for deterministic iteration
 // in tests.
 func (db *DB) GetPipelineJobs(ctx context.Context, pipelineID uuid.UUID) ([]*store.PipelineJobStatus, error) {
+	defer db.observe("GetPipelineJobs", time.Now())
 	const q = `
 		SELECT pj.node_id, pj.job_id, j.name, j.status
 		FROM pipeline_jobs pj
