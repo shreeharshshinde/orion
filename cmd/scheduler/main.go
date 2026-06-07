@@ -104,7 +104,7 @@ func main() {
 	// PipelineStore (CreatePipeline, GetPipelineJobs, AddPipelineJob, etc.)
 	// via the new postgres/pipeline.go file. No changes needed here — New() returns
 	// the same *DB that now implements 4 sub-interfaces instead of 3.
-	pgStore := postgres.New(db)
+	pgStore := postgres.New(db).WithMetrics(metrics)
 
 	// ── 6. Redis client + queue ───────────────────────────────────────────────
 	redisClient := redis.NewClient(&redis.Options{

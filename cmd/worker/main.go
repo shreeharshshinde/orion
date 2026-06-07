@@ -98,7 +98,7 @@ func main() {
 	}
 	logger.Info("connected to postgres")
 
-	pgStore := postgres.New(db)
+	pgStore := postgres.New(db).WithMetrics(metrics)
 
 	// ── Redis ─────────────────────────────────────────────────────────────────
 	redisClient := redis.NewClient(&redis.Options{
