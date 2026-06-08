@@ -68,6 +68,32 @@ pgStore := postgres.New(db).WithMetrics(metrics)
 
 `deploy/grafana/datasources/` is **empty**. The Prometheus datasource is also missing (relying on Grafana default). There is no Jaeger datasource configured, so the Grafana "Explore" tab cannot query traces. The Helm chart references `jaeger-collector:4317` as the OTLP endpoint but provides no Jaeger UI datasource for Grafana to link traces to spans.
 
+##### ✅ Solution
+
+Created `deploy/grafana/datasources/datasources.yml` — Grafana provisions this at startup from the volume mount already defined in `docker-compose.yml`. A fresh `make infra-up` now produces a fully working Grafana with no manual setup.
+
+```yaml
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    access: proxy
+
+  - name: Jaeger
+    type: jaeger
+    uid: jaeger
+    url: http://jaeger:16686
+    access: proxy
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: prometheus
+```
+
+**Files changed:** `deploy/grafana/datasources/datasources.yml` (created)
+
 #### Gap 3 — gRPC server has no OTel interceptors (MEDIUM)
 
 `cmd/api/main.go` calls `grpc.NewServer()` with no options. There are no `otelgrpc.UnaryServerInterceptor()` or `otelgrpc.StreamServerInterceptor()` interceptors. gRPC calls (`SubmitJob`, `WatchJob`, etc.) produce no spans — they are invisible in Jaeger. The HTTP side is fully traced; the gRPC side is dark.
