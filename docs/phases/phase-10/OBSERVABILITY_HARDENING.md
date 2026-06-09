@@ -117,6 +117,25 @@ grpcSrv := grpc.NewServer(
 
 If `ORION_OTLP_ENDPOINT` is unset (empty string), `otlptracegrpc.New` dials an empty address and returns an error. The three `cmd/` binaries log a warning and continue (`logger.Warn("tracing setup failed, continuing without traces")`). This is correct behaviour, but the `SetupTracing` function should explicitly return a no-op provider when the endpoint is empty rather than attempting a dial, to avoid a 5s connection timeout at startup on every deploy that doesn't use tracing.
 
+##### ✅ Solution
+
+Added an early return at the top of `SetupTracing` that installs a no-op provider and returns immediately — no dial, no timeout, no warning log:
+
+```go
+// internal/observability/observability.go
+func SetupTracing(...) (func(context.Context) error, error) {
+    if otlpEndpoint == "" {
+        otel.SetTracerProvider(trace.NewNoopTracerProvider())
+        return func(context.Context) error { return nil }, nil
+    }
+    // ... normal OTLP setup
+}
+```
+
+Also updated `TestSetupTracing_EmptyEndpoint` which previously asserted the old (error) behaviour.
+
+**Files changed:** `internal/observability/observability.go`, `internal/observability/observability_test.go`
+
 #### Gap 5 — No Prometheus alerting rules (MEDIUM)
 
 Metrics exist but there are no Prometheus alerting rules. There is no `rules.yml` file and `prometheus.yml` has no `rule_files:` section. Operators have no automated notification for:
