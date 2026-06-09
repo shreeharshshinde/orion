@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
 	"github.com/shreeharshshinde/orion/internal/api/handler"
 	grpcserver "github.com/shreeharshshinde/orion/internal/api/grpc"
@@ -132,7 +133,9 @@ func main() {
 	notifierCtx, notifierCancel := context.WithCancel(ctx)
 	go notifier.Run(notifierCtx)
 
-	grpcSrv := grpc.NewServer()
+	grpcSrv := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	)
 	grpcserver.RegisterGRPCServer(grpcSrv, grpcserver.NewServer(instrumentedStore, broadcaster, logger))
 
 	grpcLis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Service.GRPCPort))
