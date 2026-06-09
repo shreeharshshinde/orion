@@ -172,14 +172,15 @@ func TestSetupTracing_ValidEndpoint(t *testing.T) {
 
 func TestSetupTracing_EmptyEndpoint(t *testing.T) {
 	ctx := context.Background()
-	
-	// When endpoint is empty, SetupTracing should fail - this is expected behavior
+
+	// Empty endpoint should return a no-op provider without error (no dial attempted).
 	shutdown, err := SetupTracing(ctx, "test-service", "1.0.0", "", 0.1)
-	if err == nil {
-		defer shutdown(context.Background())
-		t.Error("Expected SetupTracing to fail with empty endpoint")
+	if err != nil {
+		t.Fatalf("expected no error with empty endpoint, got: %v", err)
 	}
-	// Test passes if we get an error with empty endpoint
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatalf("expected clean shutdown, got: %v", err)
+	}
 }
 
 func TestTracer_ReturnsGlobalTracer(t *testing.T) {
