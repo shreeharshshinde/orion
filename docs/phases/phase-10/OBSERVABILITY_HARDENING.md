@@ -98,6 +98,21 @@ datasources:
 
 `cmd/api/main.go` calls `grpc.NewServer()` with no options. There are no `otelgrpc.UnaryServerInterceptor()` or `otelgrpc.StreamServerInterceptor()` interceptors. gRPC calls (`SubmitJob`, `WatchJob`, etc.) produce no spans — they are invisible in Jaeger. The HTTP side is fully traced; the gRPC side is dark.
 
+##### ✅ Solution
+
+Added `go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc` and wired `otelgrpc.NewServerHandler()` (the modern stats-handler API, supersedes the deprecated per-interceptor approach):
+
+```go
+// cmd/api/main.go
+grpcSrv := grpc.NewServer(
+    grpc.StatsHandler(otelgrpc.NewServerHandler()),
+)
+```
+
+`SubmitJob`, `GetJob`, `WatchJob`, and `WatchPipeline` now produce spans in Jaeger automatically.
+
+**Files changed:** `cmd/api/main.go`, `go.mod`, `go.sum`
+
 #### Gap 4 — `SetupTracing` does not handle empty `otlpEndpoint` (MEDIUM)
 
 If `ORION_OTLP_ENDPOINT` is unset (empty string), `otlptracegrpc.New` dials an empty address and returns an error. The three `cmd/` binaries log a warning and continue (`logger.Warn("tracing setup failed, continuing without traces")`). This is correct behaviour, but the `SetupTracing` function should explicitly return a no-op provider when the endpoint is empty rather than attempting a dial, to avoid a 5s connection timeout at startup on every deploy that doesn't use tracing.
