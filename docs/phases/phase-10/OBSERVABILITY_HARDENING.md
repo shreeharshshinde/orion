@@ -181,6 +181,12 @@ The utilisation panel uses the same green/yellow/red threshold steps (0/70/90%) 
 
 `deploy/grafana/datasources/` is empty. Grafana provisions datasources at startup from YAML files in that directory. Without a `datasources.yml`, the Prometheus datasource only works if Grafana is configured with its default or the user manually adds it via UI. This means a fresh `make infra-up` has a non-functional dashboard until the datasource is manually wired.
 
+##### ✅ Solution
+
+Resolved as part of the Gap 2 fix. `deploy/grafana/datasources/datasources.yml` was created with both the Prometheus and Jaeger datasources. See the Gap 2 solution above for the full file content.
+
+**Files changed:** `deploy/grafana/datasources/datasources.yml` (created — see Gap 2)
+
 #### Gap 8 — No trace-to-log correlation (LOW)
 
 `slog` logs do not include `trace_id` or `span_id`. The INSPECTION.md claims "every log line carries `trace_id`, `span_id`, `job_id`, and `worker_id`" — but the `NewLogger` implementation adds only `service` and `env`. There is no OTel span context extraction injected into log calls.
