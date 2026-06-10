@@ -60,25 +60,7 @@ Orion is a durable job execution platform that schedules, runs, and monitors mac
 
 ### Job lifecycle
 
-```mermaid
-stateDiagram-v2
-    [*] --> Queued : Submit
-    Queued --> Scheduled
-    Scheduled --> Running
-    Running --> Completed
-
-    Scheduled --> Cancelled : Cancel
-
-    Running --> Failed : Failure
-    Failed --> Retrying
-    Retrying --> Queued : Backoff
-
-    Failed --> Dead : Max retries exhausted
-    Dead --> Queued : Replay
-
-    Completed --> [*]
-    Cancelled --> [*]
-```
+![job_lifecycle](assets/image.png)
 
 
 State transitions are atomic CAS operations (`UPDATE … WHERE status = expected`). Concurrent schedulers and workers cannot double-claim a job.
