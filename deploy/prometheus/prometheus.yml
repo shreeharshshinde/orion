@@ -5,6 +5,9 @@ global:
     cluster: "local"
     env: "development"
 
+rule_files:
+  - rules.yml
+
 scrape_configs:
   # API Server — http, db metrics
   - job_name: "orion-api"
