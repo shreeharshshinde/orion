@@ -1,0 +1,42 @@
+groups:
+  - name: orion
+    rules:
+      - alert: HighDeadJobRate
+        expr: rate(orion_jobs_dead_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dead job rate > 0.1/s for 5 minutes"
+
+      - alert: QueueDepthSaturated
+        expr: orion_queue_depth{queue="orion:queue:high"} > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High-priority queue depth > 1000 for 10 minutes"
+
+      - alert: SchedulerCycleLatencyHigh
+        expr: histogram_quantile(0.95, rate(orion_scheduler_cycle_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scheduler p95 cycle latency > 1s"
+
+      - alert: AllWorkersBusy
+        expr: sum(orion_worker_active_jobs) >= sum(orion_queue_concurrency_limit)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "All worker slots occupied — backpressure active"
+
+      - alert: DBLatencyHigh
+        expr: histogram_quantile(0.95, rate(orion_db_operation_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DB p95 latency > 500ms — check PostgreSQL"
