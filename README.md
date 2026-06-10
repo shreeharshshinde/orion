@@ -21,28 +21,7 @@
 
 Orion is a durable job execution platform that schedules, runs, and monitors machine learning workloads on Kubernetes. It sits between your training pipelines and the cluster — handling priority queuing, retries, backpressure, DAG orchestration, and real-time status streaming so your application code doesn't have to.
 
-```
-┌─────────────┐   POST /jobs    ┌─────────────┐   XADD   ┌──────────────────┐
-│   Client    │ ──────────────► │  API Server │ ────────► │  Redis Streams   │
-└─────────────┘                 └─────────────┘           │  high / default  │
-                                       │                  │  low  / dead     │
-                                  INSERT job              └────────┬─────────┘
-                                       │                           │ XREADGROUP
-                                       ▼                           ▼
-                               ┌──────────────┐          ┌─────────────────┐
-                               │  PostgreSQL  │◄─────────│   Worker Pool   │
-                               │  jobs        │  UPDATE  │   N goroutines  │
-                               │  executions  │  status  │                 │
-                               │  workers     │          │  ┌───────────┐  │
-                               └──────┬───────┘          │  │ K8s / Go  │  │
-                                      │                  │  │ Executor  │  │
-                               ┌──────▼───────┐          └─────────────────┘
-                               │  Scheduler   │
-                               │  leader lock │
-                               │  dispatch    │
-                               │  retry/orphan│
-                               └──────────────┘
-```
+![architecture](assets/architecture.png)
 
 ---
 
@@ -60,7 +39,7 @@ Orion is a durable job execution platform that schedules, runs, and monitors mac
 
 ### Job lifecycle
 
-![job_lifecycle](assets/image.png)
+![job_lifecycle](assets/job_lifecycle.png)
 
 
 State transitions are atomic CAS operations (`UPDATE … WHERE status = expected`). Concurrent schedulers and workers cannot double-claim a job.
