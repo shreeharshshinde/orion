@@ -303,6 +303,88 @@
                     "unit": "s"
                 }
             }
+        },
+        {
+            "id": 10,
+            "title": "Queue Rate-Limited (per min)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 24
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum by (queue)(rate(orion_queue_rate_limited_total[1m]))*60",
+                    "legendFormat": "{{queue}}",
+                    "refId": "A"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                }
+            }
+        },
+        {
+            "id": 11,
+            "title": "Queue Concurrency Utilisation (%)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 24
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "100 * sum by(queue)(orion_queue_concurrent_jobs) / clamp_min(sum by(queue)(orion_queue_concurrency_limit),1)",
+                    "legendFormat": "{{queue}}",
+                    "refId": "A"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percent",
+                    "min": 0,
+                    "max": 100,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {"color": "green", "value": 0},
+                            {"color": "yellow", "value": 70},
+                            {"color": "red", "value": 90}
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "id": 12,
+            "title": "Queue Dispatch Weight",
+            "type": "stat",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 24
+            },
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "orion_queue_dispatch_weight",
+                    "legendFormat": "{{queue}}",
+                    "refId": "A"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                }
+            }
         }
     ]
 }
