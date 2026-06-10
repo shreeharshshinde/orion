@@ -145,6 +145,20 @@ Metrics exist but there are no Prometheus alerting rules. There is no `rules.yml
 - Worker utilisation ceiling (all workers busy → backpressure active)
 - DB operation latency spike
 
+##### ✅ Solution
+
+Created `deploy/prometheus/rules.yml` with 5 alerts and added `rule_files: [rules.yml]` to `prometheus.yml`. Also added the rules file volume mount to `docker-compose.yml` (only `prometheus.yml` was previously mounted).
+
+| Alert | Condition |
+|---|---|
+| `HighDeadJobRate` | `rate(orion_jobs_dead_total[5m]) > 0.1` for 5m |
+| `QueueDepthSaturated` | `orion_queue_depth{queue="orion:queue:high"} > 1000` for 10m |
+| `SchedulerCycleLatencyHigh` | p95 scheduler cycle > 1s for 5m |
+| `AllWorkersBusy` | active jobs ≥ concurrency limit for 5m |
+| `DBLatencyHigh` | p95 DB op latency > 500ms for 5m (critical) |
+
+**Files changed:** `deploy/prometheus/rules.yml` (created), `deploy/prometheus/prometheus.yml`, `docker-compose.yml`
+
 #### Gap 6 — Grafana dashboard missing Phase 8 panels (LOW)
 
 The dashboard was written in Phase 6. It has no panels for the Phase 8 metrics: `QueueRateLimited`, `QueueConcurrentJobs` vs `QueueConcurrencyLimit` (utilisation ratio), and `QueueDispatchWeight`. Queue saturation is invisible on the current dashboard.
