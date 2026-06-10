@@ -163,6 +163,20 @@ Created `deploy/prometheus/rules.yml` with 5 alerts and added `rule_files: [rule
 
 The dashboard was written in Phase 6. It has no panels for the Phase 8 metrics: `QueueRateLimited`, `QueueConcurrentJobs` vs `QueueConcurrencyLimit` (utilisation ratio), and `QueueDispatchWeight`. Queue saturation is invisible on the current dashboard.
 
+##### ✅ Solution
+
+Added three panels (ids 10–12) to `deploy/grafana/dashboards/orion.json` at `y=24` (row 4), each 8 columns wide:
+
+| Panel | Type | Query |
+|---|---|---|
+| Queue Rate-Limited (per min) | timeseries | `sum by(queue)(rate(orion_queue_rate_limited_total[1m]))*60` |
+| Queue Concurrency Utilisation (%) | timeseries | `100 * sum by(queue)(orion_queue_concurrent_jobs) / clamp_min(sum by(queue)(orion_queue_concurrency_limit),1)` |
+| Queue Dispatch Weight | stat | `orion_queue_dispatch_weight` |
+
+The utilisation panel uses the same green/yellow/red threshold steps (0/70/90%) as the Worker Utilisation panel so visual conventions are consistent. The stat panel for dispatch weight shows the current configured weight per queue — useful for confirming live queue config changes applied via `PUT /queues/{name}`.
+
+**Files changed:** `deploy/grafana/dashboards/orion.json`
+
 #### Gap 7 — Grafana datasource provisioning file missing (HIGH)
 
 `deploy/grafana/datasources/` is empty. Grafana provisions datasources at startup from YAML files in that directory. Without a `datasources.yml`, the Prometheus datasource only works if Grafana is configured with its default or the user manually adds it via UI. This means a fresh `make infra-up` has a non-functional dashboard until the datasource is manually wired.
