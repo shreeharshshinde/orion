@@ -342,6 +342,20 @@ func SetupTracing(ctx context.Context, serviceName, serviceVersion, otlpEndpoint
 	return tp.Shutdown, nil
 }
 
+// WithTrace returns a logger enriched with trace_id and span_id extracted from
+// the active OTel span in ctx. If no valid span is present the original logger
+// is returned unchanged, so callers need no nil-guard.
+func WithTrace(ctx context.Context, logger *slog.Logger) *slog.Logger {
+	sc := trace.SpanFromContext(ctx).SpanContext()
+	if !sc.IsValid() {
+		return logger
+	}
+	return logger.With(
+		"trace_id", sc.TraceID().String(),
+		"span_id", sc.SpanID().String(),
+	)
+}
+
 // Tracer returns a named tracer from the global OTel provider.
 // The global provider is set by SetupTracing at startup.
 // Any code in the same process can call Tracer() without passing a reference.
