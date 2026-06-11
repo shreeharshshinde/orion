@@ -244,6 +244,7 @@ func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
 	ctx, span := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.dispatch_cycle")
 	defer span.End()
 
+	logger := observability.WithTrace(ctx, s.logger)
 	cycleStart := time.Now()
 	defer func() {
 		elapsed := time.Since(cycleStart).Seconds()
@@ -301,7 +302,7 @@ func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
 		if err := s.store.TransitionJobState(ctx,
 			job.ID, domain.JobStatusQueued, domain.JobStatusScheduled,
 		); err != nil {
-			s.logger.Debug("state conflict scheduling job", "job_id", job.ID)
+			logger.Debug("state conflict scheduling job", "job_id", job.ID)
 			jobSpan.End()
 			continue
 		}
@@ -310,7 +311,7 @@ func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
 			_ = s.store.TransitionJobState(ctx,
 				job.ID, domain.JobStatusScheduled, domain.JobStatusQueued,
 			)
-			s.logger.Error("failed to enqueue job", "job_id", job.ID, "err", err)
+			logger.Error("failed to enqueue job", "job_id", job.ID, "err", err)
 			jobSpan.SetStatus(codes.Error, err.Error())
 			jobSpan.End()
 			continue
@@ -328,7 +329,7 @@ func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
 		attribute.Int("jobs.rate_limited", rateLimited),
 	)
 	if dispatched > 0 || rateLimited > 0 {
-		s.logger.Info("scheduler cycle complete",
+		logger.Info("scheduler cycle complete",
 			"dispatched", dispatched, "rate_limited", rateLimited)
 	}
 	return nil
