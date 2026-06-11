@@ -284,6 +284,8 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 	)
 	defer span.End()
 
+	logger = observability.WithTrace(ctx, logger)
+
 	// ── Transition: scheduled → running ──────────────────────────────────────
 	if err := p.store.MarkJobRunning(ctx, job.ID, p.cfg.WorkerID); err != nil {
 		if !errors.Is(err, store.ErrStateConflict) {
