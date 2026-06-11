@@ -191,6 +191,46 @@ Resolved as part of the Gap 2 fix. `deploy/grafana/datasources/datasources.yml` 
 
 `slog` logs do not include `trace_id` or `span_id`. The INSPECTION.md claims "every log line carries `trace_id`, `span_id`, `job_id`, and `worker_id`" — but the `NewLogger` implementation adds only `service` and `env`. There is no OTel span context extraction injected into log calls.
 
+##### ✅ Solution
+
+Added `WithTrace(ctx, logger)` to `internal/observability/observability.go`. It extracts the active span from context and returns a logger enriched with `trace_id` and `span_id`. If no valid span is present it returns the original logger unchanged, so callers need no nil-guard.
+
+```go
+// internal/observability/observability.go
+func WithTrace(ctx context.Context, logger *slog.Logger) *slog.Logger {
+    sc := trace.SpanFromContext(ctx).SpanContext()
+    if !sc.IsValid() {
+        return logger
+    }
+    return logger.With(
+        "trace_id", sc.TraceID().String(),
+        "span_id",  sc.SpanID().String(),
+    )
+}
+```
+
+Wired in the two highest-volume log paths:
+
+- **`worker/pool.go` — `executeJob`**: called once per job immediately after the `worker.execute_job` span is started. Reassigns the local `logger` parameter so all subsequent log calls in the function body carry the trace context.
+
+    ```go
+    ctx, span := observability.Tracer("orion.worker").Start(ctx, "worker.execute_job", ...)
+    defer span.End()
+    logger = observability.WithTrace(ctx, logger)
+    ```
+
+- **`scheduler/scheduler.go` — `scheduleQueuedJobs`**: creates a local `logger` variable immediately after the `scheduler.dispatch_cycle` span is started, leaving `s.logger` (the shared struct field) untouched to avoid a data race across ticks.
+
+    ```go
+    ctx, span := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.dispatch_cycle")
+    defer span.End()
+    logger := observability.WithTrace(ctx, s.logger)
+    ```
+
+Every log line emitted during job execution and scheduler dispatch cycles now carries `trace_id` and `span_id`, enabling direct jump from a Grafana log panel to the corresponding Jaeger trace.
+
+**Files changed:** `internal/observability/observability.go`, `internal/worker/pool.go`, `internal/scheduler/scheduler.go`
+
 #### Gap 9 — OTLP exporter uses `WithInsecure()` in all environments (LOW)
 
 `observability.go` uses `otlptracegrpc.WithInsecure()` unconditionally. For production, traces containing ML job payloads are sent in plaintext. This is flagged in a code comment but not addressed.
