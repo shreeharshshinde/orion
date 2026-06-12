@@ -63,6 +63,7 @@ func main() {
 		cfg.Observability.ServiceVersion,
 		cfg.Observability.OTLPEndpoint,
 		cfg.Observability.TracingSampleRate,
+		cfg.Observability.TracingTLS,
 	)
 	if err != nil {
 		logger.Warn("tracing setup failed, continuing without traces", "err", err)
