@@ -164,6 +164,7 @@ queues:
 observability:
   otlpEndpoint: "jaeger-collector:4317"
   tracingSampleRate: "0.1"
+  tracingTLS: "true"
   serviceMonitor:
     enabled: false
     namespace: ""
