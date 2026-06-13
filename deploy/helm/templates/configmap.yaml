@@ -12,6 +12,7 @@ data:
   ORION_METRICS_PORT: {{ .Values.api.metricsPort | quote }}
   ORION_OTLP_ENDPOINT: {{ .Values.observability.otlpEndpoint | quote }}
   ORION_TRACING_SAMPLE_RATE: {{ .Values.observability.tracingSampleRate | quote }}
+  ORION_TRACING_TLS: {{ .Values.observability.tracingTLS | quote }}
   ORION_WORKER_CONCURRENCY: {{ .Values.worker.concurrency | quote }}
   ORION_SCHEDULER_BATCH_SIZE: {{ .Values.scheduler.batchSize | quote }}
   ORION_SCHEDULER_INTERVAL: {{ .Values.scheduler.intervalSeconds | quote }}
