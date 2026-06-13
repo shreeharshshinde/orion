@@ -301,7 +301,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 // SetupTracing initializes OpenTelemetry tracing with a Jaeger OTLP exporter.
 // Returns a shutdown function that must be called before process exit to flush spans.
-func SetupTracing(ctx context.Context, serviceName, serviceVersion, otlpEndpoint string, sampleRate float64) (func(context.Context) error, error) {
+func SetupTracing(ctx context.Context, serviceName, serviceVersion, otlpEndpoint string, sampleRate float64, tlsEnabled bool) (func(context.Context) error, error) {
 	if otlpEndpoint == "" {
 		otel.SetTracerProvider(trace.NewNoopTracerProvider())
 		return func(context.Context) error { return nil }, nil
@@ -317,10 +317,11 @@ func SetupTracing(ctx context.Context, serviceName, serviceVersion, otlpEndpoint
 		return nil, fmt.Errorf("creating OTel resource: %w", err)
 	}
 
-	exporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(otlpEndpoint),
-		otlptracegrpc.WithInsecure(), // use TLS in production
-	)
+	opts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(otlpEndpoint)}
+	if !tlsEnabled {
+		opts = append(opts, otlptracegrpc.WithInsecure())
+	}
+	exporter, err := otlptracegrpc.New(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating OTLP exporter: %w", err)
 	}
