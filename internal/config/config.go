@@ -52,10 +52,11 @@ type KubernetesConfig struct {
 }
 
 type ObservabilityConfig struct {
-	MetricsPort     int
-	OTLPEndpoint    string // e.g., "http://jaeger:4317"
+	MetricsPort       int
+	OTLPEndpoint      string // e.g., "jaeger-collector:4317"
 	TracingSampleRate float64
-	ServiceVersion  string
+	ServiceVersion    string
+	TracingTLS        bool // set ORION_TRACING_TLS=true in production
 }
 
 type SchedulerConfig struct {
@@ -138,6 +139,7 @@ func Load() (*Config, error) {
 			OTLPEndpoint:      getEnv("ORION_OTLP_ENDPOINT", "http://localhost:4317"),
 			TracingSampleRate: getEnvFloat("ORION_TRACING_SAMPLE_RATE", 1.0),
 			ServiceVersion:    getEnv("ORION_SERVICE_VERSION", "dev"),
+			TracingTLS:        getEnvBool("ORION_TRACING_TLS", false),
 		},
 		Scheduler: SchedulerConfig{
 			BatchSize:        getEnvInt("ORION_SCHEDULER_BATCH_SIZE", 50),
