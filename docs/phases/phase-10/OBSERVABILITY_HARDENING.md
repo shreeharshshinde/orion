@@ -235,6 +235,34 @@ Every log line emitted during job execution and scheduler dispatch cycles now ca
 
 `observability.go` uses `otlptracegrpc.WithInsecure()` unconditionally. For production, traces containing ML job payloads are sent in plaintext. This is flagged in a code comment but not addressed.
 
+##### ✅ Solution
+
+Added `TracingTLS bool` to `ObservabilityConfig`, loaded from `ORION_TRACING_TLS` (default `false`). `SetupTracing` gains a `tlsEnabled bool` parameter and only appends `WithInsecure()` when it is false:
+
+```go
+// internal/observability/observability.go
+func SetupTracing(ctx context.Context, serviceName, serviceVersion, otlpEndpoint string, sampleRate float64, tlsEnabled bool) (func(context.Context) error, error) {
+    // ...
+    opts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(otlpEndpoint)}
+    if !tlsEnabled {
+        opts = append(opts, otlptracegrpc.WithInsecure())
+    }
+    exporter, err := otlptracegrpc.New(ctx, opts...)
+```
+
+All three binaries pass the new flag:
+
+```go
+observability.SetupTracing(ctx, "orion-api", cfg.Observability.ServiceVersion,
+    cfg.Observability.OTLPEndpoint, cfg.Observability.TracingSampleRate,
+    cfg.Observability.TracingTLS,
+)
+```
+
+`ORION_TRACING_TLS=false` in `.env.example` keeps dev/local behaviour unchanged (plaintext to the Docker Compose Jaeger container). `tracingTLS: "true"` is the default in `deploy/helm/values.yaml` so production Helm deployments use TLS without any extra operator action.
+
+**Files changed:** `internal/observability/observability.go`, `internal/config/config.go`, `cmd/api/main.go`, `cmd/scheduler/main.go`, `cmd/worker/main.go`, `.env.example`, `deploy/helm/values.yaml`, `deploy/helm/templates/configmap.yaml`
+
 ---
 
 ## Phase 10 Plan
