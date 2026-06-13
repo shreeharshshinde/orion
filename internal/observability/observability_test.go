@@ -150,7 +150,7 @@ func TestSetupTracing_ValidEndpoint(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	
-	shutdown, err := SetupTracing(ctx, "test-service", "1.0.0", "localhost:4317", 0.1)
+	shutdown, err := SetupTracing(ctx, "test-service", "1.0.0", "localhost:4317", 0.1, false)
 	if err != nil {
 		t.Fatalf("SetupTracing failed: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestSetupTracing_EmptyEndpoint(t *testing.T) {
 	ctx := context.Background()
 
 	// Empty endpoint should return a no-op provider without error (no dial attempted).
-	shutdown, err := SetupTracing(ctx, "test-service", "1.0.0", "", 0.1)
+	shutdown, err := SetupTracing(ctx, "test-service", "1.0.0", "", 0.1, false)
 	if err != nil {
 		t.Fatalf("expected no error with empty endpoint, got: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestSetupTracing_ServiceNameValidation(t *testing.T) {
 	ctx := context.Background()
 	
 	// Test empty service name with valid endpoint - should work
-	shutdown, err := SetupTracing(ctx, "", "1.0.0", "localhost:4317", 0.1)
+	shutdown, err := SetupTracing(ctx, "", "1.0.0", "localhost:4317", 0.1, false)
 	if err != nil {
 		// Expected - empty endpoint causes error, but that's OK for this test
 		t.Logf("SetupTracing failed as expected with empty endpoint: %v", err)
@@ -283,7 +283,7 @@ func TestSetupTracing_ServiceNameValidation(t *testing.T) {
 	}
 	
 	// Test with service name
-	shutdown2, err := SetupTracing(ctx, "orion-test-service", "1.0.0", "localhost:4317", 0.1)
+	shutdown2, err := SetupTracing(ctx, "orion-test-service", "1.0.0", "localhost:4317", 0.1, false)
 	if err != nil {
 		// Expected - this will fail without a real OTLP endpoint
 		t.Logf("SetupTracing failed as expected without real endpoint: %v", err)
