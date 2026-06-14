@@ -13,7 +13,7 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-compatible-326CE5?style=flat-square&logo=kubernetes&logoColor=white)](https://kubernetes.io)
 [![Status](https://img.shields.io/badge/status-beta-orange?style=flat-square)]()
 
-[Overview](#overview) · [Quickstart](#quickstart) · [Architecture](#architecture) · [API](#api) · [Deployment](#deployment) · [Contributing](CONTRIBUTING.md)
+[Overview](#overview) · [Quickstart](#quickstart) · [Local execution guide](docs/LOCAL_EXECUTION_AND_END_PRODUCT.md) · [Architecture](#architecture) · [API](#api) · [Deployment](#deployment) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -51,6 +51,8 @@ Retries use **full-jitter exponential backoff**: `delay = random(0, min(cap, bas
 ## Quickstart
 
 **Prerequisites:** Go 1.22+, Docker Compose v2, [`golang-migrate`](https://github.com/golang-migrate/migrate)
+
+For exact local credentials, Redis/Prometheus port caveats, real inline and Kubernetes job tests, and what the dashboard currently shows, read [`docs/LOCAL_EXECUTION_AND_END_PRODUCT.md`](docs/LOCAL_EXECUTION_AND_END_PRODUCT.md).
 
 ```bash
 git clone https://github.com/shreeharshshinde/orion.git && cd orion
