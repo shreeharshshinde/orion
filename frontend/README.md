@@ -15,8 +15,13 @@ Next.js dashboard for the Orion distributed ML job orchestrator.
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev -- -p 3001
 ```
+
+Use port `3001` when the local Docker stack is running because Grafana uses
+`3000`. The frontend currently defaults to mock/API-shaped data; see
+[`../docs/LOCAL_EXECUTION_AND_END_PRODUCT.md`](../docs/LOCAL_EXECUTION_AND_END_PRODUCT.md)
+for what is live today and what remains to wire to the backend.
 
 The app defaults to mock data while the API client is wired to the existing backend routes:
 
@@ -36,4 +41,3 @@ The app defaults to mock data while the API client is wired to the existing back
 - `/dashboard/queues` - queue tuning overview
 - `/dashboard/workers` - worker capacity
 - `/docs` - docs landing page
-

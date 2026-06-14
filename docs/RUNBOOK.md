@@ -2,6 +2,11 @@
 
 > How to run, test, and debug every phase of the codebase. Read this before asking an AI.
 
+For the practical local end-to-end path, including Postgres credentials,
+Redis/Grafana port caveats, real job examples, Kubernetes job testing, and what
+the product dashboard currently includes, see
+[`LOCAL_EXECUTION_AND_END_PRODUCT.md`](LOCAL_EXECUTION_AND_END_PRODUCT.md).
+
 ---
 
 ## Table of Contents
