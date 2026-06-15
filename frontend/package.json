@@ -10,14 +10,22 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-slot": "^1.1.0",
+    "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.5.4"
+    "react-hook-form": "^7.79.0",
+    "reactflow": "^11.11.4",
+    "recharts": "^2.15.4",
+    "sonner": "^1.7.4",
+    "tailwind-merge": "^2.5.4",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
