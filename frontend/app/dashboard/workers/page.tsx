@@ -1,4 +1,4 @@
-import { Server, AlertCircle, Clock } from "lucide-react";
+import { Server, Clock } from "lucide-react";
 
 import { StatusBadge } from "@/components/status-badge";
 import { Card, PageHeader } from "@/components/ui";
@@ -18,6 +18,11 @@ export default function WorkersPage() {
     if (secondsAgo < 60) return { level: "recent", label: "Recent" };
     if (secondsAgo < 300) return { level: "stale", label: "Stale" };
     return { level: "offline", label: "Offline" };
+  };
+
+  return (
+    <>
+      <PageHeader
         title="Workers"
         description="Monitor active worker heartbeats, queue coverage, concurrency, active jobs, and available execution slots."
       />
@@ -100,9 +105,7 @@ export default function WorkersPage() {
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">
-                      Last heartbeat
-                    </span>
+                    <span className="text-xs text-muted-foreground">Last heartbeat</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-muted-foreground">
@@ -148,20 +151,5 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
       <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
       <p className="mt-2 text-3xl font-semibold tabular-nums">{value}</p>
     </Card>
-  );
-}
-<div className="rounded-md border bg-background p-3">
-  <p className="text-xs text-muted-foreground">{label}</p>
-  <p className={`mt-1 text-xl font-semibold ${highlight ? "text-success" : ""}`}>{value}</p>
-</div>
-  );
-}
-
-function SummaryTile({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-    </div>
   );
 }
