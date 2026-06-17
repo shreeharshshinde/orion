@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertCircle, ChevronRight, Plus } from "lucide-react";
 
 import { StatusBadge } from "@/components/status-badge";
