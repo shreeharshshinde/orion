@@ -310,6 +310,68 @@ Call `toast.success(...)` / `toast.error(...)` on every mutation:
 
 ---
 
+---
+
+## Solutions
+
+### Gap 1 — No API client / no fetch calls (Step 1)
+
+**Status:** ✅ Complete  
+**Date:** 2026-06-15
+
+#### What was done
+
+**Packages installed** (`frontend/package.json`):
+```
+@tanstack/react-query@^5.62.0
+sonner@^1.7.0
+@tanstack/react-table@^8.20.0
+reactflow@^11.11.4
+recharts@^2.14.1
+react-hook-form@^7.54.0
+zod@^3.24.0
+@hookform/resolvers@^3.9.0
+```
+
+**`frontend/lib/client.ts`** — Typed fetch client with four methods:
+- `api.get<T>(path)` — GET, throws on non-ok
+- `api.post<T>(path, body?)` — POST with JSON body
+- `api.put<T>(path, body)` — PUT with JSON body
+- `api.del(path)` — DELETE, returns void
+- Base URL read from `NEXT_PUBLIC_API_URL` env var, defaults to `http://localhost:8080`
+- Returns `undefined` on 204 No Content responses
+
+**`frontend/lib/hooks.ts`** — TanStack Query hooks covering all API resources:
+- `useJobs(filters?)` — polls every 5 s, supports status/queue/type filter params
+- `useJob(id)` — polls every 3 s
+- `useJobExecutions(id)` — one-shot
+- `useCancelJob()`, `useReplayJob()`, `useSubmitJob()` — mutations, auto-invalidate query cache
+- `usePipelines()` — polls every 5 s
+- `usePipeline(id)`, `usePipelineJobs(id)` — poll every 3 s
+- `useCreatePipeline()`, `useCancelPipeline()` — mutations
+- `useQueues()`, `useQueueStats(name)` — poll every 5 s
+- `useUpdateQueue()` — mutation
+- `useWorkers()` — polls every 5 s
+- `useHealth()` — polls `/readyz` every 5 s, no retry on error
+
+**`frontend/app/providers.tsx`** — `"use client"` wrapper that creates a `QueryClient` with `staleTime: 0` and `gcTime: 5 min`, then renders `<QueryClientProvider>`.
+
+**`frontend/app/layout.tsx`** — Updated to wrap children with `<Providers>` and render `<Toaster richColors position="bottom-right" />` (sonner).
+
+**Bonus fixes** — Two pre-existing syntax errors addressed:
+- `app/dashboard/workers/page.tsx` had JSX outside of a function body; rewritten clean
+- `app/dashboard/jobs/page.tsx` used `useState` without `"use client"`; directive added
+
+#### Files changed
+- `frontend/lib/client.ts` (new)
+- `frontend/lib/hooks.ts` (new)
+- `frontend/app/providers.tsx` (new)
+- `frontend/app/layout.tsx` (updated)
+- `frontend/app/dashboard/workers/page.tsx` (fixed)
+- `frontend/app/dashboard/jobs/page.tsx` (fixed)
+
+---
+
 ## Gap Summary
 
 | # | Gap | Step | Effort |
