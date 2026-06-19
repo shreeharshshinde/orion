@@ -1,14 +1,15 @@
+"use client";
+
 import {
   Activity, AlertTriangle, BriefcaseBusiness,
-  GitBranch, Server, Waypoints, TrendingUp, Skull
+  GitBranch, Server, Waypoints, TrendingUp, Skull, Loader2
 } from "lucide-react";
 
 import { Card, CardHeader, CardTitle, MetricCard, PageHeader, ProgressBar, SectionHeader, Table, Td, Th } from "@/components/ui";
 import { StatusBadge } from "@/components/status-badge";
-import { jobs, overview, pipelines, queues, workers } from "@/lib/api";
+import { useJobs, usePipelines, useQueues, useWorkers } from "@/lib/hooks";
 import { formatRelativeTime } from "@/lib/utils";
 
-// Tiny inline sparkline using SVG — no chart library needed
 function Sparkline({ values, color = "hsl(var(--primary))" }: { values: number[]; color?: string }) {
   const max = Math.max(...values, 1);
   const w = 80; const h = 28;
@@ -21,14 +22,32 @@ function Sparkline({ values, color = "hsl(var(--primary))" }: { values: number[]
   );
 }
 
-// Fake sparkline data (will be real timeseries once API is wired)
 const throughputSpark = [2, 5, 3, 8, 6, 9, 7, 12, 10, 14, 11, 8];
 const errorSpark      = [0, 1, 0, 0, 2, 1, 0, 0, 1, 0, 0, 0];
 
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center py-12 text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin" />
+    </div>
+  );
+}
+
 export default function DashboardPage() {
+  const { data: jobs = [], isLoading: jobsLoading } = useJobs();
+  const { data: workers = [], isLoading: workersLoading } = useWorkers();
+  const { data: queues = [], isLoading: queuesLoading } = useQueues();
+  const { data: pipelines = [], isLoading: pipelinesLoading } = usePipelines();
+
+  const isLoading = jobsLoading || workersLoading || queuesLoading || pipelinesLoading;
+
   const incidents = jobs.filter(j => j.status === "failed" || j.status === "dead" || j.status === "retrying");
   const totalSlots = workers.reduce((s, w) => s + w.concurrency, 0);
   const usedSlots  = workers.reduce((s, w) => s + w.active_jobs, 0);
+  const runningJobs  = jobs.filter(j => j.status === "running").length;
+  const queuedJobs   = jobs.filter(j => j.status === "queued").length;
+  const failedJobs   = jobs.filter(j => j.status === "failed" || j.status === "dead").length;
+  const activeWorkers = workers.filter(w => w.status !== "offline").length;
 
   return (
     <>
@@ -51,16 +70,15 @@ export default function DashboardPage() {
 
       {/* Metric cards */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="API Status"    value="Ready"                  detail="healthz · readyz responding"            icon={<Activity className="h-5 w-5" />}           tone="success" />
-        <MetricCard label="Workers"       value={overview.activeWorkers}  detail={`${usedSlots}/${totalSlots} slots used`} icon={<Server className="h-5 w-5" />}            tone="aqua"    />
-        <MetricCard label="Running"       value={overview.runningJobs}    detail="active executions"                      icon={<BriefcaseBusiness className="h-5 w-5" />}  tone="aqua"    delta={2} deltaLabel="vs 1h ago" />
-        <MetricCard label="Queued"        value={overview.queuedJobs}     detail="waiting for dispatch"                   icon={<Waypoints className="h-5 w-5" />}          tone="warning" />
-        <MetricCard label="Failed / Dead" value={overview.failedJobs}     detail="needs attention"                        icon={<Skull className="h-5 w-5" />}              tone={overview.failedJobs > 0 ? "danger" : "success"} />
+        <MetricCard label="API Status"    value="Ready"        detail="healthz · readyz responding"            icon={<Activity className="h-5 w-5" />}           tone="success" />
+        <MetricCard label="Workers"       value={activeWorkers} detail={`${usedSlots}/${totalSlots} slots used`} icon={<Server className="h-5 w-5" />}            tone="aqua"    />
+        <MetricCard label="Running"       value={runningJobs}  detail="active executions"                      icon={<BriefcaseBusiness className="h-5 w-5" />}  tone="aqua"    delta={2} deltaLabel="vs 1h ago" />
+        <MetricCard label="Queued"        value={queuedJobs}   detail="waiting for dispatch"                   icon={<Waypoints className="h-5 w-5" />}          tone="warning" />
+        <MetricCard label="Failed / Dead" value={failedJobs}   detail="needs attention"                        icon={<Skull className="h-5 w-5" />}              tone={failedJobs > 0 ? "danger" : "success"} />
       </section>
 
       {/* Throughput + Queue pressure */}
       <section className="mt-5 grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-        {/* Recent jobs */}
         <Card>
           <CardHeader>
             <CardTitle>Recent jobs</CardTitle>
@@ -77,67 +95,71 @@ export default function DashboardPage() {
               </div>
             </div>
           </CardHeader>
-          <Table>
-            <thead>
-              <tr>
-                <Th>Status</Th>
-                <Th>Name</Th>
-                <Th>Queue</Th>
-                <Th>Attempt</Th>
-                <Th>Updated</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40">
-              {jobs.map((job) => (
-                <tr key={job.id} className="hover:bg-muted/20 cursor-pointer">
-                  <Td><StatusBadge status={job.status} /></Td>
-                  <Td>
-                    <p className="font-medium text-sm">{job.name}</p>
-                    {job.error_message && (
-                      <p className="mt-0.5 text-xs text-danger truncate max-w-xs">{job.error_message}</p>
-                    )}
-                  </Td>
-                  <Td><span className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-xs">{job.queue_name.replace("orion:queue:", "")}</span></Td>
-                  <Td className="tabular-nums text-muted-foreground">{job.attempt}/{job.max_retries}</Td>
-                  <Td className="text-muted-foreground text-xs">{formatRelativeTime(job.updated_at)}</Td>
+          {jobsLoading ? <LoadingSpinner /> : jobs.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No jobs yet</div>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Status</Th>
+                  <Th>Name</Th>
+                  <Th>Queue</Th>
+                  <Th>Attempt</Th>
+                  <Th>Updated</Th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {jobs.slice(0, 8).map((job) => (
+                  <tr key={job.id} className="hover:bg-muted/20 cursor-pointer">
+                    <Td><StatusBadge status={job.status} /></Td>
+                    <Td>
+                      <p className="font-medium text-sm">{job.name}</p>
+                      {job.error_message && (
+                        <p className="mt-0.5 text-xs text-danger truncate max-w-xs">{job.error_message}</p>
+                      )}
+                    </Td>
+                    <Td><span className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-xs">{job.queue_name.replace("orion:queue:", "")}</span></Td>
+                    <Td className="tabular-nums text-muted-foreground">{job.attempt}/{job.max_retries}</Td>
+                    <Td className="text-muted-foreground text-xs">{formatRelativeTime(job.updated_at)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
         </Card>
 
-        {/* Queue pressure */}
         <Card>
           <CardHeader>
             <CardTitle>Queue depth</CardTitle>
-            <span className="text-xs text-muted-foreground">3 active</span>
+            <span className="text-xs text-muted-foreground">{queues.length} active</span>
           </CardHeader>
-          <div className="p-5 space-y-5">
-            {queues.map((q) => {
-              const name = q.queue_name.replace("orion:queue:", "");
-              const pct  = Math.min((q.depth ?? 0) * 3, 100);
-              const tone = pct > 70 ? "danger" : pct > 40 ? "warning" : "primary";
-              return (
-                <div key={q.queue_name}>
-                  <div className="mb-1.5 flex items-center justify-between text-sm">
-                    <span className="font-medium capitalize">{name}</span>
-                    <span className="tabular-nums font-semibold">{q.depth}</span>
+          {queuesLoading ? <LoadingSpinner /> : (
+            <div className="p-5 space-y-5">
+              {queues.map((q) => {
+                const name = q.queue_name.replace("orion:queue:", "");
+                const pct  = Math.min((q.depth ?? 0) * 3, 100);
+                const tone = pct > 70 ? "danger" : pct > 40 ? "warning" : "primary";
+                return (
+                  <div key={q.queue_name}>
+                    <div className="mb-1.5 flex items-center justify-between text-sm">
+                      <span className="font-medium capitalize">{name}</span>
+                      <span className="tabular-nums font-semibold">{q.depth ?? 0}</span>
+                    </div>
+                    <ProgressBar value={pct} tone={tone} />
+                    <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+                      <span>{q.rate_tokens_avail?.toFixed(1) ?? "—"} tokens</span>
+                      <span>{q.max_concurrent} concurrent</span>
+                    </div>
                   </div>
-                  <ProgressBar value={pct} tone={tone} />
-                  <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
-                    <span>{q.rate_tokens_avail?.toFixed(1)} tokens</span>
-                    <span>{q.max_concurrent} concurrent</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </section>
 
       {/* Pipelines + Workers */}
       <section className="mt-4 grid gap-4 lg:grid-cols-2">
-        {/* Active pipelines */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -146,22 +168,25 @@ export default function DashboardPage() {
             </div>
             <span className="text-xs text-muted-foreground">{pipelines.length} total</span>
           </CardHeader>
-          <div className="p-4 space-y-2">
-            {pipelines.map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-4 py-3 hover:bg-primary/5 cursor-pointer transition-colors">
-                <div>
-                  <p className="font-medium text-sm">{p.name}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {p.dag_spec.nodes.length} nodes · {p.dag_spec.edges.length} edges · {formatRelativeTime(p.updated_at)}
-                  </p>
+          {pipelinesLoading ? <LoadingSpinner /> : pipelines.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No pipelines</div>
+          ) : (
+            <div className="p-4 space-y-2">
+              {pipelines.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-4 py-3 hover:bg-primary/5 cursor-pointer transition-colors">
+                  <div>
+                    <p className="font-medium text-sm">{p.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {p.dag_spec.nodes.length} nodes · {p.dag_spec.edges.length} edges · {formatRelativeTime(p.updated_at)}
+                    </p>
+                  </div>
+                  <StatusBadge status={p.status} />
                 </div>
-                <StatusBadge status={p.status} />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
 
-        {/* Worker capacity */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -170,24 +195,28 @@ export default function DashboardPage() {
             </div>
             <div className="text-xs text-muted-foreground">{usedSlots}/{totalSlots} slots</div>
           </CardHeader>
-          <div className="p-4 space-y-4">
-            {workers.map((w) => {
-              const pct   = Math.round((w.active_jobs / w.concurrency) * 100);
-              const tone  = pct > 80 ? "danger" : pct > 50 ? "warning" : "primary";
-              return (
-                <div key={w.id}>
-                  <div className="mb-1.5 flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{w.hostname}</span>
-                      <StatusBadge status={w.status} />
+          {workersLoading ? <LoadingSpinner /> : workers.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No workers online</div>
+          ) : (
+            <div className="p-4 space-y-4">
+              {workers.map((w) => {
+                const pct   = Math.round((w.active_jobs / w.concurrency) * 100);
+                const tone  = pct > 80 ? "danger" : pct > 50 ? "warning" : "primary";
+                return (
+                  <div key={w.id}>
+                    <div className="mb-1.5 flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{w.hostname}</span>
+                        <StatusBadge status={w.status} />
+                      </div>
+                      <span className="tabular-nums text-muted-foreground">{w.active_jobs}/{w.concurrency}</span>
                     </div>
-                    <span className="tabular-nums text-muted-foreground">{w.active_jobs}/{w.concurrency}</span>
+                    <ProgressBar value={w.active_jobs} max={w.concurrency} tone={tone} />
                   </div>
-                  <ProgressBar value={w.active_jobs} max={w.concurrency} tone={tone} />
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </section>
 
