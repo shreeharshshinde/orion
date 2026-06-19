@@ -1,7 +1,7 @@
 # Phase 11 — Frontend Completion
 
-**Status:** Planned  
-**Prerequisite:** Phase 10 (Observability Hardening)  
+**Status:** Planned
+**Prerequisite:** Phase 10 (Observability Hardening)
 **Location:** `frontend/` (Next.js 15, TypeScript, Tailwind, shadcn primitives)
 
 ---
@@ -316,7 +316,7 @@ Call `toast.success(...)` / `toast.error(...)` on every mutation:
 
 ### Gap 1 — No API client / no fetch calls (Step 1)
 
-**Status:** ✅ Complete  
+**Status:** ✅ Complete
 **Date:** 2026-06-15
 
 #### What was done
@@ -369,6 +369,61 @@ zod@^3.24.0
 - `frontend/app/layout.tsx` (updated)
 - `frontend/app/dashboard/workers/page.tsx` (fixed)
 - `frontend/app/dashboard/jobs/page.tsx` (fixed)
+
+---
+
+---
+
+### Gap 2 — All pages show mock data / health chip hardcoded / queue Save no-op (Step 2)
+
+**Status:** ✅ Complete
+**Date:** 2026-06-18
+
+#### What was done
+
+All six existing dashboard surfaces were rewritten to pull from live TanStack Query hooks instead of the `lib/api.ts` mock import. Every page gained loading, empty, and error+retry states.
+
+**`app/dashboard/page.tsx`** — Dashboard overview
+- Replaced `import { jobs, overview, pipelines, queues, workers } from "@/lib/api"` with `useJobs()`, `useWorkers()`, `useQueues()`, `usePipelines()`
+- Computed overview metrics (`runningJobs`, `queuedJobs`, `failedJobs`, `activeWorkers`, `usedSlots`) client-side from live arrays
+- Loading spinner while any hook is fetching; empty states on empty arrays
+
+**`app/dashboard/jobs/page.tsx`** — Jobs table
+- Replaced mock array with `useJobs(filters)` where `filters` is `{ status?, queue?, type? }` React state
+- Status, Queue, and Type dropdowns are functional `<select>` elements that update filter state and re-query
+- Loading spinner, "No jobs found" empty state, error panel with Retry button
+
+**`app/dashboard/queues/page.tsx`** — Queue cards
+- Replaced mock with `useQueues()`
+- "Save live config" button calls `useUpdateQueue().mutate({ name, body })` — fires `PUT /queues/{name}`
+- `toast.success("Queue {name} config updated (live)")` on success; `toast.error(err.message)` on failure
+- Button shows spinner while mutation is pending
+
+**`app/dashboard/workers/page.tsx`** — Worker cards
+- Replaced mock with `useWorkers()`
+- Summary tiles (`activeWorkers`, `totalConcurrency`, `availableSlots`) computed from live data
+- Loading spinner, "No workers registered" empty state, error+retry
+
+**`app/dashboard/pipelines/page.tsx`** — Pipeline cards
+- Replaced mock with `usePipelines()`
+- Loading spinner, "No pipelines yet" empty state, error+retry
+
+**`components/app-shell.tsx`** — Sidebar health chip
+- Removed `import { jobs, overview, workers } from "@/lib/api"`
+- Added `useHealth()`, `useJobs()`, `useWorkers()` hooks
+- Health chip: warning `"Checking API"` while loading, success `"API ready"` when `useHealth()` succeeds, danger `"API down"` when it errors
+- Sidebar footer stats (`workers`, `running`, `queued`, `failed`) computed from live hook data
+- Sidebar nav badge counts for Jobs (running+queued) and Workers are live
+
+#### Files changed
+- `frontend/app/dashboard/page.tsx` (rewritten)
+- `frontend/app/dashboard/jobs/page.tsx` (rewritten)
+- `frontend/app/dashboard/queues/page.tsx` (rewritten)
+- `frontend/app/dashboard/workers/page.tsx` (rewritten)
+- `frontend/app/dashboard/pipelines/page.tsx` (rewritten)
+- `frontend/components/app-shell.tsx` (rewritten)
+
+---
 
 ---
 
