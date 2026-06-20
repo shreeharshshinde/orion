@@ -6,9 +6,10 @@ import {
   Activity, BookOpen, Boxes, BriefcaseBusiness,
   GitBranch, Home, Search, Server, Waypoints, ChevronRight, Zap
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Button, StatusDot } from "@/components/ui";
+import { SubmitJobDialog } from "@/components/submit-job-dialog";
 import { cn } from "@/lib/utils";
 import { useHealth, useJobs, useWorkers } from "@/lib/hooks";
 
@@ -24,6 +25,7 @@ const navItems = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: jobs = [] }      = useJobs();
   const { data: workers = [] }   = useWorkers();
@@ -148,7 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Activity className="h-3.5 w-3.5" />
               Live
             </Button>
-            <Button size="sm">Submit Job</Button>
+            <Button size="sm" onClick={() => setDialogOpen(true)}>Submit Job</Button>
           </div>
         </header>
 
@@ -156,6 +158,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+
+      <SubmitJobDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     </div>
   );
 }
