@@ -22,8 +22,15 @@ export type Job = {
   max_retries: number;
   worker_id?: string;
   error_message?: string;
+  idempotency_key?: string;
+  payload?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  scheduled_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  next_retry_at?: string;
+  deadline_at?: string;
 };
 
 export type Pipeline = {
