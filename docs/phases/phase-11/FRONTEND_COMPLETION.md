@@ -498,6 +498,45 @@ Mutation uses `useSubmitJob()` → `POST /jobs`:
 
 ---
 
+### Gap 5 — No Pipeline Detail / DAG view (Step 5)
+
+**Status:** ✅ Complete
+**Date:** 2026-06-20
+
+#### What was done
+
+**`frontend/lib/api.ts`** — Extracted `PipelineNode` as a named export (`id`, `job_id?`, `depends_on?`, `job_template?`). `Pipeline.dag_spec.nodes` now typed as `PipelineNode[]`.
+
+**`frontend/app/dashboard/pipelines/[id]/page.tsx`** (new) — Full-page React Flow DAG canvas with side panel and cancel action.
+
+Layout: header row → canvas+panel row → meta strip.
+
+DAG layout (`buildGraph`):
+- Nodes are assigned to layers via a forward-pass: `layer[n] = max(layer[dep]) + 1`. Within each layer nodes are stacked vertically with 90 px spacing; layers are 200 px apart horizontally.
+- Edges are derived from `node.depends_on[]` when present, falling back to `dag_spec.edges`.
+- Node background/border/color are driven by the linked job's status: running = aqua glow, completed = green, failed/dead = red, pending/default = muted blue.
+
+Canvas:
+- `ReactFlow` with `fitView`, `nodesDraggable=false`, `nodesConnectable=false`. Imports `reactflow/dist/style.css` at the top of the file.
+- `<Background>` grid and `<Controls>` (without interactive toggle).
+- `proOptions={{ hideAttribution: true }}` suppresses the React Flow watermark.
+
+Selected node panel (right, 288 px wide, appears on node click):
+- If the node has a linked job: status badge, job ID as a `<Link>` to `/dashboard/jobs/{id}`, attempt, worker, started, completed, error message.
+- If no linked job yet: shows `job_template.name` / `job_template.type` from the DAG spec and "No job spawned yet" note.
+- Clicking the same node again deselects/closes the panel.
+
+Cancel Pipeline button — `POST /pipelines/{id}/cancel` via `useCancelPipeline()`. Disabled on terminal pipelines (`completed`, `failed`, `dead`, `cancelled`). `toast.success` / `toast.error` callbacks.
+
+**`frontend/app/dashboard/pipelines/page.tsx`** — Pipeline card header areas wrapped with `<Link href="/dashboard/pipelines/{id}">` so clicking the name/status navigates to the detail page.
+
+#### Files changed
+- `frontend/lib/api.ts` (PipelineNode type exported)
+- `frontend/app/dashboard/pipelines/[id]/page.tsx` (new)
+- `frontend/app/dashboard/pipelines/page.tsx` (cards linked)
+
+---
+
 ## Gap Summary
 
 | # | Gap | Step | Effort |
