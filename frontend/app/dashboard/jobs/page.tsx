@@ -5,12 +5,14 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { StatusBadge } from "@/components/status-badge";
+import { SubmitJobDialog } from "@/components/submit-job-dialog";
 import { Button, Card, PageHeader } from "@/components/ui";
 import { useJobs, type JobFilter } from "@/lib/hooks";
 import { formatRelativeTime } from "@/lib/utils";
 
 export default function JobsPage() {
   const [filters, setFilters] = useState<JobFilter>({});
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { data: jobs = [], isLoading, isError, refetch } = useJobs(filters);
 
   return (
@@ -19,7 +21,7 @@ export default function JobsPage() {
         title="Jobs"
         description="Inspect submitted work, execution status, queue placement, attempts, assigned workers, and retry behavior."
         action={
-          <Button>
+          <Button onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             Submit Job
           </Button>
@@ -133,6 +135,8 @@ export default function JobsPage() {
           {jobs.length} jobs · live · <code className="font-mono">GET /jobs</code>
         </div>
       </Card>
+
+      <SubmitJobDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     </>
   );
 }
