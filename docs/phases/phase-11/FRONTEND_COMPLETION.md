@@ -464,6 +464,40 @@ Action buttons (top-right):
 
 ---
 
+### Gap 4 — No Submit Job form (Step 4)
+
+**Status:** ✅ Complete
+**Date:** 2026-06-20
+
+#### What was done
+
+**`frontend/components/submit-job-dialog.tsx`** (new) — CSS-backdrop modal (no extra Radix dependency; Radix Dialog not installed). Built with `react-hook-form` + `zod` + `@hookform/resolvers`.
+
+Schema covers both job types in a flat object:
+
+| Field | Applies to |
+|---|---|
+| name, type, queue_name, priority, max_retries, idempotency_key | all |
+| handler_name, handler_args (JSON textarea) | inline |
+| image, command (space-separated), namespace, cpu, memory, gpu | k8s_job |
+
+Type toggle is a styled radio group that conditionally shows/hides the relevant section. On submit the flat form values are reshaped into the correct nested `payload` structure (`payload.handler_name` or `payload.kubernetes_spec`).
+
+Mutation uses `useSubmitJob()` → `POST /jobs`:
+- Success: `toast.success("Job "{name}" submitted — {id}")`, reset form, close dialog
+- Error: `toast.error(err.message)`
+
+**`frontend/components/app-shell.tsx`** — Added `useState(false)` for `dialogOpen`; `Submit Job` button in the sticky header sets it `true`; `<SubmitJobDialog>` rendered at the end of the component.
+
+**`frontend/app/dashboard/jobs/page.tsx`** — Same pattern: `dialogOpen` state, `Submit Job` page-header button opens dialog, `<SubmitJobDialog>` rendered at bottom of the fragment.
+
+#### Files changed
+- `frontend/components/submit-job-dialog.tsx` (new)
+- `frontend/components/app-shell.tsx` (Submit Job button wired)
+- `frontend/app/dashboard/jobs/page.tsx` (Submit Job button wired)
+
+---
+
 ## Gap Summary
 
 | # | Gap | Step | Effort |
