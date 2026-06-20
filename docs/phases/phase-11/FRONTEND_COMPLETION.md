@@ -427,6 +427,43 @@ All six existing dashboard surfaces were rewritten to pull from live TanStack Qu
 
 ---
 
+### Gap 3 — No Job Detail page / no cancel-replay actions / table rows not linked (Step 3)
+
+**Status:** ✅ Complete
+**Date:** 2026-06-20
+
+#### What was done
+
+**`frontend/lib/api.ts`** — `Job` type extended with optional fields needed by the detail view:
+- `idempotency_key?`, `payload?` (arbitrary JSON object)
+- `scheduled_at?`, `started_at?`, `completed_at?`, `next_retry_at?`, `deadline_at?`
+
+**`frontend/app/dashboard/jobs/[id]/page.tsx`** (new) — Server-routed dynamic page using `use(params)` for the async params unwrap (Next.js 15 style). Pulls data from `useJob(id)` (3 s poll) and `useJobExecutions(id)`.
+
+Three tabs:
+
+| Tab | Content |
+|---|---|
+| **Overview** | Two-column grid: Details card (type, queue, priority, attempt/max_retries, worker_id, idempotency_key) + Timing card (created, scheduled, started, completed, next_retry_at, deadline_at via `formatRelativeTime`). Error panel shown only when `error_message` is present. |
+| **Payload** | `<pre>` block with `JSON.stringify(job.payload, null, 2)`. Copy button writes to clipboard and fires `toast.success("Copied to clipboard")`. |
+| **Executions** | Table over `GET /jobs/{id}/executions`: attempt, worker_id, status, started_at, finished_at, exit_code, error. "No executions recorded yet" empty state when array is empty. |
+
+Action buttons (top-right):
+- **Cancel** — `POST /jobs/{id}/cancel` via `useCancelJob()`. Disabled on terminal states (`completed`, `failed`, `dead`, `cancelled`). Shows spinner while pending.
+- **Replay** — `POST /jobs/{id}/replay` via `useReplayJob()`. Shown only when status is `dead` or `failed`. Shows spinner while pending.
+- Both use `toast.success` / `toast.error` callbacks.
+
+**`frontend/app/dashboard/jobs/page.tsx`** — Jobs table wired with `<Link href="/dashboard/jobs/{id}">`:
+- Name/ID cell wrapped in a `<Link>` block — clicking the job name/id navigates to detail.
+- Chevron button replaced with a `<Link>` so the whole interaction surface is a real anchor.
+
+#### Files changed
+- `frontend/lib/api.ts` (Job type extended)
+- `frontend/app/dashboard/jobs/[id]/page.tsx` (new)
+- `frontend/app/dashboard/jobs/page.tsx` (table rows linked)
+
+---
+
 ## Gap Summary
 
 | # | Gap | Step | Effort |
