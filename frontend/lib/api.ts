@@ -33,12 +33,19 @@ export type Job = {
   deadline_at?: string;
 };
 
+export type PipelineNode = {
+  id: string;
+  job_id?: string;
+  depends_on?: string[];
+  job_template?: { name?: string; type?: string; [key: string]: unknown };
+};
+
 export type Pipeline = {
   id: string;
   name: string;
   status: PipelineStatus;
   dag_spec: {
-    nodes: Array<{ id: string; job_id?: string }>;
+    nodes: PipelineNode[];
     edges: Array<{ source: string; target: string }>;
   };
   created_at: string;
