@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, ChevronRight, Loader2, Plus } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { StatusBadge } from "@/components/status-badge";
@@ -91,14 +92,16 @@ export default function JobsPage() {
                   <tr className="group cursor-pointer bg-card hover:bg-muted/20 transition-colors" key={job.id}>
                     <td className="px-3 py-2"><StatusBadge status={job.status} /></td>
                     <td className="px-3 py-2">
-                      <p className="font-medium text-sm group-hover:text-primary truncate">{job.name}</p>
-                      <p className="mt-0.5 font-mono text-xs text-muted-foreground truncate">{job.id}</p>
-                      {job.error_message && (
-                        <div className="mt-1 flex items-center gap-1 text-xs text-danger">
-                          <AlertCircle className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{job.error_message}</span>
-                        </div>
-                      )}
+                      <Link href={`/dashboard/jobs/${job.id}`} className="block">
+                        <p className="font-medium text-sm group-hover:text-primary truncate">{job.name}</p>
+                        <p className="mt-0.5 font-mono text-xs text-muted-foreground truncate">{job.id}</p>
+                        {job.error_message && (
+                          <div className="mt-1 flex items-center gap-1 text-xs text-danger">
+                            <AlertCircle className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{job.error_message}</span>
+                          </div>
+                        )}
+                      </Link>
                     </td>
                     <td className="px-3 py-2">
                       <span className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-xs">{job.type}</span>
@@ -114,9 +117,9 @@ export default function JobsPage() {
                     <td className="px-3 py-2 text-muted-foreground text-xs whitespace-nowrap">{formatRelativeTime(job.updated_at)}</td>
                     <td className="px-3 py-2">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-1 hover:bg-primary/20 rounded" title="View details">
+                        <Link href={`/dashboard/jobs/${job.id}`} className="p-1 hover:bg-primary/20 rounded inline-flex" title="View details">
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </button>
+                        </Link>
                       </div>
                     </td>
                   </tr>
