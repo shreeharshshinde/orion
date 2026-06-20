@@ -1,6 +1,7 @@
 "use client";
 
 import { GitBranch, Loader2, Plus } from "lucide-react";
+import Link from "next/link";
 
 import { StatusBadge } from "@/components/status-badge";
 import { Button, Card, PageHeader } from "@/components/ui";
@@ -91,19 +92,19 @@ export default function PipelinesPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {pipelines.map((pipeline) => (
-            <Card className="overflow-hidden flex flex-col" key={pipeline.id}>
-              <div className="flex items-start justify-between gap-4 p-5">
+            <Card className="overflow-hidden flex flex-col group" key={pipeline.id}>
+              <Link href={`/dashboard/pipelines/${pipeline.id}`} className="flex items-start justify-between gap-4 p-5 hover:bg-muted/20 transition-colors">
                 <div>
                   <div className="flex items-center gap-2">
                     <GitBranch className="h-4 w-4 text-primary" />
-                    <h2 className="font-semibold">{pipeline.name}</h2>
+                    <h2 className="font-semibold group-hover:text-primary transition-colors">{pipeline.name}</h2>
                   </div>
                   <p className="mt-1.5 text-sm text-muted-foreground">
                     {pipeline.dag_spec.nodes.length} nodes · {pipeline.dag_spec.edges.length} edges · updated {formatRelativeTime(pipeline.updated_at)}
                   </p>
                 </div>
                 <StatusBadge status={pipeline.status} />
-              </div>
+              </Link>
 
               <div className="border-t bg-muted/20 px-0 py-3 flex-1">
                 <p className="px-5 mb-3 text-xs font-medium uppercase tracking-normal text-muted-foreground">DAG Workflow</p>
