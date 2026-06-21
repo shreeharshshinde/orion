@@ -2,8 +2,10 @@
 
 import { GitBranch, Loader2, Plus } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 import { StatusBadge } from "@/components/status-badge";
+import { CreatePipelineDialog } from "@/components/create-pipeline-dialog";
 import { Button, Card, PageHeader } from "@/components/ui";
 import { usePipelines } from "@/lib/hooks";
 import { formatRelativeTime } from "@/lib/utils";
@@ -64,6 +66,7 @@ function DAGPreview({ nodes, edges }: {
 
 export default function PipelinesPage() {
   const { data: pipelines = [], isLoading, isError, refetch } = usePipelines();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
     <>
@@ -71,7 +74,7 @@ export default function PipelinesPage() {
         title="Pipelines"
         description="Track DAG-based workflows and the jobs created for each pipeline node."
         action={
-          <Button>
+          <Button onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             Create Pipeline
           </Button>
@@ -123,6 +126,8 @@ export default function PipelinesPage() {
           ))}
         </div>
       )}
+
+      <CreatePipelineDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     </>
   );
 }
