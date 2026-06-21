@@ -3,10 +3,10 @@
 import {
   Activity,
   ArrowRight, BookOpen, Boxes,
-  GitBranch,
+  GitBranch, Github,
   RefreshCw,
   Server,
-  Shield,
+  Shield, Sun,
   Waypoints, Zap
 } from "lucide-react";
 import Image from "next/image";
@@ -92,8 +92,30 @@ export default function HomePage() {
 
   return (
     <main className="bg-grid min-h-screen">
+      {/* ── Header ───────────────────────────────────────────────────────── */}
+      <header className="fixed left-1/2 top-4 z-50 flex h-16 w-[calc(100%-2rem)] -translate-x-1/2 items-center justify-between rounded-2xl border border-white/10 bg-background/50 px-6 backdrop-blur-xl shadow-2xl">
+        <div className="flex items-center">
+          <Image src="/orion_logo.png" alt="Orion Logo" width={84} height={84} className="object-contain" />
+          <span className="font-display text-lg font-bold tracking-wide text-foreground">Orion</span>
+        </div>
+        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
+          <Link href="/dashboard" className="transition-colors hover:text-foreground">Dashboard</Link>
+          <Link href="/docs/architecture" className="transition-colors hover:text-foreground">Architecture</Link>
+          <Link href="/docs/runbook" className="transition-colors hover:text-foreground">Runbook</Link>
+          <Link href="/docs" className="flex items-center rounded-md border border-border/60 bg-muted/20 px-3 py-1.5 transition-colors hover:bg-muted/40 hover:text-foreground text-foreground">
+            <BookOpen className="mr-2 h-4 w-4" /> Docs
+          </Link>
+          <a href="https://github.com/shreeharshshinde/orion" target="_blank" rel="noreferrer" className="flex items-center gap-2 transition-colors hover:text-foreground">
+            <Github className="h-4 w-4" /> GitHub
+          </a>
+          <button className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-muted/20 transition-colors hover:bg-muted/40 hover:text-foreground">
+            <Sun className="h-4 w-4" />
+          </button>
+        </nav>
+      </header>
+
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative mx-auto max-w-6xl px-6 pb-16 pt-24 text-center">
+      <section className="relative mx-auto max-w-6xl px-6 pb-16 pt-32 text-center">
         {/* Ambient glow behind the heading */}
         <div className="pointer-events-none absolute left-1/2 top-8 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
 
@@ -101,14 +123,26 @@ export default function HomePage() {
 
           <div className="flex flex-col items-center gap-4">
             <div className="flex flex-col items-center">
-              <Image
-                src="/orion_logo.png"
-                alt="Orion"
-                width={322}
-                height={322}
-                className="rounded-2xl"
-                priority
-              />
+              <div className="relative mb-8">
+                {/* Blurred glowing backdrop logo */}
+                <Image
+                  src="/orion_logo.png"
+                  alt="Orion Glow"
+                  width={322}
+                  height={322}
+                  className="absolute inset-0 opacity-40 blur-3xl"
+                  priority
+                />
+                {/* Main floating logo */}
+                <Image
+                  src="/orion_logo.png"
+                  alt="Orion"
+                  width={322}
+                  height={322}
+                  className="relative z-10 animate-float drop-shadow-2xl"
+                  priority
+                />
+              </div>
 
               <h1 className="font-display text-6xl font-semibold tracking-tight text-foreground sm:text-7xl">
                 Orion
@@ -193,6 +227,29 @@ export default function HomePage() {
           </pre>
         </div>
       </section>
+
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <footer className=" py-12 text-center text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 font-medium">
+          <Link href="/docs" className="transition-colors hover:text-primary">Docs</Link>
+          <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+          <Link href="/docs/architecture" className="transition-colors hover:text-primary">Architecture</Link>
+          <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+          <Link href="/docs/runbook" className="transition-colors hover:text-primary">Runbook</Link>
+          <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+          <Link href="/docs/deployment" className="transition-colors hover:text-primary">Deployment</Link>
+          <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+          <Link href="/docs/adr" className="transition-colors hover:text-primary">ADRs</Link>
+        </div>
+        <div className="mt-8">
+          <p>
+            Built by the <span className="text-primary font-medium">Shreeharsh Shinde</span>.
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground/60">
+            Independent project, open-source distributed ML orchestration.
+          </p>
+        </div>
+      </footer>
     </main>
   );
 }
