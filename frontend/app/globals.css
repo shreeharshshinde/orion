@@ -6,16 +6,16 @@
 @tailwind utilities;
 
 :root {
-  --background: 226 58% 6%;
+  --background: 226 65% 4%;
   --foreground: 190 100% 96%;
-  --card: 224 40% 11%;
+  --card: 224 42% 9%;
   --card-foreground: 190 100% 96%;
-  --muted: 223 32% 14%;
+  --muted: 223 32% 13%;
   --muted-foreground: 198 22% 62%;
   --primary: 184 85% 52%;
   --primary-foreground: 225 58% 6%;
-  --border: 220 25% 20%;
-  --input: 220 25% 20%;
+  --border: 220 25% 18%;
+  --input: 220 25% 18%;
   --ring: 184 85% 52%;
   --success: 152 80% 50%;
   --warning: 38 95% 58%;
@@ -50,29 +50,54 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dot-grid background for dashboard pages */
+/* Line-grid background — very subtle, won't compete with content */
 .bg-grid {
-  background-image: radial-gradient(circle, rgba(0,220,235,0.08) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background-image:
+    linear-gradient(rgba(0, 220, 235, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 220, 235, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.5); }
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
 
-::selection { background: rgba(0, 220, 235, 0.20); }
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-h1, h2, h3, .font-display {
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.5);
+}
+
+::selection {
+  background: rgba(0, 220, 235, 0.20);
+}
+
+h1,
+h2,
+h3,
+.font-display {
   font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
 }
 
-code, kbd, pre, .font-mono {
+code,
+kbd,
+pre,
+.font-mono {
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-tbody tr { transition: background-color 120ms ease; }
+tbody tr {
+  transition: background-color 120ms ease;
+}
 
 :focus-visible {
   outline: 2px solid hsl(var(--ring));
@@ -82,23 +107,49 @@ tbody tr { transition: background-color 120ms ease; }
 
 /* Animated pulse for running state */
 @keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0 rgba(0, 220, 235, 0.45); }
-  70%  { box-shadow: 0 0 0 6px rgba(0, 220, 235, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 220, 235, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 220, 235, 0.45);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(0, 220, 235, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 220, 235, 0);
+  }
 }
-.animate-pulse-ring { animation: pulse-ring 2s ease-out infinite; }
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-out infinite;
+}
 
 /* Glow utilities */
 @layer utilities {
-  .glow-primary  { box-shadow: 0 0 18px rgba(0,220,235,0.20), 0 0 40px rgba(0,220,235,0.08); }
-  .glow-success  { box-shadow: 0 0 18px rgba(16,175,120,0.22); }
-  .glow-danger   { box-shadow: 0 0 18px rgba(230,60,80,0.22); }
-  .glow-warning  { box-shadow: 0 0 18px rgba(240,155,20,0.22); }
+  .glow-primary {
+    box-shadow: 0 0 18px rgba(0, 220, 235, 0.20), 0 0 40px rgba(0, 220, 235, 0.08);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 18px rgba(16, 175, 120, 0.22);
+  }
+
+  .glow-danger {
+    box-shadow: 0 0 18px rgba(230, 60, 80, 0.22);
+  }
+
+  .glow-warning {
+    box-shadow: 0 0 18px rgba(240, 155, 20, 0.22);
+  }
+
   .text-gradient {
     background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  .shadow-soft { box-shadow: 0 2px 12px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.25); }
+
+  .shadow-soft {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
+  }
 }

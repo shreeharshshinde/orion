@@ -1,79 +1,197 @@
+"use client";
+
+import {
+  Activity,
+  ArrowRight, BookOpen, Boxes,
+  GitBranch,
+  RefreshCw,
+  Server,
+  Shield,
+  Waypoints, Zap
+} from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BookOpen, Boxes, Gauge, GitBranch, Server, Waypoints } from "lucide-react";
 
-import { Badge, Button, Card, MetricCard } from "@/components/ui";
-import { overview } from "@/lib/api";
+import { Badge, Button, Card } from "@/components/ui";
+import { useJobs, usePipelines, useWorkers } from "@/lib/hooks";
 
-const capabilities = [
-  { title: "Jobs", icon: Gauge, text: "Submit, inspect, retry-aware tracking, and execution history." },
-  { title: "Pipelines", icon: GitBranch, text: "DAG-driven ML workflows with node-to-job visibility." },
-  { title: "Queues", icon: Waypoints, text: "Live scheduling controls for weights, rates, bursts, and depth." },
-  { title: "Workers", icon: Server, text: "Execution capacity, heartbeats, active jobs, and availability." }
+// ─── Static feature data ──────────────────────────────────────────────────────
+
+const features = [
+  {
+    icon: Waypoints,
+    title: "Priority queues",
+    desc: "Three Redis Streams queues — high, default, low — with weighted dispatch, per-queue rate limiting, and live config reload.",
+  },
+  {
+    icon: Shield,
+    title: "At-least-once delivery",
+    desc: "Consumer groups + PEL tracking. Unacknowledged jobs are reclaimed by the orphan sweeper. No job is silently lost.",
+  },
+  {
+    icon: Server,
+    title: "Kubernetes execution",
+    desc: "Launches K8s Jobs via client-go. Supports GPU requests, custom namespaces, service accounts, and backoff-0 retry ownership.",
+  },
+  {
+    icon: GitBranch,
+    title: "DAG pipelines",
+    desc: "Topological node advancement with cascade-cancel on failure. Create multi-stage ML workflows as a single submission.",
+  },
+  {
+    icon: Activity,
+    title: "Real-time streaming",
+    desc: "gRPC WatchJob / WatchPipeline driven by PostgreSQL LISTEN/NOTIFY. Zero polling on the client.",
+  },
+  {
+    icon: RefreshCw,
+    title: "Durable retries",
+    desc: "Full-jitter exponential backoff. CAS state transitions prevent double-claiming across concurrent scheduler instances.",
+  },
 ];
 
-export default function HomePage() {
+const SUBMIT_SNIPPET = `curl -sX POST http://localhost:8080/jobs \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "name": "train-resnet",
+    "type": "k8s_job",
+    "queue_name": "high",
+    "priority": 8,
+    "max_retries": 3,
+    "payload": {
+      "kubernetes_spec": {
+        "image": "pytorch/pytorch:2.1.0-cuda11.8",
+        "command": ["python", "train.py"],
+        "resources": { "gpu": 1, "memory": "16Gi" }
+      }
+    }
+  }'`;
+
+// ─── Live stat pill ───────────────────────────────────────────────────────────
+
+function StatPill({ label, value }: { label: string; value: string | number }) {
   return (
-    <main className="min-h-screen">
-      <section className="mx-auto grid min-h-[88vh] max-w-7xl gap-10 px-6 py-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
-        <div>
-          <Badge tone="aqua">Distributed ML job orchestration</Badge>
-          <h1 className="mt-5 font-display text-5xl font-semibold tracking-normal text-foreground sm:text-6xl">
-            Orion
-          </h1>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
-            A polished control plane for scheduling, executing, and observing ML workloads on
-            Kubernetes with queues, workers, pipelines, metrics, and traces in one place.
+    <div className="flex flex-col items-center rounded-xl border border-border/60 bg-card/60 px-5 py-3 backdrop-blur">
+      <span className="font-display text-2xl font-semibold tabular-nums text-foreground">{value}</span>
+      <span className="mt-0.5 text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function HomePage() {
+  const { data: jobs = [] } = useJobs();
+  const { data: workers = [] } = useWorkers();
+  const { data: pipelines = [] } = usePipelines();
+
+  const running = jobs.filter(j => j.status === "running").length;
+  const queued = jobs.filter(j => j.status === "queued").length;
+  const active = workers.filter(w => w.status !== "offline").length;
+  const pRunning = pipelines.filter(p => p.status === "running").length;
+
+  return (
+    <main className="bg-grid min-h-screen">
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <section className="relative mx-auto max-w-6xl px-6 pb-16 pt-24 text-center">
+        {/* Ambient glow behind the heading */}
+        <div className="pointer-events-none absolute left-1/2 top-8 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+
+        <div className="relative">
+
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center">
+              <Image
+                src="/orion_logo.png"
+                alt="Orion"
+                width={322}
+                height={322}
+                className="rounded-2xl"
+                priority
+              />
+
+              <h1 className="font-display text-6xl font-semibold tracking-tight text-foreground sm:text-7xl">
+                Orion
+              </h1>
+
+              <Badge tone="aqua" className="mt-6 inline-flex">
+                <Zap className="h-3 w-3" />
+                Distributed ML job orchestrator for Kubernetes
+              </Badge>
+            </div>
+          </div>
+
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+            Orion sits between your training pipelines and the cluster — handling priority queuing,
+            retries, backpressure, DAG orchestration, and real-time status streaming so your
+            application code doesn't have to.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Button asChild size="md">
               <Link href="/dashboard">
                 Open Dashboard <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" size="md">
               <Link href="/docs">
                 <BookOpen className="h-4 w-4" />
                 Read Docs
               </Link>
             </Button>
           </div>
-          <div className="mt-8 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricCard label="Workers" value={overview.activeWorkers} detail="active" icon={<Server className="h-5 w-5" />} />
-            <MetricCard label="Running" value={overview.runningJobs} detail="jobs" icon={<Gauge className="h-5 w-5" />} />
-            <MetricCard label="Queued" value={overview.queuedJobs} detail="waiting" icon={<Waypoints className="h-5 w-5" />} />
-            <MetricCard label="Pipelines" value={overview.runningPipelines} detail="running" icon={<GitBranch className="h-5 w-5" />} />
+
+          {/* Live stats */}
+          <div className="mt-12 flex flex-wrap justify-center gap-3">
+            <StatPill label="Workers active" value={active} />
+            <StatPill label="Jobs running" value={running} />
+            <StatPill label="Jobs queued" value={queued} />
+            <StatPill label="Pipelines running" value={pRunning} />
           </div>
         </div>
+      </section>
 
-        <Card className="overflow-hidden p-0 shadow-neon">
-          <div className="border-b bg-primary/10 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/40 bg-primary/20 text-primary shadow-neon">
-                <Boxes className="h-5 w-5" />
+      {/* ── What Orion does ──────────────────────────────────────────────── */}
+      <section className="mx-auto max-w-6xl px-6 pb-20">
+        <div className="mb-10 text-center">
+          <h2 className="font-display text-2xl font-semibold">Everything your ML platform needs</h2>
+          <p className="mt-2 text-sm text-muted-foreground">From job submission to Kubernetes execution — one control plane.</p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map(({ icon: Icon, title, desc }) => (
+            <Card key={title} className="flex gap-4 p-5 hover:border-primary/30 transition-colors">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                <Icon className="h-4 w-4" />
               </div>
               <div>
-                <p className="font-display font-semibold">Live operations preview</p>
-                <p className="text-sm text-muted-foreground">Neon console theme · backend-ready</p>
+                <p className="font-display font-semibold">{title}</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{desc}</p>
               </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Submit in seconds ────────────────────────────────────────────── */}
+      <section className="mx-auto max-w-6xl px-6 pb-24">
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur">
+          <div className="flex items-center gap-3 border-b border-border/60 bg-muted/30 px-5 py-3">
+            <div className="flex gap-1.5">
+              <span className="h-3 w-3 rounded-full bg-danger/60" />
+              <span className="h-3 w-3 rounded-full bg-warning/60" />
+              <span className="h-3 w-3 rounded-full bg-success/60" />
+            </div>
+            <span className="font-mono text-xs text-muted-foreground">Submit a GPU training job in one request</span>
+            <div className="ml-auto flex items-center gap-2">
+              <Boxes className="h-3.5 w-3.5 text-primary" />
+              <span className="font-mono text-xs text-primary">orion · localhost:8080</span>
             </div>
           </div>
-          <div className="grid gap-4 p-5">
-            {capabilities.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div className="flex gap-4 rounded-lg border bg-muted/40 p-4" key={item.title}>
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="font-display font-semibold">{item.title}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">{item.text}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+          <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 text-foreground/90">
+            <code>{SUBMIT_SNIPPET}</code>
+          </pre>
+        </div>
       </section>
     </main>
   );
