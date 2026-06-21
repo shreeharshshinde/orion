@@ -8,21 +8,21 @@
 :root {
   --background: 226 58% 6%;
   --foreground: 190 100% 96%;
-  --card: 224 48% 10%;
+  --card: 224 40% 11%;
   --card-foreground: 190 100% 96%;
-  --muted: 223 39% 15%;
-  --muted-foreground: 198 28% 68%;
-  --primary: 184 100% 50%;
+  --muted: 223 32% 14%;
+  --muted-foreground: 198 22% 62%;
+  --primary: 184 85% 52%;
   --primary-foreground: 225 58% 6%;
-  --border: 190 72% 24%;
-  --input: 190 72% 24%;
-  --ring: 184 100% 50%;
-  --success: 154 92% 55%;
-  --warning: 42 100% 62%;
-  --danger: 338 100% 64%;
-  --aqua: 184 100% 50%;
-  --violet: 263 100% 70%;
-  --panel-glow: 184 100% 50%;
+  --border: 220 25% 20%;
+  --input: 220 25% 20%;
+  --ring: 184 85% 52%;
+  --success: 152 80% 50%;
+  --warning: 38 95% 58%;
+  --danger: 350 85% 60%;
+  --aqua: 184 85% 52%;
+  --violet: 263 90% 68%;
+  --panel-glow: 184 85% 52%;
 }
 
 * {
@@ -41,9 +41,9 @@ body {
   min-height: 100vh;
   background-color: hsl(var(--background));
   background-image:
-    radial-gradient(ellipse at 18% 0%, rgba(0, 245, 255, 0.12) 0%, transparent 40%),
-    radial-gradient(ellipse at 88% 10%, rgba(168, 85, 247, 0.10) 0%, transparent 36%),
-    radial-gradient(ellipse at 50% 100%, rgba(16, 185, 129, 0.06) 0%, transparent 40%);
+    radial-gradient(ellipse at 18% 0%, rgba(0, 220, 235, 0.10) 0%, transparent 40%),
+    radial-gradient(ellipse at 88% 10%, rgba(150, 80, 240, 0.08) 0%, transparent 36%),
+    radial-gradient(ellipse at 50% 100%, rgba(16, 175, 120, 0.05) 0%, transparent 40%);
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;
@@ -52,7 +52,7 @@ body {
 
 /* Dot-grid background for dashboard pages */
 .bg-grid {
-  background-image: radial-gradient(circle, rgba(0,245,255,0.10) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(0,220,235,0.08) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 
@@ -62,7 +62,7 @@ body {
 ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.5); }
 
-::selection { background: rgba(0, 245, 255, 0.22); }
+::selection { background: rgba(0, 220, 235, 0.20); }
 
 h1, h2, h3, .font-display {
   font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
@@ -82,22 +82,23 @@ tbody tr { transition: background-color 120ms ease; }
 
 /* Animated pulse for running state */
 @keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0 rgba(0, 245, 255, 0.5); }
-  70%  { box-shadow: 0 0 0 6px rgba(0, 245, 255, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 245, 255, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(0, 220, 235, 0.45); }
+  70%  { box-shadow: 0 0 0 6px rgba(0, 220, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 220, 235, 0); }
 }
 .animate-pulse-ring { animation: pulse-ring 2s ease-out infinite; }
 
 /* Glow utilities */
 @layer utilities {
-  .glow-primary  { box-shadow: 0 0 20px rgba(0,245,255,0.25), 0 0 50px rgba(0,245,255,0.10); }
-  .glow-success  { box-shadow: 0 0 20px rgba(16,185,129,0.25); }
-  .glow-danger   { box-shadow: 0 0 20px rgba(239,68,68,0.25); }
-  .glow-warning  { box-shadow: 0 0 20px rgba(245,158,11,0.25); }
+  .glow-primary  { box-shadow: 0 0 18px rgba(0,220,235,0.20), 0 0 40px rgba(0,220,235,0.08); }
+  .glow-success  { box-shadow: 0 0 18px rgba(16,175,120,0.22); }
+  .glow-danger   { box-shadow: 0 0 18px rgba(230,60,80,0.22); }
+  .glow-warning  { box-shadow: 0 0 18px rgba(240,155,20,0.22); }
   .text-gradient {
     background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+  .shadow-soft { box-shadow: 0 2px 12px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.25); }
 }
