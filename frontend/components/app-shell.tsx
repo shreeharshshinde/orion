@@ -1,45 +1,48 @@
 "use client";
 
+import {
+  Activity, BookOpen,
+  BriefcaseBusiness,
+  ChevronRight,
+  GitBranch, Home, Search, Server, Waypoints,
+  Zap
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Activity, BookOpen, Boxes, BriefcaseBusiness,
-  GitBranch, Home, Search, Server, Waypoints, ChevronRight, Zap
-} from "lucide-react";
 import { type ReactNode, useState } from "react";
 
-import { Button, StatusDot } from "@/components/ui";
 import { SubmitJobDialog } from "@/components/submit-job-dialog";
-import { cn } from "@/lib/utils";
+import { Button, StatusDot } from "@/components/ui";
 import { useHealth, useJobs, useWorkers } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/dashboard",           label: "Overview",  icon: Activity },
-  { href: "/dashboard/jobs",      label: "Jobs",      icon: BriefcaseBusiness },
+  { href: "/dashboard", label: "Overview", icon: Activity },
+  { href: "/dashboard/jobs", label: "Jobs", icon: BriefcaseBusiness },
   { href: "/dashboard/pipelines", label: "Pipelines", icon: GitBranch },
-  { href: "/dashboard/queues",    label: "Queues",    icon: Waypoints },
-  { href: "/dashboard/workers",   label: "Workers",   icon: Server },
-  { href: "/docs",                label: "Docs",      icon: BookOpen },
-  { href: "/",                    label: "Home",      icon: Home },
+  { href: "/dashboard/queues", label: "Queues", icon: Waypoints },
+  { href: "/dashboard/workers", label: "Workers", icon: Server },
+  { href: "/docs", label: "Docs", icon: BookOpen },
+  { href: "/", label: "Home", icon: Home },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: jobs = [] }      = useJobs();
-  const { data: workers = [] }   = useWorkers();
+  const { data: jobs = [] } = useJobs();
+  const { data: workers = [] } = useWorkers();
   const {
     isError: apiDown,
     isLoading: healthLoading,
     isSuccess: apiOk,
   } = useHealth();
 
-  const activeJobs    = jobs.filter(j => j.status === "running" || j.status === "queued").length;
-  const runningJobs   = jobs.filter(j => j.status === "running").length;
-  const queuedJobs    = jobs.filter(j => j.status === "queued").length;
-  const failedJobs    = jobs.filter(j => j.status === "failed" || j.status === "dead").length;
+  const activeJobs = jobs.filter(j => j.status === "running" || j.status === "queued").length;
+  const runningJobs = jobs.filter(j => j.status === "running").length;
+  const queuedJobs = jobs.filter(j => j.status === "queued").length;
+  const failedJobs = jobs.filter(j => j.status === "failed" || j.status === "dead").length;
   const activeWorkers = workers.filter(w => w.status !== "offline").length;
 
   const healthTone: "success" | "warning" | "danger" =
@@ -52,9 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border/60 bg-card/60 backdrop-blur-xl lg:flex">
         {/* Logo */}
         <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/40 bg-primary/15 text-primary glow-primary">
-            <Boxes className="h-4 w-4" />
-          </div>
+          <Image src="/orion_logo.png" alt="Orion Logo" width={64} height={64} className="rounded-md shrink-0" />
           <div className="min-w-0">
             <p className="font-display text-sm font-semibold tracking-wide text-gradient">Orion</p>
             <p className="text-[10px] text-muted-foreground">ML Orchestration</p>
@@ -70,14 +71,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             Platform
           </p>
           {navItems.map((item) => {
-            const Icon   = item.icon;
+            const Icon = item.icon;
             const active = item.href === "/dashboard"
               ? pathname === item.href
               : pathname.startsWith(item.href);
 
-            const count = item.href === "/dashboard/jobs"    ? activeJobs
-                        : item.href === "/dashboard/workers" ? activeWorkers
-                        : undefined;
+            const count = item.href === "/dashboard/jobs" ? activeJobs
+              : item.href === "/dashboard/workers" ? activeWorkers
+                : undefined;
 
             return (
               <Link
@@ -131,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="lg:pl-60">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border/50 bg-background/70 px-4 backdrop-blur-xl lg:px-5">
           <Link href="/" className="flex items-center gap-2 font-semibold lg:hidden">
-            <Boxes className="h-5 w-5 text-primary" />
+            <Image src="/orion_logo.png" alt="Orion Logo" width={64} height={64} className="rounded" />
             <span className="font-display text-sm">Orion</span>
           </Link>
 
