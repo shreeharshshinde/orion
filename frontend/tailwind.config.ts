@@ -41,6 +41,15 @@ const config: Config = {
       boxShadow: {
         soft: "0 18px 60px rgba(0, 245, 255, 0.14)",
         neon: "0 0 24px rgba(0, 245, 255, 0.22), 0 0 56px rgba(124, 58, 237, 0.14)"
+      },
+      keyframes: {
+        float: {
+          "0%, 100%": { transform: "translateY(-15px)" },
+          "50%": { transform: "translateY(15px)" },
+        }
+      },
+      animation: {
+        float: "float 4s ease-in-out infinite",
       }
     }
   },
