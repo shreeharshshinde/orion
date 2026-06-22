@@ -537,6 +537,41 @@ Cancel Pipeline button — `POST /pipelines/{id}/cancel` via `useCancelPipeline(
 
 ---
 
+### Gap 6 — No Create Pipeline form (Step 6)
+
+**Status:** ✅ Complete
+**Date:** 2026-06-20
+
+#### What was done
+
+**`frontend/components/create-pipeline-dialog.tsx`** (new) — CSS-backdrop modal with two authoring modes toggled by a tab strip.
+
+**Visual builder:**
+- Each node row has: editable ID input, type select (`inline` / `k8s_job`), delete button.
+- "Depends on" section shows checkboxes for every other node ID — checking one adds it to `depends_on[]`, unchecking removes it.
+- "Add node" button appends a new blank row.
+- Deleting a node removes it from all other nodes' `depends_on` arrays.
+
+**JSON editor:**
+- Raw `<textarea>` with a placeholder showing the expected `dag_spec` shape.
+- `JSON.parse` attempted on submit; parse error surfaced inline.
+
+**Validation (both modes):**
+- Name required
+- At least one node
+- No duplicate node IDs
+- Cycle detection via DFS (`hasCycle`) — rejects submissions where `depends_on` forms a cycle
+
+On submit: `POST /pipelines` via `useCreatePipeline()`. Success → `toast.success("Pipeline "{name}" created — {id}")`, form reset, dialog closed. Error → `toast.error`.
+
+**`frontend/app/dashboard/pipelines/page.tsx`** — Added `dialogOpen` state; "Create Pipeline" button opens dialog; `<CreatePipelineDialog>` rendered at end of fragment.
+
+#### Files changed
+- `frontend/components/create-pipeline-dialog.tsx` (new)
+- `frontend/app/dashboard/pipelines/page.tsx` (button wired)
+
+---
+
 ## Gap Summary
 
 | # | Gap | Step | Effort |
@@ -555,6 +590,145 @@ Cancel Pipeline button — `POST /pipelines/{id}/cancel` via `useCancelPipeline(
 | 12 | Docs links are all `href="#"` | 8 | Medium |
 | 13 | No toast notifications | 10 | Small |
 | 14 | Missing npm packages | 1 | Small |
+| 15 | Dashboard sparklines are hardcoded mock arrays | 11-UX | Small |
+| 16 | Home page still uses mock `overview` import | 11-UX | Small |
+| 17 | No time-series throughput / error-rate chart | 11-UX | Medium |
+| 18 | Job status distribution has no visual weight | 11-UX | Small |
+| 19 | Dashboard overview job rows not linked to detail | 11-UX | Small |
+| 20 | Dashboard overview pipeline rows not linked to detail | 11-UX | Small |
+| 21 | Worker metric card shows no fleet-wide utilization % | 11-UX | Small |
+
+---
+
+## Dashboard UX Audit (Phase 11 additions)
+
+The existing dashboard foundation is strong: coherent dark neon theme, Z-pattern layout, incident strip, status badges, progress bars, live polling, and loading/error states. The gaps below are the delta between the current state and a professional operational dashboard per standard design principles.
+
+### Gap 15 — Dashboard sparklines are hardcoded mock arrays
+
+**Status:** ⬜ Pending
+
+#### Problem
+`throughputSpark` and `errorSpark` in `app/dashboard/page.tsx` are compile-time constants (`[2, 5, 3, 8, ...]`). They never change and bear no relation to real job data. A sparkline that never moves is worse than no sparkline — it signals "fake data" to the user.
+
+#### Fix
+Derive sparkline buckets from the live `jobs` array already fetched by the page. Bucket `completed` jobs by `updated_at` into N time slots (last hour, 12 × 5-minute buckets). Bucket `failed`/`dead`/`retrying` jobs the same way for the error sparkline. This requires no new API call — it is pure client-side computation on existing data.
+
+```ts
+function buildSparkBuckets(jobs: Job[], status: string[], buckets = 12, windowMs = 3600_000): number[] {
+  const now = Date.now();
+  const bucketMs = windowMs / buckets;
+  const counts = Array(buckets).fill(0);
+  for (const j of jobs) {
+    if (!status.includes(j.status)) continue;
+    const age = now - new Date(j.updated_at).getTime();
+    if (age < 0 || age >= windowMs) continue;
+    counts[Math.floor(age / bucketMs)]++;
+  }
+  return counts.reverse(); // oldest → newest
+}
+```
+
+Replace the two hardcoded arrays with calls to this function, passing the live `jobs` array.
+
+#### Files to change
+- `frontend/app/dashboard/page.tsx`
+
+---
+
+### Gap 16 — Home page still uses mock `overview` import
+
+**Status:** ⬜ Pending
+
+#### Problem
+`app/page.tsx` imports `overview` from `@/lib/api` — the static mock object. The four metric cards on the landing page (`Workers`, `Running`, `Queued`, `Pipelines`) always show the mock values (3 workers, 1 running, 1 queued, 1 pipeline), ignoring the real API.
+
+#### Fix
+Convert `app/page.tsx` to `"use client"` and replace the mock import with `useJobs()`, `useWorkers()`, `usePipelines()` hooks. Compute the same four values client-side. Show `—` skeleton while loading.
+
+#### Files to change
+- `frontend/app/page.tsx`
+
+---
+
+### Gap 17 — No time-series throughput / error-rate chart
+
+**Status:** ⬜ Pending
+
+#### Problem
+The dashboard has no "trends over time" visualization. Per standard operational dashboard design, monitoring real-time performance requires a line or area chart. Without it, users cannot tell if the system is accelerating, degrading, or stable over the last hour.
+
+#### Fix
+Add a Recharts `<AreaChart>` (already installed) to the dashboard overview showing job completions and failures over the last 60 minutes, bucketed into 12 × 5-minute intervals. Data is derived client-side from the live `jobs` array (same bucketing logic as Gap 15).
+
+Layout: replace the standalone sparklines in the "Recent jobs" card header with a dedicated chart strip above the table — or as a separate card in the 2-column section.
+
+Axes: x = time label (`−55m`, `−50m`, … `now`), y = job count. Two area series: `completed` (primary/aqua, semi-transparent fill) and `failed+dead` (danger, semi-transparent fill).
+
+#### Files to change
+- `frontend/app/dashboard/page.tsx`
+
+---
+
+### Gap 18 — Job status distribution has no visual weight
+
+**Status:** ⬜ Pending
+
+#### Problem
+The status distribution section at the bottom of the dashboard shows 8 equal-sized tiles each containing only a number and a badge. All tiles look identical regardless of count — a job with 0 occurrences looks the same as one with 50. This violates the "data storytelling" principle: the visual should encode the value.
+
+#### Fix
+Add a proportional horizontal bar inside each tile whose width is `count / totalJobs * 100%`. Use the status badge color for the bar. This makes the distribution scannable at a glance without needing to read each number.
+
+#### Files to change
+- `frontend/app/dashboard/page.tsx`
+
+---
+
+### Gap 19 — Dashboard overview job rows not linked to detail
+
+**Status:** ⬜ Pending
+
+#### Problem
+The "Recent jobs" table in the dashboard overview has `cursor-pointer` styling but clicking a row does nothing — there is no `<Link>` or `onClick` navigation. Users who spot a problem job must manually navigate to `/dashboard/jobs` and search for it.
+
+#### Fix
+Wrap job name cells with `<Link href="/dashboard/jobs/{job.id}">`. The row already has `hover:bg-muted/20` styling; the link makes it functional.
+
+#### Files to change
+- `frontend/app/dashboard/page.tsx`
+
+---
+
+### Gap 20 — Dashboard overview pipeline rows not linked to detail
+
+**Status:** ⬜ Pending
+
+#### Problem
+Same issue as Gap 19 but for the "Active pipelines" list in the dashboard overview. Pipeline rows have `cursor-pointer` but no navigation.
+
+#### Fix
+Wrap each pipeline row div with `<Link href="/dashboard/pipelines/{p.id}">`.
+
+#### Files to change
+- `frontend/app/dashboard/page.tsx`
+
+---
+
+### Gap 21 — Worker metric card shows no fleet utilization %
+
+**Status:** ⬜ Pending
+
+#### Problem
+The "Workers" metric card shows `{usedSlots}/{totalSlots} slots used` as detail text but the main `value` prop is just the worker count. The most operationally useful single number is fleet utilization percentage — it immediately tells an operator whether the cluster is idle, healthy, or saturated.
+
+#### Fix
+Change the "Workers" MetricCard `value` to `{Math.round((usedSlots / Math.max(totalSlots, 1)) * 100)}%` and `detail` to `{usedSlots}/{totalSlots} slots · {activeWorkers} workers`. Add `tone` logic: `> 90%` → danger, `> 70%` → warning, else aqua.
+
+#### Files to change
+- `frontend/app/dashboard/page.tsx`
+
+---
 
 ## Dependencies Not in scope for Phase 11
 
