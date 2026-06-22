@@ -6,11 +6,13 @@ import {
   GitBranch, Github,
   RefreshCw,
   Server,
-  Shield, Sun,
+  Shield, Sun, Moon,
   Waypoints, Zap
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 import { Badge, Button, Card } from "@/components/ui";
 import { useJobs, usePipelines, useWorkers } from "@/lib/hooks";
@@ -85,6 +87,10 @@ export default function HomePage() {
   const { data: workers = [] } = useWorkers();
   const { data: pipelines = [] } = usePipelines();
 
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const running = jobs.filter(j => j.status === "running").length;
   const queued = jobs.filter(j => j.status === "queued").length;
   const active = workers.filter(w => w.status !== "offline").length;
@@ -108,8 +114,11 @@ export default function HomePage() {
           <a href="https://github.com/shreeharshshinde/orion" target="_blank" rel="noreferrer" className="flex items-center gap-2 transition-colors hover:text-foreground">
             <Github className="h-4 w-4" /> GitHub
           </a>
-          <button className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-muted/20 transition-colors hover:bg-muted/40 hover:text-foreground">
-            <Sun className="h-4 w-4" />
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-muted/20 transition-colors hover:bg-muted/40 hover:text-foreground"
+          >
+            {mounted && theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </button>
         </nav>
       </header>

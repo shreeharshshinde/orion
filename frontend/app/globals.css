@@ -6,6 +6,30 @@
 @tailwind utilities;
 
 :root {
+  --background: 0 0% 100%;
+  --foreground: 226 65% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 226 65% 10%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 14% 46%;
+  --primary: 184 85% 42%;
+  --primary-foreground: 0 0% 100%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 184 85% 42%;
+  --success: 152 80% 40%;
+  --warning: 38 95% 48%;
+  --danger: 350 85% 50%;
+  --aqua: 184 85% 42%;
+  --violet: 263 90% 58%;
+  --panel-glow: 184 85% 42%;
+  --grid-opacity: 0.15;
+  --glow-1: 0.08;
+  --glow-2: 0.05;
+  --glow-3: 0.03;
+}
+
+.dark {
   --background: 226 40% 1%;
   --foreground: 190 100% 96%;
   --card: 224 42% 9%;
@@ -23,6 +47,10 @@
   --aqua: 184 85% 52%;
   --violet: 263 90% 68%;
   --panel-glow: 184 85% 52%;
+  --grid-opacity: 0.04;
+  --glow-1: 0.05;
+  --glow-2: 0.04;
+  --glow-3: 0.02;
 }
 
 * {
@@ -41,9 +69,9 @@ body {
   min-height: 100vh;
   background-color: hsl(var(--background));
   background-image:
-    radial-gradient(ellipse at 18% 0%, rgba(0, 220, 235, 0.05) 0%, transparent 40%),
-    radial-gradient(ellipse at 88% 10%, rgba(150, 80, 240, 0.04) 0%, transparent 36%),
-    radial-gradient(ellipse at 50% 100%, rgba(16, 175, 120, 0.02) 0%, transparent 40%);
+    radial-gradient(ellipse at 18% 0%, hsl(var(--aqua) / var(--glow-1)) 0%, transparent 40%),
+    radial-gradient(ellipse at 88% 10%, hsl(var(--violet) / var(--glow-2)) 0%, transparent 36%),
+    radial-gradient(ellipse at 50% 100%, hsl(var(--success) / var(--glow-3)) 0%, transparent 40%);
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;
@@ -53,8 +81,8 @@ body {
 /* Line-grid background — very subtle, won't compete with content */
 .bg-grid {
   background-image:
-    linear-gradient(rgba(0, 220, 235, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 220, 235, 0.04) 1px, transparent 1px);
+    linear-gradient(hsl(var(--primary) / var(--grid-opacity)) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--primary) / var(--grid-opacity)) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
