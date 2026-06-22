@@ -23,7 +23,8 @@
 - [Phase 9 — Helm Chart and Kubernetes Deployment](#phase-9--helm-chart-and-kubernetes-deployment)
 - [Phase 10 — Observability Hardening](#phase-10--observability-hardening)
 - [Phase 11 — Frontend Completion](#phase-11--frontend-completion)
-- [End State — What Orion Looks Like Today](#end-state--what-orion-looks-like-when-complete)
+- [Phase 12 — Documentation Site Integration](#phase-12--documentation-site-integration)
+- [End State — What Orion Looks Like Today](#end-state--what-orion-looks-like-today)
 - [File Growth by Phase](#file-growth-by-phase)
 - [Decision Log](#decision-log)
 
@@ -133,6 +134,7 @@ OBSERVABILITY (all phases)
 | **9** | Helm + Production | ✅ Complete | Kubernetes deployment, TLS, autoscaling | `helm install orion` deploys all services |
 | **10** | Observability Hardening | 🔲 Planned | Fix missing metrics, Jaeger UI, OTel interceptors, alerting | Grafana traces work, alerts fire |
 | **11** | Frontend Completion | 🔲 Planned | Fully interactive Next.js dashboard UI | Jobs submitted via UI, live updates |
+| **12** | Documentation Site | 🔲 Planned | Integrated modern documentation portal | Docs served seamlessly from frontend |
 
 ---
 
@@ -1041,6 +1043,27 @@ The orchestration platform needs an operational UI. This phase enables users to 
 - Live queue configurations
 - Submission forms for jobs and pipelines
 
+---
+
+## Phase 12 — Documentation Site Integration
+
+**Status: 🔲 Planned**
+
+### What this phase does
+
+Integrates a fully-featured, modern documentation site directly into the frontend. It will feature a sleek dark-mode UI, a left-hand navigation sidebar for categories (Overview, First Steps, Guides), a main content area for rich markdown rendering, and a right-hand "On this page" table of contents.
+
+### Why this matters
+
+As the Orion orchestration platform matures, users need easily accessible, well-structured documentation to understand architecture, configuration, and API usage. A dedicated docs portal within the frontend provides a seamless developer experience, matching industry-standard documentation portals.
+
+### Core additions
+- Integrated Markdown/MDX rendering engine in Next.js
+- Left-sidebar navigation structure for project concepts and features
+- Right-sidebar dynamic Table of Contents
+- Advanced search functionality
+- Seamless aesthetic matching the frontend dashboard
+
 ## End State — What Orion Looks Like Today
 
 With Phases 1-9 completed, Orion is a production ML orchestration platform offering these capabilities. Phases 10-11 will further refine monitoring and user experience:
@@ -1113,6 +1136,7 @@ Phase 7:  60 files  (+7: proto, generated code, gRPC server, tests)
 Phase 8:  66 files  (+6: rate limiter, fair queue, config, migration)
 Phase 9:  82 files  (+16: Helm chart templates, Dockerfiles, deploy docs)
 Phase 10 & 11: Planned addition of robust frontend client components and further observability integrations.
+Phase 12: Planned integration of a comprehensive, interactive documentation portal into the frontend.
 ```
 
 ---
@@ -1148,4 +1172,5 @@ Key architectural decisions made early that constrain all later phases:
 | [`docs/adr/ADR-002-leader-election.md`](docs/adr/ADR-002-leader-election.md) | Why PostgreSQL advisory locks |
 | `docs/phases/phase-10/OBSERVABILITY_HARDENING.md` | Phase 10 observability hardening plans |
 | `docs/phases/phase-11/FRONTEND_COMPLETION.md` | Phase 11 interactive UI features |
-| **This file** | Complete project roadmap, spanning all 11 phases |
+| `docs/phases/phase-12/DOCS_INTEGRATION.md` | Phase 12 documentation portal |
+| **This file** | Complete project roadmap, spanning all 12 phases |
