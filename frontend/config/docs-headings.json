@@ -1,0 +1,4613 @@
+{
+  "overview": [
+    {
+      "id": "1-executive-summary",
+      "text": "1. Executive Summary",
+      "level": 2
+    },
+    {
+      "id": "2-high-level-architecture",
+      "text": "2. High-Level Architecture",
+      "level": 2
+    },
+    {
+      "id": "component-roles",
+      "text": "Component Roles",
+      "level": 3
+    },
+    {
+      "id": "3-core-principles-design-decisions",
+      "text": "3. Core Principles & Design Decisions",
+      "level": 2
+    },
+    {
+      "id": "postgresql-as-the-single-source-of-truth",
+      "text": "PostgreSQL as the Single Source of Truth",
+      "level": 3
+    },
+    {
+      "id": "redis-streams-for-delivery",
+      "text": "Redis Streams for Delivery",
+      "level": 3
+    },
+    {
+      "id": "goroutine-backpressure-model",
+      "text": "Goroutine Backpressure Model",
+      "level": 3
+    },
+    {
+      "id": "4-key-workflows-data-flow",
+      "text": "4. Key Workflows & Data Flow",
+      "level": 2
+    },
+    {
+      "id": "job-submission-idempotency",
+      "text": "Job Submission & Idempotency",
+      "level": 3
+    },
+    {
+      "id": "pipeline-dag-advancement",
+      "text": "Pipeline DAG Advancement",
+      "level": 3
+    },
+    {
+      "id": "leader-election",
+      "text": "Leader Election",
+      "level": 3
+    },
+    {
+      "id": "5-subsystems-deep-dive",
+      "text": "5. Subsystems Deep Dive",
+      "level": 2
+    },
+    {
+      "id": "the-fair-queue-rate-limiting",
+      "text": "The Fair Queue & Rate Limiting",
+      "level": 3
+    },
+    {
+      "id": "cross-process-job-cancellation",
+      "text": "Cross-Process Job Cancellation",
+      "level": 3
+    },
+    {
+      "id": "6-failure-modes-recovery",
+      "text": "6. Failure Modes & Recovery",
+      "level": 2
+    },
+    {
+      "id": "7-extension-points",
+      "text": "7. Extension Points",
+      "level": 2
+    },
+    {
+      "id": "8-architectural-decision-records-adrs",
+      "text": "8. Architectural Decision Records (ADRs)",
+      "level": 2
+    },
+    {
+      "id": "9-tradeoffs-limitations",
+      "text": "9. Tradeoffs & Limitations",
+      "level": 2
+    }
+  ],
+  "architecture-details": [
+    {
+      "id": "system-thesis",
+      "text": "System Thesis",
+      "level": 2
+    },
+    {
+      "id": "repository-map",
+      "text": "Repository Map",
+      "level": 2
+    },
+    {
+      "id": "execution-topology",
+      "text": "Execution Topology",
+      "level": 2
+    },
+    {
+      "id": "request-and-work-flow",
+      "text": "Request And Work Flow",
+      "level": 2
+    },
+    {
+      "id": "http-job-submission-to-completion",
+      "text": "HTTP Job Submission To Completion",
+      "level": 3
+    },
+    {
+      "id": "grpc-watchjob-flow",
+      "text": "gRPC WatchJob Flow",
+      "level": 3
+    },
+    {
+      "id": "domain-model",
+      "text": "Domain Model",
+      "level": 2
+    },
+    {
+      "id": "jobs",
+      "text": "Jobs",
+      "level": 3
+    },
+    {
+      "id": "workers",
+      "text": "Workers",
+      "level": 3
+    },
+    {
+      "id": "pipelines-and-dags",
+      "text": "Pipelines And DAGs",
+      "level": 3
+    },
+    {
+      "id": "persistence-layer",
+      "text": "Persistence Layer",
+      "level": 2
+    },
+    {
+      "id": "interface-boundaries",
+      "text": "Interface Boundaries",
+      "level": 3
+    },
+    {
+      "id": "typed-errors",
+      "text": "Typed Errors",
+      "level": 3
+    },
+    {
+      "id": "functional-options",
+      "text": "Functional Options",
+      "level": 3
+    },
+    {
+      "id": "postgresql-implementation",
+      "text": "PostgreSQL Implementation",
+      "level": 2
+    },
+    {
+      "id": "core-sql-schema",
+      "text": "Core SQL Schema",
+      "level": 3
+    },
+    {
+      "id": "idempotent-job-creation",
+      "text": "Idempotent Job Creation",
+      "level": 3
+    },
+    {
+      "id": "compare-and-swap-state-transitions",
+      "text": "Compare-And-Swap State Transitions",
+      "level": 3
+    },
+    {
+      "id": "postgresql-listen-notify",
+      "text": "PostgreSQL LISTEN/NOTIFY",
+      "level": 3
+    },
+    {
+      "id": "claimpendingjobs",
+      "text": "ClaimPendingJobs",
+      "level": 3
+    },
+    {
+      "id": "orphan-reclamation",
+      "text": "Orphan Reclamation",
+      "level": 3
+    },
+    {
+      "id": "execution-audit",
+      "text": "Execution Audit",
+      "level": 3
+    },
+    {
+      "id": "jsonb-payloads",
+      "text": "JSONB Payloads",
+      "level": 3
+    },
+    {
+      "id": "redis-queue-implementation",
+      "text": "Redis Queue Implementation",
+      "level": 2
+    },
+    {
+      "id": "streams-and-consumer-groups",
+      "text": "Streams And Consumer Groups",
+      "level": 3
+    },
+    {
+      "id": "ack-function-semantics",
+      "text": "Ack Function Semantics",
+      "level": 3
+    },
+    {
+      "id": "pel-reclaim",
+      "text": "PEL Reclaim",
+      "level": 3
+    },
+    {
+      "id": "scheduled-jobs",
+      "text": "Scheduled Jobs",
+      "level": 3
+    },
+    {
+      "id": "queue-name-mapping",
+      "text": "Queue Name Mapping",
+      "level": 3
+    },
+    {
+      "id": "scheduler",
+      "text": "Scheduler",
+      "level": 2
+    },
+    {
+      "id": "leader-election",
+      "text": "Leader Election",
+      "level": 3
+    },
+    {
+      "id": "scheduler-tick-work",
+      "text": "Scheduler Tick Work",
+      "level": 3
+    },
+    {
+      "id": "weighted-fair-dispatch",
+      "text": "Weighted Fair Dispatch",
+      "level": 3
+    },
+    {
+      "id": "token-bucket-rate-limiter",
+      "text": "Token Bucket Rate Limiter",
+      "level": 3
+    },
+    {
+      "id": "retry-promotion",
+      "text": "Retry Promotion",
+      "level": 3
+    },
+    {
+      "id": "pipeline-advancer",
+      "text": "Pipeline Advancer",
+      "level": 2
+    },
+    {
+      "id": "worker-pool",
+      "text": "Worker Pool",
+      "level": 2
+    },
+    {
+      "id": "concurrency-shape",
+      "text": "Concurrency Shape",
+      "level": 3
+    },
+    {
+      "id": "shutdown",
+      "text": "Shutdown",
+      "level": 3
+    },
+    {
+      "id": "execution-state-machine",
+      "text": "Execution State Machine",
+      "level": 3
+    },
+    {
+      "id": "retry-accounting",
+      "text": "Retry Accounting",
+      "level": 3
+    },
+    {
+      "id": "inline-executor",
+      "text": "Inline Executor",
+      "level": 2
+    },
+    {
+      "id": "kubernetes-executor",
+      "text": "Kubernetes Executor",
+      "level": 2
+    },
+    {
+      "id": "client-construction",
+      "text": "Client Construction",
+      "level": 3
+    },
+    {
+      "id": "job-translation",
+      "text": "Job Translation",
+      "level": 3
+    },
+    {
+      "id": "watch-with-poll-fallback",
+      "text": "Watch With Poll Fallback",
+      "level": 3
+    },
+    {
+      "id": "cancellation-cleanup",
+      "text": "Cancellation Cleanup",
+      "level": 3
+    },
+    {
+      "id": "cancellation",
+      "text": "Cancellation",
+      "level": 2
+    },
+    {
+      "id": "api-layer",
+      "text": "API Layer",
+      "level": 2
+    },
+    {
+      "id": "rest-handlers",
+      "text": "REST Handlers",
+      "level": 3
+    },
+    {
+      "id": "validation",
+      "text": "Validation",
+      "level": 3
+    },
+    {
+      "id": "grpc",
+      "text": "gRPC",
+      "level": 3
+    },
+    {
+      "id": "broadcaster-pattern",
+      "text": "Broadcaster Pattern",
+      "level": 3
+    },
+    {
+      "id": "observability",
+      "text": "Observability",
+      "level": 2
+    },
+    {
+      "id": "metrics",
+      "text": "Metrics",
+      "level": 3
+    },
+    {
+      "id": "http-middleware",
+      "text": "HTTP Middleware",
+      "level": 3
+    },
+    {
+      "id": "logging",
+      "text": "Logging",
+      "level": 3
+    },
+    {
+      "id": "distributed-systems-principles",
+      "text": "Distributed Systems Principles",
+      "level": 2
+    },
+    {
+      "id": "source-of-truth",
+      "text": "Source Of Truth",
+      "level": 3
+    },
+    {
+      "id": "at-least-once-delivery",
+      "text": "At-Least-Once Delivery",
+      "level": 3
+    },
+    {
+      "id": "idempotency",
+      "text": "Idempotency",
+      "level": 3
+    },
+    {
+      "id": "fault-tolerance",
+      "text": "Fault Tolerance",
+      "level": 3
+    },
+    {
+      "id": "consistency-model",
+      "text": "Consistency Model",
+      "level": 3
+    },
+    {
+      "id": "backpressure",
+      "text": "Backpressure",
+      "level": 3
+    },
+    {
+      "id": "kubernetes-concepts-present-and-absent",
+      "text": "Kubernetes Concepts Present And Absent",
+      "level": 2
+    },
+    {
+      "id": "deployment-and-security",
+      "text": "Deployment And Security",
+      "level": 2
+    },
+    {
+      "id": "docker-compose",
+      "text": "Docker Compose",
+      "level": 3
+    },
+    {
+      "id": "helm-chart",
+      "text": "Helm Chart",
+      "level": 3
+    },
+    {
+      "id": "rbac",
+      "text": "RBAC",
+      "level": 3
+    },
+    {
+      "id": "network-policy",
+      "text": "Network Policy",
+      "level": 3
+    },
+    {
+      "id": "frontend",
+      "text": "Frontend",
+      "level": 2
+    },
+    {
+      "id": "algorithms-and-data-structures",
+      "text": "Algorithms And Data Structures",
+      "level": 2
+    },
+    {
+      "id": "go-concepts-in-use",
+      "text": "Go Concepts In Use",
+      "level": 2
+    },
+    {
+      "id": "testing-strategy",
+      "text": "Testing Strategy",
+      "level": 2
+    },
+    {
+      "id": "performance-and-scaling",
+      "text": "Performance And Scaling",
+      "level": 2
+    },
+    {
+      "id": "security-considerations",
+      "text": "Security Considerations",
+      "level": 2
+    },
+    {
+      "id": "design-patterns",
+      "text": "Design Patterns",
+      "level": 2
+    },
+    {
+      "id": "important-contributor-mental-model",
+      "text": "Important Contributor Mental Model",
+      "level": 2
+    },
+    {
+      "id": "file-by-file-concept-index",
+      "text": "File-By-File Concept Index",
+      "level": 2
+    },
+    {
+      "id": "known-gaps-and-reimplementation-notes",
+      "text": "Known Gaps And Reimplementation Notes",
+      "level": 2
+    }
+  ],
+  "local-development": [
+    {
+      "id": "what-you-get-at-the-end",
+      "text": "What You Get At The End",
+      "level": 2
+    },
+    {
+      "id": "local-credentials-and-ports",
+      "text": "Local Credentials And Ports",
+      "level": 2
+    },
+    {
+      "id": "prerequisites",
+      "text": "Prerequisites",
+      "level": 2
+    },
+    {
+      "id": "start-local-infrastructure",
+      "text": "Start Local Infrastructure",
+      "level": 2
+    },
+    {
+      "id": "environment-for-local-services",
+      "text": "Environment For Local Services",
+      "level": 2
+    },
+    {
+      "id": "run-the-three-orion-services",
+      "text": "Run The Three Orion Services",
+      "level": 2
+    },
+    {
+      "id": "submit-real-local-inline-jobs",
+      "text": "Submit Real Local Inline Jobs",
+      "level": 2
+    },
+    {
+      "id": "noop-job",
+      "text": "Noop Job",
+      "level": 3
+    },
+    {
+      "id": "echo-job-with-args",
+      "text": "Echo Job With Args",
+      "level": 3
+    },
+    {
+      "id": "slow-job-for-cancellation-deadline-testing",
+      "text": "Slow Job For Cancellation/Deadline Testing",
+      "level": 3
+    },
+    {
+      "id": "failing-job-for-retry-dead-state",
+      "text": "Failing Job For Retry/Dead State",
+      "level": 3
+    },
+    {
+      "id": "submit-a-real-kubernetes-job",
+      "text": "Submit A Real Kubernetes Job",
+      "level": 2
+    },
+    {
+      "id": "test-pipelines-locally",
+      "text": "Test Pipelines Locally",
+      "level": 2
+    },
+    {
+      "id": "grpc-streaming-test",
+      "text": "gRPC Streaming Test",
+      "level": 2
+    },
+    {
+      "id": "inspect-the-database-and-redis",
+      "text": "Inspect The Database And Redis",
+      "level": 2
+    },
+    {
+      "id": "run-the-next-js-product-dashboard",
+      "text": "Run The Next.js Product Dashboard",
+      "level": 2
+    },
+    {
+      "id": "grafana-and-metrics-dashboard",
+      "text": "Grafana And Metrics Dashboard",
+      "level": 2
+    },
+    {
+      "id": "common-local-problems",
+      "text": "Common Local Problems",
+      "level": 2
+    },
+    {
+      "id": "fast-happy-path-checklist",
+      "text": "Fast Happy Path Checklist",
+      "level": 2
+    }
+  ],
+  "concepts/overview": [
+    {
+      "id": "architectural-guarantees",
+      "text": "Architectural Guarantees",
+      "level": 2
+    },
+    {
+      "id": "service-topology",
+      "text": "Service Topology",
+      "level": 2
+    },
+    {
+      "id": "core-workflows",
+      "text": "Core Workflows",
+      "level": 2
+    },
+    {
+      "id": "1-end-to-end-job-submission",
+      "text": "1. End-to-End Job Submission",
+      "level": 3
+    },
+    {
+      "id": "2-real-time-job-watching-grpc",
+      "text": "2. Real-Time Job Watching (gRPC)",
+      "level": 3
+    }
+  ],
+  "concepts/domain-model": [
+    {
+      "id": "jobs-execution-states",
+      "text": "Jobs & Execution States",
+      "level": 2
+    },
+    {
+      "id": "job-status-state-machine",
+      "text": "Job Status State Machine",
+      "level": 3
+    },
+    {
+      "id": "transition-enforcements",
+      "text": "Transition Enforcements",
+      "level": 3
+    },
+    {
+      "id": "workers-heartbeat-liveness",
+      "text": "Workers & Heartbeat Liveness",
+      "level": 2
+    },
+    {
+      "id": "fields-and-functions",
+      "text": "Fields and Functions",
+      "level": 3
+    },
+    {
+      "id": "pipelines-directed-acyclic-graphs-dags",
+      "text": "Pipelines & Directed Acyclic Graphs (DAGs)",
+      "level": 2
+    },
+    {
+      "id": "dag-specification",
+      "text": "DAG Specification",
+      "level": 3
+    },
+    {
+      "id": "dependency-resolution-readynodes",
+      "text": "Dependency Resolution (ReadyNodes)",
+      "level": 3
+    },
+    {
+      "id": "complexity-metrics",
+      "text": "Complexity Metrics",
+      "level": 3
+    }
+  ],
+  "concepts/persistence": [
+    {
+      "id": "interface-boundaries",
+      "text": "Interface Boundaries",
+      "level": 2
+    },
+    {
+      "id": "database-schema-indexing",
+      "text": "Database Schema & Indexing",
+      "level": 2
+    },
+    {
+      "id": "essential-indexes",
+      "text": "Essential Indexes",
+      "level": 3
+    },
+    {
+      "id": "state-transition-functional-options",
+      "text": "State Transition Functional Options",
+      "level": 2
+    },
+    {
+      "id": "postgresql-cas-compare-and-swap",
+      "text": "PostgreSQL CAS (Compare-and-Swap)",
+      "level": 3
+    }
+  ],
+  "concepts/scheduler": [
+    {
+      "id": "leader-election-via-advisory-locks",
+      "text": "Leader Election via Advisory Locks",
+      "level": 2
+    },
+    {
+      "id": "dedicated-connection-pinning",
+      "text": "Dedicated Connection Pinning",
+      "level": 3
+    },
+    {
+      "id": "scheduler-loops-tickers",
+      "text": "Scheduler Loops & Tickers",
+      "level": 2
+    },
+    {
+      "id": "weighted-fair-dispatch",
+      "text": "Weighted Fair Dispatch",
+      "level": 2
+    },
+    {
+      "id": "token-bucket-rate-limiter",
+      "text": "Token Bucket Rate Limiter",
+      "level": 2
+    },
+    {
+      "id": "retry-promotion-backoff-jitter",
+      "text": "Retry Promotion & Backoff Jitter",
+      "level": 2
+    }
+  ],
+  "concepts/worker-pool": [
+    {
+      "id": "dequeue-loops-channel-backpressure",
+      "text": "Dequeue Loops & Channel Backpressure",
+      "level": 2
+    },
+    {
+      "id": "flow-mechanics",
+      "text": "Flow Mechanics",
+      "level": 3
+    },
+    {
+      "id": "concurrency-primitives",
+      "text": "Concurrency Primitives",
+      "level": 2
+    },
+    {
+      "id": "graceful-shutdown-flow",
+      "text": "Graceful Shutdown Flow",
+      "level": 2
+    },
+    {
+      "id": "task-execution-state-machine",
+      "text": "Task Execution State Machine",
+      "level": 2
+    }
+  ],
+  "concepts/executors": [
+    {
+      "id": "inline-executor",
+      "text": "Inline Executor",
+      "level": 2
+    },
+    {
+      "id": "kubernetes-executor",
+      "text": "Kubernetes Executor",
+      "level": 2
+    },
+    {
+      "id": "spec-translation-decisions",
+      "text": "Spec Translation Decisions",
+      "level": 3
+    },
+    {
+      "id": "watch-with-poll-fallback",
+      "text": "Watch with Poll Fallback",
+      "level": 2
+    },
+    {
+      "id": "cancellation-foreground-cleanup",
+      "text": "Cancellation & Foreground Cleanup",
+      "level": 2
+    },
+    {
+      "id": "foreground-cascade-deletion",
+      "text": "Foreground Cascade Deletion",
+      "level": 3
+    }
+  ],
+  "concepts/pipeline-advancer": [
+    {
+      "id": "the-advancement-loop",
+      "text": "The Advancement Loop",
+      "level": 2
+    },
+    {
+      "id": "cascade-cancellation",
+      "text": "Cascade Cancellation",
+      "level": 2
+    },
+    {
+      "id": "idempotence-safety",
+      "text": "Idempotence & Safety",
+      "level": 2
+    }
+  ],
+  "concepts/queue-delivery": [
+    {
+      "id": "streams-consumer-groups",
+      "text": "Streams & Consumer Groups",
+      "level": 2
+    },
+    {
+      "id": "lazy-group-creation",
+      "text": "Lazy Group Creation",
+      "level": 3
+    },
+    {
+      "id": "dequeue-consumption",
+      "text": "Dequeue Consumption",
+      "level": 3
+    },
+    {
+      "id": "pending-entries-list-pel-reclaims",
+      "text": "Pending Entries List (PEL) & Reclaims",
+      "level": 2
+    },
+    {
+      "id": "acknowledgement-semantics",
+      "text": "Acknowledgement Semantics",
+      "level": 3
+    },
+    {
+      "id": "future-scheduled-zset-queue",
+      "text": "Future-Scheduled ZSET Queue",
+      "level": 2
+    }
+  ],
+  "concepts/distributed-systems": [
+    {
+      "id": "authority-consistency-model",
+      "text": "Authority & Consistency Model",
+      "level": 2
+    },
+    {
+      "id": "multi-layered-idempotency",
+      "text": "Multi-Layered Idempotency",
+      "level": 2
+    },
+    {
+      "id": "multi-level-backpressure",
+      "text": "Multi-Level Backpressure",
+      "level": 2
+    },
+    {
+      "id": "fault-tolerance-mechanisms",
+      "text": "Fault Tolerance Mechanisms",
+      "level": 2
+    }
+  ],
+  "concepts/observability": [
+    {
+      "id": "prometheus-metrics",
+      "text": "Prometheus Metrics",
+      "level": 2
+    },
+    {
+      "id": "cardinality-discipline",
+      "text": "Cardinality Discipline",
+      "level": 3
+    },
+    {
+      "id": "core-metric-families",
+      "text": "Core Metric Families",
+      "level": 3
+    },
+    {
+      "id": "opentelemetry-tracing",
+      "text": "OpenTelemetry Tracing",
+      "level": 2
+    },
+    {
+      "id": "structured-logging",
+      "text": "Structured Logging",
+      "level": 2
+    },
+    {
+      "id": "real-time-grpc-event-broadcaster",
+      "text": "Real-Time gRPC Event Broadcaster",
+      "level": 2
+    }
+  ],
+  "runbook": [
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "how-the-system-works",
+      "text": "How the System Works",
+      "level": 2
+    },
+    {
+      "id": "prerequisites",
+      "text": "Prerequisites",
+      "level": 2
+    },
+    {
+      "id": "infrastructure-setup",
+      "text": "Infrastructure Setup",
+      "level": 2
+    },
+    {
+      "id": "start-containers",
+      "text": "Start containers",
+      "level": 3
+    },
+    {
+      "id": "verify-containers-are-healthy",
+      "text": "Verify containers are healthy",
+      "level": 3
+    },
+    {
+      "id": "apply-database-migrations",
+      "text": "Apply database migrations",
+      "level": 3
+    },
+    {
+      "id": "tear-down",
+      "text": "Tear down",
+      "level": 3
+    },
+    {
+      "id": "running-the-services",
+      "text": "Running the Services",
+      "level": 2
+    },
+    {
+      "id": "phase-by-phase-execution",
+      "text": "Phase-by-Phase Execution",
+      "level": 2
+    },
+    {
+      "id": "phase-1-domain-types-retry-package",
+      "text": "Phase 1 — Domain types + retry package",
+      "level": 3
+    },
+    {
+      "id": "phase-2-postgresql-store",
+      "text": "Phase 2 — PostgreSQL store",
+      "level": 3
+    },
+    {
+      "id": "phase-3-redis-queue-api-handlers",
+      "text": "Phase 3 — Redis queue + API handlers",
+      "level": 3
+    },
+    {
+      "id": "phase-4-worker-pool-inline-executor",
+      "text": "Phase 4 — Worker pool + inline executor",
+      "level": 3
+    },
+    {
+      "id": "phase-5-scheduler-pipeline-advancement",
+      "text": "Phase 5 — Scheduler + pipeline advancement",
+      "level": 3
+    },
+    {
+      "id": "phase-6-observability",
+      "text": "Phase 6 — Observability",
+      "level": 3
+    },
+    {
+      "id": "submitting-a-job-end-to-end-test",
+      "text": "Submitting a Job (End-to-End Test)",
+      "level": 2
+    },
+    {
+      "id": "inline-job-runs-inside-worker-process",
+      "text": "Inline job (runs inside worker process)",
+      "level": 3
+    },
+    {
+      "id": "check-job-status",
+      "text": "Check job status",
+      "level": 3
+    },
+    {
+      "id": "expected-status-progression",
+      "text": "Expected status progression",
+      "level": 3
+    },
+    {
+      "id": "list-all-jobs",
+      "text": "List all jobs",
+      "level": 3
+    },
+    {
+      "id": "health-check",
+      "text": "Health check",
+      "level": 3
+    },
+    {
+      "id": "debugging-runbook",
+      "text": "Debugging Runbook",
+      "level": 2
+    },
+    {
+      "id": "service-won-t-start-postgres-ping-failed",
+      "text": "Service won't start — postgres ping failed",
+      "level": 3
+    },
+    {
+      "id": "service-won-t-start-failed-to-connect-to-redis",
+      "text": "Service won't start — failed to connect to redis",
+      "level": 3
+    },
+    {
+      "id": "migrate-up-fails-connection-refused",
+      "text": "migrate-up fails — connection refused",
+      "level": 3
+    },
+    {
+      "id": "jobs-stuck-in-queued-never-become-scheduled",
+      "text": "Jobs stuck in queued — never become scheduled",
+      "level": 3
+    },
+    {
+      "id": "jobs-stuck-in-scheduled-never-become-running",
+      "text": "Jobs stuck in scheduled — never become running",
+      "level": 3
+    },
+    {
+      "id": "metrics-server-error-bind-address-already-in-use-on-port-9091",
+      "text": "metrics server error: bind: address already in use on port 9091",
+      "level": 3
+    },
+    {
+      "id": "worker-logs-show-kubernetes-client-unavailable",
+      "text": "Worker logs show kubernetes client unavailable",
+      "level": 3
+    },
+    {
+      "id": "traces-not-appearing-in-jaeger",
+      "text": "Traces not appearing in Jaeger",
+      "level": 3
+    },
+    {
+      "id": "tests-fail-with-connection-refused-integration-tests",
+      "text": "Tests fail with connection refused (integration tests)",
+      "level": 3
+    },
+    {
+      "id": "how-to-reset-everything",
+      "text": "How to reset everything",
+      "level": 3
+    },
+    {
+      "id": "general-log-reading-tips",
+      "text": "General log reading tips",
+      "level": 3
+    },
+    {
+      "id": "observability-endpoints",
+      "text": "Observability Endpoints",
+      "level": 2
+    },
+    {
+      "id": "environment-variables-reference",
+      "text": "Environment Variables Reference",
+      "level": 2
+    }
+  ],
+  "deployment": [
+    {
+      "id": "prerequisites",
+      "text": "Prerequisites",
+      "level": 2
+    },
+    {
+      "id": "path-a-local-demo-docker-compose",
+      "text": "Path A — Local Demo (Docker Compose)",
+      "level": 2
+    },
+    {
+      "id": "step-1-environment",
+      "text": "Step 1 — Environment",
+      "level": 3
+    },
+    {
+      "id": "step-2-start-infrastructure",
+      "text": "Step 2 — Start infrastructure",
+      "level": 3
+    },
+    {
+      "id": "step-3-apply-migrations",
+      "text": "Step 3 — Apply migrations",
+      "level": 3
+    },
+    {
+      "id": "step-4-run-the-three-services",
+      "text": "Step 4 — Run the three services",
+      "level": 3
+    },
+    {
+      "id": "step-5-verify-everything-is-up",
+      "text": "Step 5 — Verify everything is up",
+      "level": 3
+    },
+    {
+      "id": "observability-urls",
+      "text": "Observability URLs",
+      "level": 3
+    },
+    {
+      "id": "tear-down",
+      "text": "Tear down",
+      "level": 3
+    },
+    {
+      "id": "path-b-cloud-shareable-docker-images-a-vps-or-managed-k8s",
+      "text": "Path B — Cloud / Shareable (Docker images + a VPS or managed K8s)",
+      "level": 2
+    },
+    {
+      "id": "option-b1-single-vps-simplest-public-demo",
+      "text": "Option B1 — Single VPS (simplest public demo)",
+      "level": 3
+    },
+    {
+      "id": "option-b2-kubernetes-via-helm-production-grade-demo",
+      "text": "Option B2 — Kubernetes via Helm (production-grade demo)",
+      "level": 3
+    },
+    {
+      "id": "smoke-test-checklist",
+      "text": "Smoke Test Checklist",
+      "level": 2
+    },
+    {
+      "id": "troubleshooting",
+      "text": "Troubleshooting",
+      "level": 2
+    },
+    {
+      "id": "what-to-show-during-a-demo",
+      "text": "What to Show During a Demo",
+      "level": 2
+    }
+  ],
+  "inspection": [
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-what-was-built-phase-by-phase",
+      "text": "1. What Was Built — Phase by Phase",
+      "level": 2
+    },
+    {
+      "id": "phase-1-domain-types-interfaces-project-structure",
+      "text": "Phase 1 — Domain Types, Interfaces, Project Structure ✅",
+      "level": 3
+    },
+    {
+      "id": "phase-2-postgresql-store-implementation",
+      "text": "Phase 2 — PostgreSQL Store Implementation ✅",
+      "level": 3
+    },
+    {
+      "id": "phase-3-worker-pool-inline-executor",
+      "text": "Phase 3 — Worker Pool + Inline Executor ✅",
+      "level": 3
+    },
+    {
+      "id": "phase-4-kubernetes-executor",
+      "text": "Phase 4 — Kubernetes Executor ✅",
+      "level": 3
+    },
+    {
+      "id": "phase-5-dag-pipeline-support",
+      "text": "Phase 5 — DAG Pipeline Support ✅",
+      "level": 3
+    },
+    {
+      "id": "phase-6-observability-instrumentation",
+      "text": "Phase 6 — Observability Instrumentation ✅",
+      "level": 3
+    },
+    {
+      "id": "phase-7-grpc-streaming-api",
+      "text": "Phase 7 — gRPC Streaming API ✅",
+      "level": 3
+    },
+    {
+      "id": "phase-8-fair-scheduling-rate-limiting",
+      "text": "Phase 8 — Fair Scheduling + Rate Limiting ✅",
+      "level": 3
+    },
+    {
+      "id": "phase-9-helm-chart-production-hardening",
+      "text": "Phase 9 — Helm Chart + Production Hardening ✅",
+      "level": 3
+    },
+    {
+      "id": "2-architecture-assessment",
+      "text": "2. Architecture Assessment",
+      "level": 2
+    },
+    {
+      "id": "what-works-well",
+      "text": "What Works Well",
+      "level": 3
+    },
+    {
+      "id": "structural-concerns",
+      "text": "Structural Concerns",
+      "level": 3
+    },
+    {
+      "id": "3-what-is-missing-incomplete",
+      "text": "3. What Is Missing / Incomplete",
+      "level": 2
+    },
+    {
+      "id": "critical-missing-pieces",
+      "text": "Critical Missing Pieces",
+      "level": 3
+    },
+    {
+      "id": "missing-operational-features",
+      "text": "Missing Operational Features",
+      "level": 3
+    },
+    {
+      "id": "4-potential-bugs-and-risk-areas",
+      "text": "4. Potential Bugs and Risk Areas",
+      "level": 2
+    },
+    {
+      "id": "bug-1-advisory-lock-on-pooled-connection-high-risk-resolved",
+      "text": "Bug 1 — Advisory Lock on Pooled Connection (HIGH RISK) ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "bug-2-double-execution-risk-on-worker-restart-during-markjobrunning-medium-resolved",
+      "text": "Bug 2 — Double-Execution Risk on Worker Restart During MarkJobRunning (MEDIUM) ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "bug-3-dequeueloop-goroutine-leak-on-shutdown-low-medium-resolved",
+      "text": "Bug 3 — dequeueLoop Goroutine Leak on Shutdown (LOW-MEDIUM) ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "bug-4-promoteretryablejobs-fetches-all-failed-jobs-medium-performance-resolved",
+      "text": "Bug 4 — promoteRetryableJobs Fetches All Failed Jobs (MEDIUM — Performance) ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "bug-5-isuniqueviolation-uses-string-matching-low-resolved",
+      "text": "Bug 5 — isUniqueViolation Uses String Matching (LOW) ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "bug-6-reclaimstalepending-consumer-id-is-reclaimer-low-resolved",
+      "text": "Bug 6 — ReclaimStalePending Consumer ID is \"reclaimer\" (LOW) ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "bug-7-dequeue-creates-a-new-consumer-id-per-call-low-resolved",
+      "text": "Bug 7 — Dequeue Creates a New Consumer ID Per Call (LOW) ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "bug-8-go-mod-declares-go-1-25-0-low",
+      "text": "Bug 8 — go.mod Declares go 1.25.0 (LOW)",
+      "level": 3
+    },
+    {
+      "id": "5-test-coverage-assessment",
+      "text": "5. Test Coverage Assessment",
+      "level": 2
+    },
+    {
+      "id": "what-has-tests",
+      "text": "What Has Tests",
+      "level": 3
+    },
+    {
+      "id": "what-is-missing-tests",
+      "text": "What Is Missing Tests",
+      "level": 3
+    },
+    {
+      "id": "integration-test-gap",
+      "text": "Integration Test Gap",
+      "level": 3
+    },
+    {
+      "id": "scheduler-tests-resolved",
+      "text": "Scheduler Tests — ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "queue-redis-tests-resolved",
+      "text": "Queue/Redis Tests — ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "observability-tests-resolved",
+      "text": "Observability Tests — ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "cmd-entrypoint-smoke-tests-resolved",
+      "text": "cmd/ Entrypoint Smoke Tests — ✅ RESOLVED",
+      "level": 3
+    },
+    {
+      "id": "6-security-gaps",
+      "text": "6. Security Gaps",
+      "level": 2
+    },
+    {
+      "id": "authentication-and-authorization-not-implemented",
+      "text": "Authentication and Authorization — Not Implemented",
+      "level": 3
+    },
+    {
+      "id": "tls-disabled",
+      "text": "TLS — Disabled",
+      "level": 3
+    },
+    {
+      "id": "secret-management",
+      "text": "Secret Management",
+      "level": 3
+    },
+    {
+      "id": "input-validation",
+      "text": "Input Validation",
+      "level": 3
+    },
+    {
+      "id": "redis-no-auth-in-docker-compose",
+      "text": "Redis — No Auth in docker-compose",
+      "level": 3
+    },
+    {
+      "id": "7-production-readiness-gaps",
+      "text": "7. Production Readiness Gaps",
+      "level": 2
+    },
+    {
+      "id": "infrastructure",
+      "text": "Infrastructure",
+      "level": 3
+    },
+    {
+      "id": "operational",
+      "text": "Operational",
+      "level": 3
+    },
+    {
+      "id": "reliability",
+      "text": "Reliability",
+      "level": 3
+    },
+    {
+      "id": "observability",
+      "text": "Observability",
+      "level": 3
+    },
+    {
+      "id": "8-future-roadmap",
+      "text": "8. Future Roadmap",
+      "level": 2
+    },
+    {
+      "id": "phase-10-security-hardening-recommended-next",
+      "text": "Phase 10 — Security Hardening (Recommended Next)",
+      "level": 3
+    },
+    {
+      "id": "phase-11-missing-core-apis",
+      "text": "Phase 11 — Missing Core APIs",
+      "level": 3
+    },
+    {
+      "id": "phase-12-scheduled-job-sweeper",
+      "text": "Phase 12 — Scheduled Job Sweeper",
+      "level": 3
+    },
+    {
+      "id": "phase-13-reliability-improvements",
+      "text": "Phase 13 — Reliability Improvements",
+      "level": 3
+    },
+    {
+      "id": "phase-14-scheduler-tests",
+      "text": "Phase 14 — Scheduler Tests",
+      "level": 3
+    },
+    {
+      "id": "phase-15-redis-queue-tests",
+      "text": "Phase 15 — Redis Queue Tests",
+      "level": 3
+    },
+    {
+      "id": "phase-16-multi-tenancy",
+      "text": "Phase 16 — Multi-Tenancy",
+      "level": 3
+    },
+    {
+      "id": "phase-17-job-log-streaming",
+      "text": "Phase 17 — Job Log Streaming",
+      "level": 3
+    },
+    {
+      "id": "phase-18-event-streaming-webhooks",
+      "text": "Phase 18 — Event Streaming / Webhooks",
+      "level": 3
+    },
+    {
+      "id": "9-priority-action-list",
+      "text": "9. Priority Action List",
+      "level": 2
+    },
+    {
+      "id": "immediate-before-any-production-traffic",
+      "text": "Immediate (Before Any Production Traffic)",
+      "level": 3
+    },
+    {
+      "id": "short-term-first-production-sprint",
+      "text": "Short Term (First Production Sprint)",
+      "level": 3
+    },
+    {
+      "id": "medium-term-hardening-sprint",
+      "text": "Medium Term (Hardening Sprint)",
+      "level": 3
+    },
+    {
+      "id": "long-term-feature-completeness",
+      "text": "Long Term (Feature Completeness)",
+      "level": 3
+    },
+    {
+      "id": "10-session-fixes-2026-05-22",
+      "text": "10. Session Fixes — 2026-05-22",
+      "level": 2
+    },
+    {
+      "id": "fix-1-testexecutewatchchannelclosefallsbacktopoll-hung-indefinitely-resolved",
+      "text": "Fix 1 — TestExecuteWatchChannelCloseFallsBackToPoll Hung Indefinitely (RESOLVED)",
+      "level": 3
+    },
+    {
+      "id": "fix-2-testwatchjobpollfallback-hung-indefinitely-resolved",
+      "text": "Fix 2 — TestWatchJobPollFallback Hung Indefinitely (RESOLVED)",
+      "level": 3
+    },
+    {
+      "id": "11-session-fixes-2026-05-23",
+      "text": "11. Session Fixes — 2026-05-23",
+      "level": 2
+    },
+    {
+      "id": "fix-3-post-jobs-id-cancel-for-running-jobs-resolved",
+      "text": "Fix 3 — POST /jobs/{id}/cancel for Running Jobs (RESOLVED)",
+      "level": 3
+    },
+    {
+      "id": "fix-5-helm-chart-missing-ingress-template-resolved",
+      "text": "Fix 5 — Helm Chart Missing Ingress Template (RESOLVED)",
+      "level": 3
+    },
+    {
+      "id": "fix-7-no-networkpolicy-manifests-resolved",
+      "text": "Fix 7 — No NetworkPolicy Manifests (RESOLVED)",
+      "level": 3
+    },
+    {
+      "id": "14-session-fixes-2026-05-26",
+      "text": "14. Session Fixes — 2026-05-26",
+      "level": 2
+    },
+    {
+      "id": "fix-14-no-cancel-endpoint-for-pipelines-resolved",
+      "text": "Fix 14 — No CANCEL Endpoint for Pipelines (RESOLVED)",
+      "level": 3
+    },
+    {
+      "id": "12-session-fixes-2026-05-24",
+      "text": "12. Session Fixes — 2026-05-24",
+      "level": 2
+    },
+    {
+      "id": "fix-6-no-poddisruptionbudget-for-worker-resolved",
+      "text": "Fix 6 — No PodDisruptionBudget for Worker (RESOLVED)",
+      "level": 3
+    },
+    {
+      "id": "13-session-fixes-2026-05-25",
+      "text": "13. Session Fixes — 2026-05-25",
+      "level": 2
+    },
+    {
+      "id": "fix-13-helm-chart-missing-migrate-job-with-ttlsecondsafterfinished-resolved",
+      "text": "Fix 13 — Helm Chart Missing Migrate Job with ttlSecondsAfterFinished (RESOLVED)",
+      "level": 3
+    },
+    {
+      "id": "15-session-fixes-2026-05-26",
+      "text": "15. Session Fixes — 2026-05-26",
+      "level": 2
+    },
+    {
+      "id": "fix-15-pkg-retry-missing-context-aware-do-wrapper-resolved",
+      "text": "Fix 15 — pkg/retry Missing Context-Aware Do Wrapper (RESOLVED)",
+      "level": 3
+    }
+  ],
+  "adr/queue-design": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "implementation-notes",
+      "text": "Implementation Notes",
+      "level": 2
+    },
+    {
+      "id": "migration-path",
+      "text": "Migration Path",
+      "level": 2
+    }
+  ],
+  "adr/leader-election": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "rationale",
+      "text": "Rationale",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "future",
+      "text": "Future",
+      "level": 2
+    }
+  ],
+  "adr/cas-state-transitions": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "implementation-notes",
+      "text": "Implementation Notes",
+      "level": 2
+    },
+    {
+      "id": "migration-path",
+      "text": "Migration Path",
+      "level": 2
+    }
+  ],
+  "adr/buffered-job-backpressure": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "implementation-notes",
+      "text": "Implementation Notes",
+      "level": 2
+    }
+  ],
+  "adr/kubernetes-testability": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "implementation-notes",
+      "text": "Implementation Notes",
+      "level": 2
+    }
+  ],
+  "adr/kubernetes-restart-policy": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "implementation-notes",
+      "text": "Implementation Notes",
+      "level": 2
+    }
+  ],
+  "adr/jsonb-payloads": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "implementation-notes",
+      "text": "Implementation Notes",
+      "level": 2
+    }
+  ],
+  "adr/qos-ml-pods": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "implementation-notes",
+      "text": "Implementation Notes",
+      "level": 2
+    },
+    {
+      "id": "related-decisions",
+      "text": "Related Decisions",
+      "level": 2
+    }
+  ],
+  "adr/token-bucket-rate-limits": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "configuration",
+      "text": "Configuration",
+      "level": 2
+    },
+    {
+      "id": "implementation-notes",
+      "text": "Implementation Notes",
+      "level": 2
+    },
+    {
+      "id": "related-decisions",
+      "text": "Related Decisions",
+      "level": 2
+    }
+  ],
+  "adr/weighted-fair-scheduling": [
+    {
+      "id": "context",
+      "text": "Context",
+      "level": 2
+    },
+    {
+      "id": "decision",
+      "text": "Decision",
+      "level": 2
+    },
+    {
+      "id": "consequences",
+      "text": "Consequences",
+      "level": 2
+    },
+    {
+      "id": "implementation-notes",
+      "text": "Implementation Notes",
+      "level": 2
+    },
+    {
+      "id": "related-decisions",
+      "text": "Related Decisions",
+      "level": 2
+    }
+  ],
+  "phases/1-foundation": [
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-what-we-built-the-big-picture",
+      "text": "1. What We Built — The Big Picture",
+      "level": 2
+    },
+    {
+      "id": "2-mental-model-how-the-three-services-work-together",
+      "text": "2. Mental Model — How the Three Services Work Together",
+      "level": 2
+    },
+    {
+      "id": "the-one-golden-rule",
+      "text": "The one golden rule",
+      "level": 3
+    },
+    {
+      "id": "3-complete-file-map",
+      "text": "3. Complete File Map",
+      "level": 2
+    },
+    {
+      "id": "4-every-file-explained-in-one-line",
+      "text": "4. Every File Explained in One Line",
+      "level": 2
+    },
+    {
+      "id": "5-dependency-graph-how-files-import-each-other",
+      "text": "5. Dependency Graph — How Files Import Each Other",
+      "level": 2
+    },
+    {
+      "id": "6-how-to-execute-phase-1-step-by-step",
+      "text": "6. How to Execute Phase 1 — Step by Step",
+      "level": 2
+    },
+    {
+      "id": "prerequisites",
+      "text": "Prerequisites",
+      "level": 3
+    },
+    {
+      "id": "step-a-clone-and-set-up-the-module",
+      "text": "Step A — Clone and set up the module",
+      "level": 3
+    },
+    {
+      "id": "step-b-start-the-infrastructure",
+      "text": "Step B — Start the infrastructure",
+      "level": 3
+    },
+    {
+      "id": "step-c-apply-the-database-migration",
+      "text": "Step C — Apply the database migration",
+      "level": 3
+    },
+    {
+      "id": "step-d-build-all-binaries",
+      "text": "Step D — Build all binaries",
+      "level": 3
+    },
+    {
+      "id": "step-e-run-the-code-quality-checks",
+      "text": "Step E — Run the code quality checks",
+      "level": 3
+    },
+    {
+      "id": "step-f-start-all-three-services",
+      "text": "Step F — Start all three services",
+      "level": 3
+    },
+    {
+      "id": "step-g-verify-the-full-health-stack",
+      "text": "Step G — Verify the full health stack",
+      "level": 3
+    },
+    {
+      "id": "step-h-submit-a-test-job-phase-2-required-for-full-execution",
+      "text": "Step H — Submit a test job (Phase 2 required for full execution)",
+      "level": 3
+    },
+    {
+      "id": "7-expected-output-at-every-stage",
+      "text": "7. Expected Output at Every Stage",
+      "level": 2
+    },
+    {
+      "id": "what-you-see-when-the-scheduler-is-idle-no-jobs",
+      "text": "What you see when the scheduler is idle (no jobs)",
+      "level": 3
+    },
+    {
+      "id": "what-you-see-when-a-job-is-submitted-phase-2",
+      "text": "What you see when a job is submitted (Phase 2+)",
+      "level": 3
+    },
+    {
+      "id": "what-you-see-on-graceful-shutdown-ctrl-c",
+      "text": "What you see on graceful shutdown (Ctrl+C)",
+      "level": 3
+    },
+    {
+      "id": "8-verify-everything-is-working",
+      "text": "8. Verify Everything is Working",
+      "level": 2
+    },
+    {
+      "id": "check-1-postgresql-tables-exist",
+      "text": "Check 1 — PostgreSQL tables exist",
+      "level": 3
+    },
+    {
+      "id": "check-2-redis-streams-consumer-group-exists",
+      "text": "Check 2 — Redis Streams consumer group exists",
+      "level": 3
+    },
+    {
+      "id": "check-3-worker-heartbeat-is-updating",
+      "text": "Check 3 — Worker heartbeat is updating",
+      "level": 3
+    },
+    {
+      "id": "check-4-prometheus-is-scraping-metrics",
+      "text": "Check 4 — Prometheus is scraping metrics",
+      "level": 3
+    },
+    {
+      "id": "check-5-jaeger-ui-is-accessible",
+      "text": "Check 5 — Jaeger UI is accessible",
+      "level": 3
+    },
+    {
+      "id": "check-6-duplicate-idempotency-key-is-rejected",
+      "text": "Check 6 — Duplicate idempotency key is rejected",
+      "level": 3
+    },
+    {
+      "id": "9-key-design-decisions-and-why",
+      "text": "9. Key Design Decisions and Why",
+      "level": 2
+    },
+    {
+      "id": "why-redis-streams-instead-of-redis-lists",
+      "text": "Why Redis Streams instead of Redis Lists",
+      "level": 3
+    },
+    {
+      "id": "why-postgresql-advisory-locks-for-leader-election",
+      "text": "Why PostgreSQL advisory locks for leader election",
+      "level": 3
+    },
+    {
+      "id": "why-cas-compare-and-swap-for-state-transitions",
+      "text": "Why CAS (Compare-And-Swap) for state transitions",
+      "level": 3
+    },
+    {
+      "id": "why-backpressure-via-a-buffered-channel",
+      "text": "Why backpressure via a buffered channel",
+      "level": 3
+    },
+    {
+      "id": "why-full-jitter-backoff-for-retries",
+      "text": "Why full-jitter backoff for retries",
+      "level": 3
+    },
+    {
+      "id": "10-what-phase-1-cannot-do-yet",
+      "text": "10. What Phase 1 Cannot Do Yet",
+      "level": 2
+    },
+    {
+      "id": "11-phase-2-preview-what-we-build-next",
+      "text": "11. Phase 2 Preview — What We Build Next",
+      "level": 2
+    },
+    {
+      "id": "quick-reference-card",
+      "text": "Quick Reference Card",
+      "level": 2
+    }
+  ],
+  "phases/2-postgres": [
+    {
+      "id": "the-postgresql-store-implementation",
+      "text": "The PostgreSQL Store Implementation",
+      "level": 2
+    },
+    {
+      "id": "what-this-file-is",
+      "text": "What this file is",
+      "level": 2
+    },
+    {
+      "id": "the-db-struct",
+      "text": "The DB struct",
+      "level": 2
+    },
+    {
+      "id": "how-the-pool-is-created-in-main-go",
+      "text": "How the pool is created (in main.go)",
+      "level": 2
+    },
+    {
+      "id": "three-pool-usage-patterns",
+      "text": "Three pool usage patterns",
+      "level": 2
+    },
+    {
+      "id": "pattern-1-single-row-result-queryrow",
+      "text": "Pattern 1: Single row result (QueryRow)",
+      "level": 3
+    },
+    {
+      "id": "pattern-2-multiple-rows-query-loop",
+      "text": "Pattern 2: Multiple rows (Query + loop)",
+      "level": 3
+    },
+    {
+      "id": "pattern-3-mutation-exec",
+      "text": "Pattern 3: Mutation (Exec)",
+      "level": 3
+    },
+    {
+      "id": "the-cas-pattern-transitionjobstate",
+      "text": "The CAS pattern — TransitionJobState",
+      "level": 2
+    },
+    {
+      "id": "what-it-does",
+      "text": "What it does",
+      "level": 3
+    },
+    {
+      "id": "why-this-is-atomic",
+      "text": "Why this is atomic",
+      "level": 3
+    },
+    {
+      "id": "dynamic-set-clause",
+      "text": "Dynamic SET clause",
+      "level": 3
+    },
+    {
+      "id": "the-idempotency-pattern-createjob",
+      "text": "The idempotency pattern — CreateJob",
+      "level": 2
+    },
+    {
+      "id": "path-a-normal-no-idempotency-key",
+      "text": "Path A — Normal (no idempotency key)",
+      "level": 3
+    },
+    {
+      "id": "path-b-idempotent-retry-key-already-exists",
+      "text": "Path B — Idempotent retry (key already exists)",
+      "level": 3
+    },
+    {
+      "id": "path-c-concurrent-race-two-requests-same-key-at-the-same-moment",
+      "text": "Path C — Concurrent race (two requests, same key, at the same moment)",
+      "level": 3
+    },
+    {
+      "id": "scanning-how-sql-rows-become-go-structs",
+      "text": "Scanning — how SQL rows become Go structs",
+      "level": 2
+    },
+    {
+      "id": "the-jobcolumns-constant",
+      "text": "The jobColumns constant",
+      "level": 3
+    },
+    {
+      "id": "why-intermediate-variables",
+      "text": "Why intermediate variables?",
+      "level": 3
+    },
+    {
+      "id": "the-nullablestring-helper",
+      "text": "The nullableString helper",
+      "level": 2
+    },
+    {
+      "id": "the-isuniqueviolation-helper",
+      "text": "The isUniqueViolation helper",
+      "level": 2
+    },
+    {
+      "id": "reclaimorphanedjobs-crash-recovery",
+      "text": "ReclaimOrphanedJobs — crash recovery",
+      "level": 2
+    },
+    {
+      "id": "file-location",
+      "text": "File location",
+      "level": 2
+    },
+    {
+      "id": "common-mistakes",
+      "text": "Common mistakes",
+      "level": 2
+    }
+  ],
+  "phases/3-inline-executor": [
+    {
+      "id": "inline-executor-the-first-real-job-execution",
+      "text": "Inline Executor: The First Real Job Execution",
+      "level": 2
+    },
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-why-phase-3-exists-the-gap-it-closes",
+      "text": "1. Why Phase 3 Exists — The Gap It Closes",
+      "level": 2
+    },
+    {
+      "id": "2-what-changes-before-and-after",
+      "text": "2. What Changes: Before and After",
+      "level": 2
+    },
+    {
+      "id": "phase-2-state-what-you-have-now",
+      "text": "Phase 2 state (what you have now)",
+      "level": 3
+    },
+    {
+      "id": "phase-3-state-what-you-will-have",
+      "text": "Phase 3 state (what you will have)",
+      "level": 3
+    },
+    {
+      "id": "3-mental-model-how-inline-execution-works",
+      "text": "3. Mental Model — How Inline Execution Works",
+      "level": 2
+    },
+    {
+      "id": "the-registry-pattern-like-a-phone-book-for-handlers",
+      "text": "The registry pattern — like a phone book for handlers",
+      "level": 3
+    },
+    {
+      "id": "the-executor-interface-already-defined-in-phase-1",
+      "text": "The Executor interface — already defined in Phase 1",
+      "level": 3
+    },
+    {
+      "id": "the-full-data-flow-through-phase-3",
+      "text": "The full data flow through Phase 3",
+      "level": 3
+    },
+    {
+      "id": "4-complete-file-plan",
+      "text": "4. Complete File Plan",
+      "level": 2
+    },
+    {
+      "id": "what-is-not-changing",
+      "text": "What is NOT changing",
+      "level": 3
+    },
+    {
+      "id": "5-file-1-internal-worker-inline-go-the-executor",
+      "text": "5. File 1: internal/worker/inline.go — The Executor",
+      "level": 2
+    },
+    {
+      "id": "complete-code-to-write",
+      "text": "Complete code to write",
+      "level": 3
+    },
+    {
+      "id": "why-this-design",
+      "text": "Why this design",
+      "level": 3
+    },
+    {
+      "id": "6-file-2-internal-worker-handlers-handlers-go-built-in-handlers",
+      "text": "6. File 2: internal/worker/handlers/handlers.go — Built-in Handlers",
+      "level": 2
+    },
+    {
+      "id": "the-slow-handler-the-most-important-example",
+      "text": "The Slow handler — the most important example",
+      "level": 3
+    },
+    {
+      "id": "7-file-3-cmd-worker-main-go-updated-wiring",
+      "text": "7. File 3: cmd/worker/main.go — Updated Wiring",
+      "level": 2
+    },
+    {
+      "id": "what-changes-in-main-go",
+      "text": "What changes in main.go",
+      "level": 3
+    },
+    {
+      "id": "full-updated-imports-needed",
+      "text": "Full updated imports needed",
+      "level": 3
+    },
+    {
+      "id": "8-file-4-internal-worker-inlinetest-go-tests",
+      "text": "8. File 4: internal/worker/inlinetest.go — Tests",
+      "level": 2
+    },
+    {
+      "id": "9-the-execution-audit-trail-recordexecution",
+      "text": "9. The Execution Audit Trail — RecordExecution",
+      "level": 2
+    },
+    {
+      "id": "where-to-add-it-in-pool-go",
+      "text": "Where to add it in pool.go",
+      "level": 3
+    },
+    {
+      "id": "10-error-handling-strategy",
+      "text": "10. Error Handling Strategy",
+      "level": 2
+    },
+    {
+      "id": "four-error-categories-in-inline-execution",
+      "text": "Four error categories in inline execution",
+      "level": 3
+    },
+    {
+      "id": "panic-protection",
+      "text": "Panic protection",
+      "level": 3
+    },
+    {
+      "id": "transient-vs-permanent-errors",
+      "text": "Transient vs permanent errors",
+      "level": 3
+    },
+    {
+      "id": "11-context-and-cancellation",
+      "text": "11. Context and Cancellation",
+      "level": 2
+    },
+    {
+      "id": "when-the-context-is-cancelled",
+      "text": "When the context is cancelled",
+      "level": 3
+    },
+    {
+      "id": "the-correct-pattern-for-long-running-handlers",
+      "text": "The correct pattern for long-running handlers",
+      "level": 3
+    },
+    {
+      "id": "12-the-pool-connection-how-pool-go-calls-the-executor",
+      "text": "12. The Pool Connection — How pool.go Calls the Executor",
+      "level": 2
+    },
+    {
+      "id": "13-step-by-step-build-order",
+      "text": "13. Step-by-Step Build Order",
+      "level": 2
+    },
+    {
+      "id": "step-1-create-internal-worker-inline-go",
+      "text": "Step 1 — Create internal/worker/inline.go",
+      "level": 3
+    },
+    {
+      "id": "step-2-create-internal-worker-handlers-handlers-go",
+      "text": "Step 2 — Create internal/worker/handlers/handlers.go",
+      "level": 3
+    },
+    {
+      "id": "step-3-write-internal-worker-inlinetest-go",
+      "text": "Step 3 — Write internal/worker/inlinetest.go",
+      "level": 3
+    },
+    {
+      "id": "step-4-update-internal-worker-pool-go-with-recordexecution",
+      "text": "Step 4 — Update internal/worker/pool.go with RecordExecution",
+      "level": 3
+    },
+    {
+      "id": "step-5-update-cmd-worker-main-go",
+      "text": "Step 5 — Update cmd/worker/main.go",
+      "level": 3
+    },
+    {
+      "id": "step-6-build-all-three-binaries",
+      "text": "Step 6 — Build all three binaries",
+      "level": 3
+    },
+    {
+      "id": "step-7-run-and-verify-next-section",
+      "text": "Step 7 — Run and verify (next section)",
+      "level": 3
+    },
+    {
+      "id": "14-how-to-run-and-verify-phase-3",
+      "text": "14. How to Run and Verify Phase 3",
+      "level": 2
+    },
+    {
+      "id": "prerequisites-from-phase-2",
+      "text": "Prerequisites (from Phase 2)",
+      "level": 3
+    },
+    {
+      "id": "start-all-three-services",
+      "text": "Start all three services",
+      "level": 3
+    },
+    {
+      "id": "15-complete-end-to-end-test-sequence",
+      "text": "15. Complete End-to-End Test Sequence",
+      "level": 2
+    },
+    {
+      "id": "test-1-happy-path-the-milestone",
+      "text": "Test 1 — Happy path (the milestone)",
+      "level": 3
+    },
+    {
+      "id": "test-2-verify-execution-audit-log",
+      "text": "Test 2 — Verify execution audit log",
+      "level": 3
+    },
+    {
+      "id": "test-3-args-are-passed-through",
+      "text": "Test 3 — Args are passed through",
+      "level": 3
+    },
+    {
+      "id": "test-4-error-path-and-retry-cycle",
+      "text": "Test 4 — Error path and retry cycle",
+      "level": 3
+    },
+    {
+      "id": "test-5-unregistered-handler",
+      "text": "Test 5 — Unregistered handler",
+      "level": 3
+    },
+    {
+      "id": "test-6-verify-sql-state-directly",
+      "text": "Test 6 — Verify SQL state directly",
+      "level": 3
+    },
+    {
+      "id": "16-common-mistakes-and-how-to-avoid-them",
+      "text": "16. Common Mistakes and How to Avoid Them",
+      "level": 2
+    },
+    {
+      "id": "17-phase-4-preview",
+      "text": "17. Phase 4 Preview",
+      "level": 2
+    },
+    {
+      "id": "summary-checklist",
+      "text": "Summary Checklist",
+      "level": 2
+    },
+    {
+      "id": "file-locations-after-phase-3",
+      "text": "File Locations After Phase 3",
+      "level": 2
+    }
+  ],
+  "phases/4-k8s-executor": [
+    {
+      "id": "kubernetes-executor-real-ml-workloads-on-gpu-pods",
+      "text": "Kubernetes Executor: Real ML Workloads on GPU Pods",
+      "level": 2
+    },
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-why-phase-4-exists-the-gap-it-closes",
+      "text": "1. Why Phase 4 Exists — The Gap It Closes",
+      "level": 2
+    },
+    {
+      "id": "2-what-changes-before-and-after",
+      "text": "2. What Changes: Before and After",
+      "level": 2
+    },
+    {
+      "id": "phase-3-state-what-you-have-now",
+      "text": "Phase 3 state (what you have now)",
+      "level": 3
+    },
+    {
+      "id": "phase-4-state-what-you-will-have",
+      "text": "Phase 4 state (what you will have)",
+      "level": 3
+    },
+    {
+      "id": "3-mental-model-how-orion-talks-to-kubernetes",
+      "text": "3. Mental Model — How Orion Talks to Kubernetes",
+      "level": 2
+    },
+    {
+      "id": "the-kubernetes-control-plane-conversation",
+      "text": "The Kubernetes control plane conversation",
+      "level": 3
+    },
+    {
+      "id": "the-two-client-go-calls-we-make",
+      "text": "The two client-go calls we make",
+      "level": 3
+    },
+    {
+      "id": "what-a-batchv1-job-looks-like-vs-our-kubernetesspec",
+      "text": "What a batchv1.Job looks like vs our KubernetesSpec",
+      "level": 3
+    },
+    {
+      "id": "4-the-client-go-library-what-we-actually-use",
+      "text": "4. The client-go Library — What We Actually Use",
+      "level": 2
+    },
+    {
+      "id": "building-the-client-two-modes",
+      "text": "Building the client — two modes",
+      "level": 3
+    },
+    {
+      "id": "the-fake-client-for-tests",
+      "text": "The fake client for tests",
+      "level": 3
+    },
+    {
+      "id": "5-complete-file-plan",
+      "text": "5. Complete File Plan",
+      "level": 2
+    },
+    {
+      "id": "what-is-not-changing",
+      "text": "What is NOT changing",
+      "level": 3
+    },
+    {
+      "id": "6-file-1-internal-worker-k8s-spec-go-domain-k8s-translation",
+      "text": "6. File 1: internal/worker/k8s/spec.go — Domain → K8s Translation",
+      "level": 2
+    },
+    {
+      "id": "why-a-separate-file",
+      "text": "Why a separate file?",
+      "level": 3
+    },
+    {
+      "id": "complete-code-to-write",
+      "text": "Complete code to write",
+      "level": 3
+    },
+    {
+      "id": "key-decisions-in-spec-go",
+      "text": "Key decisions in spec.go",
+      "level": 3
+    },
+    {
+      "id": "7-file-2-internal-worker-k8s-executor-go-the-executor",
+      "text": "7. File 2: internal/worker/k8s/executor.go — The Executor",
+      "level": 2
+    },
+    {
+      "id": "complete-code-to-write",
+      "text": "Complete code to write",
+      "level": 3
+    },
+    {
+      "id": "8-file-3-internal-worker-k8s-executortest-go-tests-with-fake-client",
+      "text": "8. File 3: internal/worker/k8s/executortest.go — Tests with Fake Client",
+      "level": 2
+    },
+    {
+      "id": "what-we-test",
+      "text": "What we test",
+      "level": 3
+    },
+    {
+      "id": "testing-strategy-the-fake-client",
+      "text": "Testing strategy — the fake client",
+      "level": 3
+    },
+    {
+      "id": "9-file-4-cmd-worker-main-go-updated-wiring",
+      "text": "9. File 4: cmd/worker/main.go — Updated Wiring",
+      "level": 2
+    },
+    {
+      "id": "why-k8s-failure-is-non-fatal",
+      "text": "Why k8s failure is non-fatal",
+      "level": 3
+    },
+    {
+      "id": "10-file-5-deploy-k8s-rbac-yaml-kubernetes-rbac",
+      "text": "10. File 5: deploy/k8s/rbac.yaml — Kubernetes RBAC",
+      "level": 2
+    },
+    {
+      "id": "complete-rbac-manifest",
+      "text": "Complete RBAC manifest",
+      "level": 3
+    },
+    {
+      "id": "why-clusterrole-instead-of-role",
+      "text": "Why ClusterRole instead of Role?",
+      "level": 3
+    },
+    {
+      "id": "11-the-watch-loop-waiting-for-pod-completion",
+      "text": "11. The Watch Loop — Waiting for Pod Completion",
+      "level": 2
+    },
+    {
+      "id": "why-watch-beats-polling",
+      "text": "Why Watch beats polling",
+      "level": 3
+    },
+    {
+      "id": "when-the-watch-channel-closes-unexpectedly",
+      "text": "When the Watch channel closes unexpectedly",
+      "level": 3
+    },
+    {
+      "id": "the-watch-timeout-edge-case",
+      "text": "The watch timeout edge case",
+      "level": 3
+    },
+    {
+      "id": "pod-exit-codes",
+      "text": "Pod exit codes",
+      "level": 3
+    },
+    {
+      "id": "12-error-taxonomy-every-failure-mode",
+      "text": "12. Error Taxonomy — Every Failure Mode",
+      "level": 2
+    },
+    {
+      "id": "gpu-specific-failures",
+      "text": "GPU-specific failures",
+      "level": 3
+    },
+    {
+      "id": "13-gpu-resource-scheduling",
+      "text": "13. GPU Resource Scheduling",
+      "level": 2
+    },
+    {
+      "id": "how-gpu-resources-work-in-kubernetes",
+      "text": "How GPU resources work in Kubernetes",
+      "level": 3
+    },
+    {
+      "id": "gpu-job-submission-example",
+      "text": "GPU job submission example",
+      "level": 3
+    },
+    {
+      "id": "14-context-and-deadline-handling",
+      "text": "14. Context and Deadline Handling",
+      "level": 2
+    },
+    {
+      "id": "inline-phase-3-context-cancellation-is-instant",
+      "text": "Inline (Phase 3) — context cancellation is instant",
+      "level": 3
+    },
+    {
+      "id": "kubernetes-phase-4-context-cancellation-requires-cleanup",
+      "text": "Kubernetes (Phase 4) — context cancellation requires cleanup",
+      "level": 3
+    },
+    {
+      "id": "why-we-use-a-fresh-context-for-deletion",
+      "text": "Why we use a fresh context for deletion",
+      "level": 3
+    },
+    {
+      "id": "15-local-testing-strategy-kind-cluster",
+      "text": "15. Local Testing Strategy — kind Cluster",
+      "level": 2
+    },
+    {
+      "id": "step-1-install-kind",
+      "text": "Step 1 — Install kind",
+      "level": 3
+    },
+    {
+      "id": "step-2-create-a-local-cluster",
+      "text": "Step 2 — Create a local cluster",
+      "level": 3
+    },
+    {
+      "id": "step-3-apply-rbac",
+      "text": "Step 3 — Apply RBAC",
+      "level": 3
+    },
+    {
+      "id": "step-4-submit-a-cpu-only-test-job-no-gpu-needed-for-smoke-tests",
+      "text": "Step 4 — Submit a CPU-only test job (no GPU needed for smoke tests)",
+      "level": 3
+    },
+    {
+      "id": "step-5-watch-pod-creation-in-kind",
+      "text": "Step 5 — Watch pod creation in kind",
+      "level": 3
+    },
+    {
+      "id": "step-6-watch-job-status-in-orion",
+      "text": "Step 6 — Watch job status in Orion",
+      "level": 3
+    },
+    {
+      "id": "simulating-gpu-without-real-gpus",
+      "text": "Simulating GPU without real GPUs",
+      "level": 3
+    },
+    {
+      "id": "16-step-by-step-build-order",
+      "text": "16. Step-by-Step Build Order",
+      "level": 2
+    },
+    {
+      "id": "step-1-create-internal-worker-k8s-directory-and-spec-go",
+      "text": "Step 1 — Create internal/worker/k8s/ directory and spec.go",
+      "level": 3
+    },
+    {
+      "id": "step-2-create-executor-go",
+      "text": "Step 2 — Create executor.go",
+      "level": 3
+    },
+    {
+      "id": "step-3-write-executortest-go",
+      "text": "Step 3 — Write executortest.go",
+      "level": 3
+    },
+    {
+      "id": "step-4-update-cmd-worker-main-go",
+      "text": "Step 4 — Update cmd/worker/main.go",
+      "level": 3
+    },
+    {
+      "id": "step-5-apply-rbac-to-your-cluster",
+      "text": "Step 5 — Apply RBAC to your cluster",
+      "level": 3
+    },
+    {
+      "id": "step-6-build-all-binaries",
+      "text": "Step 6 — Build all binaries",
+      "level": 3
+    },
+    {
+      "id": "step-7-run-integration-verification-next-section",
+      "text": "Step 7 — Run integration verification (next section)",
+      "level": 3
+    },
+    {
+      "id": "17-complete-end-to-end-test-sequence",
+      "text": "17. Complete End-to-End Test Sequence",
+      "level": 2
+    },
+    {
+      "id": "prerequisites",
+      "text": "Prerequisites",
+      "level": 3
+    },
+    {
+      "id": "test-1-k8s-smoke-test-cpu-only-no-gpu",
+      "text": "Test 1 — K8s smoke test (CPU only, no GPU)",
+      "level": 3
+    },
+    {
+      "id": "test-2-verify-k8s-pod-was-created-and-deleted",
+      "text": "Test 2 — Verify K8s pod was created and deleted",
+      "level": 3
+    },
+    {
+      "id": "test-3-failure-path-container-exits-non-zero",
+      "text": "Test 3 — Failure path (container exits non-zero)",
+      "level": 3
+    },
+    {
+      "id": "test-4-verify-rbac-is-correct",
+      "text": "Test 4 — Verify RBAC is correct",
+      "level": 3
+    },
+    {
+      "id": "test-5-both-executor-types-work-simultaneously",
+      "text": "Test 5 — Both executor types work simultaneously",
+      "level": 3
+    },
+    {
+      "id": "18-common-mistakes-and-how-to-avoid-them",
+      "text": "18. Common Mistakes and How to Avoid Them",
+      "level": 2
+    },
+    {
+      "id": "19-phase-5-preview",
+      "text": "19. Phase 5 Preview",
+      "level": 2
+    },
+    {
+      "id": "summary-checklist",
+      "text": "Summary Checklist",
+      "level": 2
+    },
+    {
+      "id": "file-locations-after-phase-4",
+      "text": "File Locations After Phase 4",
+      "level": 2
+    }
+  ],
+  "phases/5-pipeline-dag": [
+    {
+      "id": "pipeline-dag-orchestration-chaining-jobs-into-workflows",
+      "text": "Pipeline DAG Orchestration: Chaining Jobs into Workflows",
+      "level": 2
+    },
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-why-phase-5-exists-the-gap-it-closes",
+      "text": "1. Why Phase 5 Exists — The Gap It Closes",
+      "level": 2
+    },
+    {
+      "id": "2-what-changes-before-and-after",
+      "text": "2. What Changes: Before and After",
+      "level": 2
+    },
+    {
+      "id": "phase-4-state-what-you-have-now",
+      "text": "Phase 4 state (what you have now)",
+      "level": 3
+    },
+    {
+      "id": "phase-5-state-what-you-will-have",
+      "text": "Phase 5 state (what you will have)",
+      "level": 3
+    },
+    {
+      "id": "3-mental-model-how-dag-execution-works",
+      "text": "3. Mental Model — How DAG Execution Works",
+      "level": 2
+    },
+    {
+      "id": "the-dag-as-a-dependency-graph",
+      "text": "The DAG as a dependency graph",
+      "level": 3
+    },
+    {
+      "id": "the-advancement-algorithm-in-plain-english",
+      "text": "The advancement algorithm in plain English",
+      "level": 3
+    },
+    {
+      "id": "why-the-scheduler-runs-advancement-not-a-separate-process",
+      "text": "Why the scheduler runs advancement, not a separate process",
+      "level": 3
+    },
+    {
+      "id": "the-key-insight-jobs-don-t-know-they-re-in-a-pipeline",
+      "text": "The key insight: jobs don't know they're in a pipeline",
+      "level": 3
+    },
+    {
+      "id": "4-the-dag-advancement-algorithm",
+      "text": "4. The DAG Advancement Algorithm",
+      "level": 2
+    },
+    {
+      "id": "full-algorithm-pseudocode",
+      "text": "Full algorithm (pseudocode)",
+      "level": 3
+    },
+    {
+      "id": "why-this-is-idempotent",
+      "text": "Why this is idempotent",
+      "level": 3
+    },
+    {
+      "id": "the-initial-advance-starting-the-pipeline",
+      "text": "The initial advance — starting the pipeline",
+      "level": 3
+    },
+    {
+      "id": "5-what-already-exists-from-phase-1",
+      "text": "5. What Already Exists From Phase 1",
+      "level": 2
+    },
+    {
+      "id": "already-exists",
+      "text": "Already exists ✓",
+      "level": 3
+    },
+    {
+      "id": "does-not-exist-yet-phase-5-builds-these",
+      "text": "Does NOT exist yet — Phase 5 builds these",
+      "level": 3
+    },
+    {
+      "id": "6-complete-file-plan",
+      "text": "6. Complete File Plan",
+      "level": 2
+    },
+    {
+      "id": "what-is-not-changing",
+      "text": "What is NOT changing",
+      "level": 3
+    },
+    {
+      "id": "7-file-1-internal-store-store-go-pipelinestore-interface",
+      "text": "7. File 1: internal/store/store.go — PipelineStore Interface",
+      "level": 2
+    },
+    {
+      "id": "new-pipelinestore-interface",
+      "text": "New PipelineStore interface",
+      "level": 3
+    },
+    {
+      "id": "updated-store-composite-interface",
+      "text": "Updated Store composite interface",
+      "level": 3
+    },
+    {
+      "id": "why-pipelinejobstatus-is-a-separate-type",
+      "text": "Why PipelineJobStatus is a separate type",
+      "level": 3
+    },
+    {
+      "id": "8-file-2-internal-store-postgres-pipeline-go-pipeline-sql",
+      "text": "8. File 2: internal/store/postgres/pipeline.go — Pipeline SQL",
+      "level": 2
+    },
+    {
+      "id": "complete-code-to-write",
+      "text": "Complete code to write",
+      "level": 3
+    },
+    {
+      "id": "why-pipeline-sql-is-in-a-separate-file",
+      "text": "Why pipeline SQL is in a separate file",
+      "level": 3
+    },
+    {
+      "id": "9-file-3-migrations",
+      "text": "9. File 3: Migrations",
+      "level": 2
+    },
+    {
+      "id": "002pipelineindexes-up-sql",
+      "text": "002pipelineindexes.up.sql",
+      "level": 3
+    },
+    {
+      "id": "002pipelineindexes-down-sql",
+      "text": "002pipelineindexes.down.sql",
+      "level": 3
+    },
+    {
+      "id": "10-file-4-internal-pipeline-advancement-go-the-dag-advancer",
+      "text": "10. File 4: internal/pipeline/advancement.go — The DAG Advancer",
+      "level": 2
+    },
+    {
+      "id": "why-a-separate-package",
+      "text": "Why a separate package?",
+      "level": 3
+    },
+    {
+      "id": "complete-code-to-write",
+      "text": "Complete code to write",
+      "level": 3
+    },
+    {
+      "id": "11-file-5-internal-api-handler-pipeline-go-http-handlers",
+      "text": "11. File 5: internal/api/handler/pipeline.go — HTTP Handlers",
+      "level": 2
+    },
+    {
+      "id": "12-file-6-internal-scheduler-scheduler-go-dag-tick-added",
+      "text": "12. File 6: internal/scheduler/scheduler.go — DAG Tick Added",
+      "level": 2
+    },
+    {
+      "id": "what-changes-in-scheduler-go",
+      "text": "What changes in scheduler.go",
+      "level": 3
+    },
+    {
+      "id": "why-pipeline-advancement-runs-on-the-schedule-ticker-not-orphan-ticker",
+      "text": "Why pipeline advancement runs on the schedule ticker (not orphan ticker)",
+      "level": 3
+    },
+    {
+      "id": "13-file-7-cmd-api-main-go-new-routes",
+      "text": "13. File 7: cmd/api/main.go — New Routes",
+      "level": 2
+    },
+    {
+      "id": "14-file-8-cmd-scheduler-main-go-pipelinestore-wired",
+      "text": "14. File 8: cmd/scheduler/main.go — PipelineStore Wired",
+      "level": 2
+    },
+    {
+      "id": "15-pipeline-state-machine",
+      "text": "15. Pipeline State Machine",
+      "level": 2
+    },
+    {
+      "id": "node-level-state-within-a-pipeline",
+      "text": "Node-level state within a pipeline",
+      "level": 3
+    },
+    {
+      "id": "16-failure-handling-cascade-cancellation",
+      "text": "16. Failure Handling — Cascade Cancellation",
+      "level": 2
+    },
+    {
+      "id": "why-we-don-t-cancel-already-running-nodes",
+      "text": "Why we don't cancel already-running nodes",
+      "level": 3
+    },
+    {
+      "id": "17-the-pipelinestore-sql-deep-dive",
+      "text": "17. The PipelineStore SQL — Deep Dive",
+      "level": 2
+    },
+    {
+      "id": "the-critical-query-getpipelinejobs",
+      "text": "The critical query: GetPipelineJobs",
+      "level": 3
+    },
+    {
+      "id": "addpipelinejob-with-on-conflict",
+      "text": "AddPipelineJob with ON CONFLICT",
+      "level": 3
+    },
+    {
+      "id": "listpipelinesbystatus-the-scheduler-s-query",
+      "text": "ListPipelinesByStatus — the scheduler's query",
+      "level": 3
+    },
+    {
+      "id": "18-step-by-step-build-order",
+      "text": "18. Step-by-Step Build Order",
+      "level": 2
+    },
+    {
+      "id": "step-1-update-store-store-go",
+      "text": "Step 1 — Update store/store.go",
+      "level": 3
+    },
+    {
+      "id": "step-2-create-store-postgres-pipeline-go",
+      "text": "Step 2 — Create store/postgres/pipeline.go",
+      "level": 3
+    },
+    {
+      "id": "step-3-apply-migration-002",
+      "text": "Step 3 — Apply migration 002",
+      "level": 3
+    },
+    {
+      "id": "step-4-create-internal-pipeline-advancement-go",
+      "text": "Step 4 — Create internal/pipeline/advancement.go",
+      "level": 3
+    },
+    {
+      "id": "step-5-write-internal-pipeline-advancementtest-go",
+      "text": "Step 5 — Write internal/pipeline/advancementtest.go",
+      "level": 3
+    },
+    {
+      "id": "step-6-create-internal-api-handler-pipeline-go",
+      "text": "Step 6 — Create internal/api/handler/pipeline.go",
+      "level": 3
+    },
+    {
+      "id": "step-7-update-internal-scheduler-scheduler-go",
+      "text": "Step 7 — Update internal/scheduler/scheduler.go",
+      "level": 3
+    },
+    {
+      "id": "step-8-update-cmd-api-main-go-and-cmd-scheduler-main-go",
+      "text": "Step 8 — Update cmd/api/main.go and cmd/scheduler/main.go",
+      "level": 3
+    },
+    {
+      "id": "19-complete-end-to-end-test-sequence",
+      "text": "19. Complete End-to-End Test Sequence",
+      "level": 2
+    },
+    {
+      "id": "test-1-linear-pipeline-3-nodes-in-sequence",
+      "text": "Test 1 — Linear pipeline (3 nodes in sequence)",
+      "level": 3
+    },
+    {
+      "id": "test-2-diamond-dag-fan-out-then-fan-in",
+      "text": "Test 2 — Diamond DAG (fan-out then fan-in)",
+      "level": 3
+    },
+    {
+      "id": "test-3-failure-cascade",
+      "text": "Test 3 — Failure cascade",
+      "level": 3
+    },
+    {
+      "id": "test-4-direct-postgresql-verification",
+      "text": "Test 4 — Direct PostgreSQL verification",
+      "level": 3
+    },
+    {
+      "id": "20-common-mistakes-and-how-to-avoid-them",
+      "text": "20. Common Mistakes and How to Avoid Them",
+      "level": 2
+    },
+    {
+      "id": "21-phase-6-preview",
+      "text": "21. Phase 6 Preview",
+      "level": 2
+    },
+    {
+      "id": "summary-checklist",
+      "text": "Summary Checklist",
+      "level": 2
+    },
+    {
+      "id": "file-locations-after-phase-5",
+      "text": "File Locations After Phase 5",
+      "level": 2
+    }
+  ],
+  "phases/6-observability": [
+    {
+      "id": "full-observability-metrics-tracing-and-dashboards",
+      "text": "Full Observability: Metrics, Tracing, and Dashboards",
+      "level": 2
+    },
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-why-phase-6-exists",
+      "text": "1. Why Phase 6 Exists",
+      "level": 2
+    },
+    {
+      "id": "2-what-already-exists",
+      "text": "2. What Already Exists",
+      "level": 2
+    },
+    {
+      "id": "already-exists-no-changes-needed",
+      "text": "Already exists — no changes needed",
+      "level": 3
+    },
+    {
+      "id": "what-the-metrics-struct-already-declares",
+      "text": "What the Metrics struct already declares",
+      "level": 3
+    },
+    {
+      "id": "what-phase-6-adds-to-the-metrics-struct",
+      "text": "What Phase 6 adds to the Metrics struct",
+      "level": 3
+    },
+    {
+      "id": "does-not-exist-yet-phase-6-builds",
+      "text": "Does not exist yet — Phase 6 builds",
+      "level": 3
+    },
+    {
+      "id": "3-the-core-idea-three-observability-signals",
+      "text": "3. The Core Idea: Three Observability Signals",
+      "level": 2
+    },
+    {
+      "id": "signal-1-metrics-prometheus-grafana",
+      "text": "Signal 1 — Metrics (Prometheus → Grafana)",
+      "level": 3
+    },
+    {
+      "id": "signal-2-tracing-opentelemetry-jaeger",
+      "text": "Signal 2 — Tracing (OpenTelemetry → Jaeger)",
+      "level": 3
+    },
+    {
+      "id": "signal-3-structured-logs-slog-stdout-log-aggregator",
+      "text": "Signal 3 — Structured Logs (slog → stdout → log aggregator)",
+      "level": 3
+    },
+    {
+      "id": "4-complete-file-plan",
+      "text": "4. Complete File Plan",
+      "level": 2
+    },
+    {
+      "id": "what-is-not-changing",
+      "text": "What is NOT changing",
+      "level": 3
+    },
+    {
+      "id": "5-file-1-updated-internal-observability-observability-go",
+      "text": "5. File 1: Updated internal/observability/observability.go",
+      "level": 2
+    },
+    {
+      "id": "new-pipeline-metrics",
+      "text": "New pipeline metrics",
+      "level": 3
+    },
+    {
+      "id": "new-http-metrics",
+      "text": "New HTTP metrics",
+      "level": 3
+    },
+    {
+      "id": "new-db-metrics",
+      "text": "New DB metrics",
+      "level": 3
+    },
+    {
+      "id": "6-file-2-internal-scheduler-scheduler-go-scheduler-instrumentation",
+      "text": "6. File 2: internal/scheduler/scheduler.go — Scheduler Instrumentation",
+      "level": 2
+    },
+    {
+      "id": "what-to-instrument",
+      "text": "What to instrument",
+      "level": 3
+    },
+    {
+      "id": "exact-code-changes-in-schedulequeuedjobs",
+      "text": "Exact code changes in scheduleQueuedJobs",
+      "level": 3
+    },
+    {
+      "id": "what-changes-in-scheduler-struct",
+      "text": "What changes in Scheduler struct",
+      "level": 3
+    },
+    {
+      "id": "7-file-3-internal-worker-pool-go-worker-instrumentation",
+      "text": "7. File 3: internal/worker/pool.go — Worker Instrumentation",
+      "level": 2
+    },
+    {
+      "id": "what-to-instrument",
+      "text": "What to instrument",
+      "level": 3
+    },
+    {
+      "id": "exact-code-changes-in-executejob",
+      "text": "Exact code changes in executeJob",
+      "level": 3
+    },
+    {
+      "id": "what-changes-in-pool-struct",
+      "text": "What changes in Pool struct",
+      "level": 3
+    },
+    {
+      "id": "8-file-4-internal-pipeline-advancement-go-pipeline-metrics",
+      "text": "8. File 4: internal/pipeline/advancement.go — Pipeline Metrics",
+      "level": 2
+    },
+    {
+      "id": "what-to-instrument",
+      "text": "What to instrument",
+      "level": 3
+    },
+    {
+      "id": "exact-code-changes-in-advanceall",
+      "text": "Exact code changes in AdvanceAll",
+      "level": 3
+    },
+    {
+      "id": "exact-code-changes-in-advanceone-at-the-key-points",
+      "text": "Exact code changes in advanceOne at the key points",
+      "level": 3
+    },
+    {
+      "id": "what-changes-in-advancer-struct",
+      "text": "What changes in Advancer struct",
+      "level": 3
+    },
+    {
+      "id": "9-file-5-internal-api-handler-job-go-http-instrumentation",
+      "text": "9. File 5: internal/api/handler/job.go — HTTP Instrumentation",
+      "level": 2
+    },
+    {
+      "id": "pattern-middleware-wrapper",
+      "text": "Pattern: middleware wrapper",
+      "level": 3
+    },
+    {
+      "id": "applied-in-cmd-api-main-go",
+      "text": "Applied in cmd/api/main.go",
+      "level": 3
+    },
+    {
+      "id": "10-file-6-internal-queue-redis-redisqueue-go-queue-metrics",
+      "text": "10. File 6: internal/queue/redis/redisqueue.go — Queue Metrics",
+      "level": 2
+    },
+    {
+      "id": "what-to-instrument",
+      "text": "What to instrument",
+      "level": 3
+    },
+    {
+      "id": "alternative-background-poller-preferred-for-accuracy",
+      "text": "Alternative: background poller (preferred for accuracy)",
+      "level": 3
+    },
+    {
+      "id": "11-file-7-internal-store-postgres-db-go-db-span-tracing",
+      "text": "11. File 7: internal/store/postgres/db.go — DB Span Tracing",
+      "level": 2
+    },
+    {
+      "id": "pattern-wrap-every-method-with-a-span",
+      "text": "Pattern: wrap every method with a span",
+      "level": 3
+    },
+    {
+      "id": "12-file-8-deploy-grafana-dashboards-orion-json",
+      "text": "12. File 8: deploy/grafana/dashboards/orion.json",
+      "level": 2
+    },
+    {
+      "id": "dashboard-structure-9-panels-in-3-rows",
+      "text": "Dashboard structure — 9 panels in 3 rows",
+      "level": 3
+    },
+    {
+      "id": "key-promql-queries-for-each-panel",
+      "text": "Key PromQL queries for each panel",
+      "level": 3
+    },
+    {
+      "id": "13-file-9-deploy-prometheus-prometheus-yml-scrape-config",
+      "text": "13. File 9: deploy/prometheus/prometheus.yml — Scrape Config",
+      "level": 2
+    },
+    {
+      "id": "14-opentelemetry-span-hierarchy",
+      "text": "14. OpenTelemetry Span Hierarchy",
+      "level": 2
+    },
+    {
+      "id": "for-pipeline-jobs-the-trace-is-extended",
+      "text": "For pipeline jobs, the trace is extended",
+      "level": 3
+    },
+    {
+      "id": "15-metric-catalogue-every-metric-defined",
+      "text": "15. Metric Catalogue — Every Metric Defined",
+      "level": 2
+    },
+    {
+      "id": "16-passing-metrics-and-tracers-through-the-system",
+      "text": "16. Passing Metrics and Tracers Through the System",
+      "level": 2
+    },
+    {
+      "id": "the-dependency-chain",
+      "text": "The dependency chain",
+      "level": 3
+    },
+    {
+      "id": "why-each-service-creates-its-own-metrics-instance",
+      "text": "Why each service creates its own Metrics instance",
+      "level": 3
+    },
+    {
+      "id": "why-tracer-doesn-t-need-passing",
+      "text": "Why Tracer() doesn't need passing",
+      "level": 3
+    },
+    {
+      "id": "17-step-by-step-build-order",
+      "text": "17. Step-by-Step Build Order",
+      "level": 2
+    },
+    {
+      "id": "step-1-update-observability-go",
+      "text": "Step 1 — Update observability.go",
+      "level": 3
+    },
+    {
+      "id": "step-2-update-internal-scheduler-scheduler-go",
+      "text": "Step 2 — Update internal/scheduler/scheduler.go",
+      "level": 3
+    },
+    {
+      "id": "step-3-update-cmd-scheduler-main-go",
+      "text": "Step 3 — Update cmd/scheduler/main.go",
+      "level": 3
+    },
+    {
+      "id": "step-4-update-internal-pipeline-advancement-go",
+      "text": "Step 4 — Update internal/pipeline/advancement.go",
+      "level": 3
+    },
+    {
+      "id": "step-5-update-cmd-scheduler-main-go-again",
+      "text": "Step 5 — Update cmd/scheduler/main.go again",
+      "level": 3
+    },
+    {
+      "id": "step-6-update-internal-worker-pool-go",
+      "text": "Step 6 — Update internal/worker/pool.go",
+      "level": 3
+    },
+    {
+      "id": "step-7-update-cmd-worker-main-go",
+      "text": "Step 7 — Update cmd/worker/main.go",
+      "level": 3
+    },
+    {
+      "id": "step-8-create-internal-api-handler-middleware-go",
+      "text": "Step 8 — Create internal/api/handler/middleware.go",
+      "level": 3
+    },
+    {
+      "id": "step-9-update-internal-queue-redis-redisqueue-go",
+      "text": "Step 9 — Update internal/queue/redis/redisqueue.go",
+      "level": 3
+    },
+    {
+      "id": "step-10-update-internal-store-postgres-db-go",
+      "text": "Step 10 — Update internal/store/postgres/db.go",
+      "level": 3
+    },
+    {
+      "id": "step-11-create-grafana-dashboard-and-update-prometheus-yml",
+      "text": "Step 11 — Create Grafana dashboard and update prometheus.yml",
+      "level": 3
+    },
+    {
+      "id": "step-12-make-build-and-verify",
+      "text": "Step 12 — Make build and verify",
+      "level": 3
+    },
+    {
+      "id": "18-complete-verification-sequence",
+      "text": "18. Complete Verification Sequence",
+      "level": 2
+    },
+    {
+      "id": "tier-1-metrics-endpoints-are-reachable",
+      "text": "Tier 1 — Metrics endpoints are reachable",
+      "level": 3
+    },
+    {
+      "id": "tier-2-metrics-increment-correctly",
+      "text": "Tier 2 — Metrics increment correctly",
+      "level": 3
+    },
+    {
+      "id": "tier-3-traces-appear-in-jaeger",
+      "text": "Tier 3 — Traces appear in Jaeger",
+      "level": 3
+    },
+    {
+      "id": "tier-4-grafana-dashboard-loads-with-live-data",
+      "text": "Tier 4 — Grafana dashboard loads with live data",
+      "level": 3
+    },
+    {
+      "id": "tier-5-pipeline-metrics",
+      "text": "Tier 5 — Pipeline metrics",
+      "level": 3
+    },
+    {
+      "id": "19-promql-queries-copy-paste-reference",
+      "text": "19. PromQL Queries — Copy-Paste Reference",
+      "level": 2
+    },
+    {
+      "id": "20-common-mistakes",
+      "text": "20. Common Mistakes",
+      "level": 2
+    },
+    {
+      "id": "21-phase-7-preview",
+      "text": "21. Phase 7 Preview",
+      "level": 2
+    },
+    {
+      "id": "summary-checklist",
+      "text": "Summary Checklist",
+      "level": 2
+    }
+  ],
+  "phases/7-grpc-streaming": [
+    {
+      "id": "grpc-streaming-api-real-time-job-and-pipeline-events",
+      "text": "gRPC Streaming API: Real-Time Job and Pipeline Events",
+      "level": 2
+    },
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-why-phase-7-exists",
+      "text": "1. Why Phase 7 Exists",
+      "level": 2
+    },
+    {
+      "id": "2-what-changes-before-and-after",
+      "text": "2. What Changes: Before and After",
+      "level": 2
+    },
+    {
+      "id": "phase-6-state-what-you-have-now",
+      "text": "Phase 6 state (what you have now)",
+      "level": 3
+    },
+    {
+      "id": "phase-7-state-what-you-will-have",
+      "text": "Phase 7 state (what you will have)",
+      "level": 3
+    },
+    {
+      "id": "what-grpc-streaming-looks-like-to-a-client",
+      "text": "What gRPC streaming looks like to a client",
+      "level": 3
+    },
+    {
+      "id": "3-mental-model-how-grpc-streaming-works-in-go",
+      "text": "3. Mental Model — How gRPC Streaming Works in Go",
+      "level": 2
+    },
+    {
+      "id": "grpc-vs-http-fundamental-difference",
+      "text": "gRPC vs HTTP — fundamental difference",
+      "level": 3
+    },
+    {
+      "id": "the-go-server-streaming-signature",
+      "text": "The Go server-streaming signature",
+      "level": 3
+    },
+    {
+      "id": "how-the-server-detects-client-disconnect",
+      "text": "How the server detects client disconnect",
+      "level": 3
+    },
+    {
+      "id": "4-the-event-fan-out-architecture",
+      "text": "4. The Event Fan-out Architecture",
+      "level": 2
+    },
+    {
+      "id": "the-problem-n-clients-watching-the-same-job",
+      "text": "The problem: N clients watching the same job",
+      "level": 3
+    },
+    {
+      "id": "the-broadcaster-interface",
+      "text": "The Broadcaster interface",
+      "level": 3
+    },
+    {
+      "id": "why-buffered-channels",
+      "text": "Why buffered channels",
+      "level": 3
+    },
+    {
+      "id": "why-not-postgresql-listen-notify-in-phase-7",
+      "text": "Why not PostgreSQL LISTEN/NOTIFY in Phase 7",
+      "level": 3
+    },
+    {
+      "id": "5-what-already-exists",
+      "text": "5. What Already Exists",
+      "level": 2
+    },
+    {
+      "id": "does-not-exist-yet-phase-7-builds",
+      "text": "Does NOT exist yet — Phase 7 builds",
+      "level": 3
+    },
+    {
+      "id": "6-complete-file-plan",
+      "text": "6. Complete File Plan",
+      "level": 2
+    },
+    {
+      "id": "what-is-not-changing",
+      "text": "What is NOT changing",
+      "level": 3
+    },
+    {
+      "id": "7-file-1-proto-orion-v1-jobs-proto",
+      "text": "7. File 1: proto/orion/v1/jobs.proto",
+      "level": 2
+    },
+    {
+      "id": "complete-proto-definition",
+      "text": "Complete proto definition",
+      "level": 3
+    },
+    {
+      "id": "proto-design-decisions",
+      "text": "Proto design decisions",
+      "level": 3
+    },
+    {
+      "id": "8-file-2-internal-api-grpc-broadcaster-go",
+      "text": "8. File 2: internal/api/grpc/broadcaster.go",
+      "level": 2
+    },
+    {
+      "id": "complete-code-to-write",
+      "text": "Complete code to write",
+      "level": 3
+    },
+    {
+      "id": "9-file-3-internal-api-grpc-server-go",
+      "text": "9. File 3: internal/api/grpc/server.go",
+      "level": 2
+    },
+    {
+      "id": "complete-code-to-write",
+      "text": "Complete code to write",
+      "level": 3
+    },
+    {
+      "id": "10-file-4-internal-api-grpc-servertest-go",
+      "text": "10. File 4: internal/api/grpc/servertest.go",
+      "level": 2
+    },
+    {
+      "id": "testing-pattern",
+      "text": "Testing pattern",
+      "level": 3
+    },
+    {
+      "id": "tests-to-write-18-total",
+      "text": "Tests to write (18 total)",
+      "level": 3
+    },
+    {
+      "id": "11-file-5-internal-store-postgres-db-go-event-emission",
+      "text": "11. File 5: internal/store/postgres/db.go — Event Emission",
+      "level": 2
+    },
+    {
+      "id": "pattern-inject-broadcaster-into-db-option-a-vs-return-events-option-b",
+      "text": "Pattern: inject broadcaster into DB (option A) vs return events (option B)",
+      "level": 3
+    },
+    {
+      "id": "instrumentedstore",
+      "text": "InstrumentedStore",
+      "level": 3
+    },
+    {
+      "id": "12-file-6-cmd-api-main-go-grpc-server-startup",
+      "text": "12. File 6: cmd/api/main.go — gRPC Server Startup",
+      "level": 2
+    },
+    {
+      "id": "13-file-7-makefile-proto-generation-target",
+      "text": "13. File 7: Makefile — Proto Generation Target",
+      "level": 2
+    },
+    {
+      "id": "14-streaming-internals-how-events-flow",
+      "text": "14. Streaming Internals — How Events Flow",
+      "level": 2
+    },
+    {
+      "id": "15-the-polling-to-pg-notify-evolution-path",
+      "text": "15. The Polling-to-PG-NOTIFY Evolution Path",
+      "level": 2
+    },
+    {
+      "id": "phase-7-current-500ms-polling",
+      "text": "Phase 7 (current): 500ms polling",
+      "level": 3
+    },
+    {
+      "id": "phase-8-enhancement-postgresql-listen-notify",
+      "text": "Phase 8 enhancement: PostgreSQL LISTEN/NOTIFY",
+      "level": 3
+    },
+    {
+      "id": "16-error-handling-and-stream-lifecycle",
+      "text": "16. Error Handling and Stream Lifecycle",
+      "level": 2
+    },
+    {
+      "id": "grpc-status-codes-mapped-to-orion-errors",
+      "text": "gRPC status codes mapped to Orion errors",
+      "level": 3
+    },
+    {
+      "id": "stream-lifecycle-all-four-paths",
+      "text": "Stream lifecycle — all four paths",
+      "level": 3
+    },
+    {
+      "id": "17-step-by-step-build-order",
+      "text": "17. Step-by-Step Build Order",
+      "level": 2
+    },
+    {
+      "id": "18-complete-end-to-end-test-sequence",
+      "text": "18. Complete End-to-End Test Sequence",
+      "level": 2
+    },
+    {
+      "id": "setup",
+      "text": "Setup",
+      "level": 3
+    },
+    {
+      "id": "test-1-grpc-reflection-works",
+      "text": "Test 1 — gRPC reflection works",
+      "level": 3
+    },
+    {
+      "id": "test-2-submitjob-via-grpc",
+      "text": "Test 2 — SubmitJob via gRPC",
+      "level": 3
+    },
+    {
+      "id": "test-3-watchjob-streams-live-transitions",
+      "text": "Test 3 — WatchJob streams live transitions",
+      "level": 3
+    },
+    {
+      "id": "test-4-concurrent-watchers-all-receive-events",
+      "text": "Test 4 — Concurrent watchers all receive events",
+      "level": 3
+    },
+    {
+      "id": "test-5-pipeline-watching",
+      "text": "Test 5 — Pipeline watching",
+      "level": 3
+    },
+    {
+      "id": "19-grpc-vs-http-when-to-use-which",
+      "text": "19. gRPC vs HTTP — When to Use Which",
+      "level": 2
+    },
+    {
+      "id": "20-common-mistakes",
+      "text": "20. Common Mistakes",
+      "level": 2
+    },
+    {
+      "id": "21-phase-8-preview",
+      "text": "21. Phase 8 Preview",
+      "level": 2
+    },
+    {
+      "id": "summary-checklist",
+      "text": "Summary Checklist",
+      "level": 2
+    },
+    {
+      "id": "file-locations-after-phase-7",
+      "text": "File Locations After Phase 7",
+      "level": 2
+    }
+  ],
+  "phases/8-rate-limiting": [
+    {
+      "id": "rate-limiting-fair-scheduling-and-queue-capacity-management",
+      "text": "Rate Limiting, Fair Scheduling, and Queue Capacity Management",
+      "level": 2
+    },
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-why-phase-8-exists",
+      "text": "1. Why Phase 8 Exists",
+      "level": 2
+    },
+    {
+      "id": "2-the-core-problem-worker-pool-starvation",
+      "text": "2. The Core Problem: Worker Pool Starvation",
+      "level": 2
+    },
+    {
+      "id": "current-architecture-phase-7",
+      "text": "Current architecture (Phase 7)",
+      "level": 3
+    },
+    {
+      "id": "phase-8-solution",
+      "text": "Phase 8 solution",
+      "level": 3
+    },
+    {
+      "id": "3-three-mechanisms-that-work-together",
+      "text": "3. Three Mechanisms That Work Together",
+      "level": 2
+    },
+    {
+      "id": "mechanism-1-concurrency-limiter-in-the-worker-pool",
+      "text": "Mechanism 1 — Concurrency Limiter (in the worker pool)",
+      "level": 3
+    },
+    {
+      "id": "mechanism-2-rate-limiter-in-the-scheduler",
+      "text": "Mechanism 2 — Rate Limiter (in the scheduler)",
+      "level": 3
+    },
+    {
+      "id": "mechanism-3-weighted-fair-queue-in-the-scheduler-dispatch-loop",
+      "text": "Mechanism 3 — Weighted Fair Queue (in the scheduler dispatch loop)",
+      "level": 3
+    },
+    {
+      "id": "4-mental-model-how-the-scheduler-changes",
+      "text": "4. Mental Model — How the Scheduler Changes",
+      "level": 2
+    },
+    {
+      "id": "before-phase-8-current-schedulequeuedjobs",
+      "text": "Before Phase 8 (current scheduleQueuedJobs)",
+      "level": 3
+    },
+    {
+      "id": "after-phase-8-new-schedulequeuedjobs",
+      "text": "After Phase 8 (new scheduleQueuedJobs)",
+      "level": 3
+    },
+    {
+      "id": "5-configuration-model",
+      "text": "5. Configuration Model",
+      "level": 2
+    },
+    {
+      "id": "environment-variables-simple-operator-friendly",
+      "text": "Environment variables (simple, operator-friendly)",
+      "level": 3
+    },
+    {
+      "id": "dynamic-configuration-via-api-operator-friendly-no-restart-needed",
+      "text": "Dynamic configuration via API (operator-friendly, no restart needed)",
+      "level": 3
+    },
+    {
+      "id": "6-complete-file-plan",
+      "text": "6. Complete File Plan",
+      "level": 2
+    },
+    {
+      "id": "what-is-not-changing",
+      "text": "What is NOT changing",
+      "level": 3
+    },
+    {
+      "id": "7-file-1-migration-003",
+      "text": "7. File 1: Migration 003",
+      "level": 2
+    },
+    {
+      "id": "003queueconfig-up-sql",
+      "text": "003queueconfig.up.sql",
+      "level": 3
+    },
+    {
+      "id": "003queueconfig-down-sql",
+      "text": "003queueconfig.down.sql",
+      "level": 3
+    },
+    {
+      "id": "8-file-2-internal-config-config-go-queue-limit-config",
+      "text": "8. File 2: internal/config/config.go — Queue Limit Config",
+      "level": 2
+    },
+    {
+      "id": "new-types-to-add",
+      "text": "New types to add",
+      "level": 3
+    },
+    {
+      "id": "defaults-in-load",
+      "text": "Defaults in Load()",
+      "level": 3
+    },
+    {
+      "id": "9-file-3-internal-scheduler-ratelimiter-go-token-bucket",
+      "text": "9. File 3: internal/scheduler/ratelimiter.go — Token Bucket",
+      "level": 2
+    },
+    {
+      "id": "complete-code-to-write",
+      "text": "Complete code to write",
+      "level": 3
+    },
+    {
+      "id": "10-file-4-internal-scheduler-fairqueue-go-fair-scheduler",
+      "text": "10. File 4: internal/scheduler/fairqueue.go — Fair Scheduler",
+      "level": 2
+    },
+    {
+      "id": "complete-code-to-write",
+      "text": "Complete code to write",
+      "level": 3
+    },
+    {
+      "id": "11-file-5-updated-internal-scheduler-scheduler-go",
+      "text": "11. File 5: Updated internal/scheduler/scheduler.go",
+      "level": 2
+    },
+    {
+      "id": "the-changed-schedulequeuedjobs-function",
+      "text": "The changed scheduleQueuedJobs function",
+      "level": 3
+    },
+    {
+      "id": "new-fields-in-scheduler-struct",
+      "text": "New fields in Scheduler struct",
+      "level": 3
+    },
+    {
+      "id": "12-file-6-internal-api-handler-queue-go-queue-config-api",
+      "text": "12. File 6: internal/api/handler/queue.go — Queue Config API",
+      "level": 2
+    },
+    {
+      "id": "routes-and-handlers",
+      "text": "Routes and handlers",
+      "level": 3
+    },
+    {
+      "id": "13-file-7-cmd-api-main-go-new-routes",
+      "text": "13. File 7: cmd/api/main.go — New Routes",
+      "level": 2
+    },
+    {
+      "id": "14-file-8-cmd-scheduler-main-go-ratelimiter-wired",
+      "text": "14. File 8: cmd/scheduler/main.go — RateLimiter Wired",
+      "level": 2
+    },
+    {
+      "id": "15-the-token-bucket-algorithm-deep-dive",
+      "text": "15. The Token Bucket Algorithm — Deep Dive",
+      "level": 2
+    },
+    {
+      "id": "how-it-works",
+      "text": "How it works",
+      "level": 3
+    },
+    {
+      "id": "example-high-queue-with-rate-100-sec-burst-20",
+      "text": "Example: high queue with rate=100/sec, burst=20",
+      "level": 3
+    },
+    {
+      "id": "why-float64-for-tokens",
+      "text": "Why float64 for tokens",
+      "level": 3
+    },
+    {
+      "id": "16-the-fair-scheduling-algorithm-deep-dive",
+      "text": "16. The Fair Scheduling Algorithm — Deep Dive",
+      "level": 2
+    },
+    {
+      "id": "the-problem-with-order-by-priority-alone",
+      "text": "The problem with ORDER BY priority alone",
+      "level": 3
+    },
+    {
+      "id": "the-phase-8-approach-per-queue-allocation",
+      "text": "The Phase 8 approach: per-queue allocation",
+      "level": 3
+    },
+    {
+      "id": "17-interaction-with-existing-priority-system",
+      "text": "17. Interaction With Existing Priority System",
+      "level": 2
+    },
+    {
+      "id": "18-metrics-for-phase-8",
+      "text": "18. Metrics for Phase 8",
+      "level": 2
+    },
+    {
+      "id": "new-metrics-to-add-to-observability-go",
+      "text": "New metrics to add to observability.go",
+      "level": 3
+    },
+    {
+      "id": "promql-for-new-grafana-panels",
+      "text": "PromQL for new Grafana panels",
+      "level": 3
+    },
+    {
+      "id": "19-step-by-step-build-order",
+      "text": "19. Step-by-Step Build Order",
+      "level": 2
+    },
+    {
+      "id": "step-1-migration-003",
+      "text": "Step 1 — Migration 003",
+      "level": 3
+    },
+    {
+      "id": "step-2-config-types",
+      "text": "Step 2 — Config types",
+      "level": 3
+    },
+    {
+      "id": "step-3-token-bucket-rate-limiter",
+      "text": "Step 3 — Token bucket rate limiter",
+      "level": 3
+    },
+    {
+      "id": "step-4-fair-queue",
+      "text": "Step 4 — Fair queue",
+      "level": 3
+    },
+    {
+      "id": "step-5-update-scheduler",
+      "text": "Step 5 — Update scheduler",
+      "level": 3
+    },
+    {
+      "id": "step-6-update-cmd-scheduler-main-go",
+      "text": "Step 6 — Update cmd/scheduler/main.go",
+      "level": 3
+    },
+    {
+      "id": "step-7-queue-config-api-handler",
+      "text": "Step 7 — Queue config API handler",
+      "level": 3
+    },
+    {
+      "id": "step-8-new-metrics",
+      "text": "Step 8 — New metrics",
+      "level": 3
+    },
+    {
+      "id": "step-9-full-build-all-tests",
+      "text": "Step 9 — Full build + all tests",
+      "level": 3
+    },
+    {
+      "id": "20-complete-verification-sequence",
+      "text": "20. Complete Verification Sequence",
+      "level": 2
+    },
+    {
+      "id": "test-1-starvation-prevention-high-priority-job-completes-despite-low-priority-flood",
+      "text": "Test 1 — Starvation prevention: high-priority job completes despite low-priority flood",
+      "level": 3
+    },
+    {
+      "id": "test-2-rate-limiter-enforcement",
+      "text": "Test 2 — Rate limiter enforcement",
+      "level": 3
+    },
+    {
+      "id": "test-3-dynamic-config-update-no-restart",
+      "text": "Test 3 — Dynamic config update (no restart)",
+      "level": 3
+    },
+    {
+      "id": "test-4-fair-scheduling-allocation-verification",
+      "text": "Test 4 — Fair scheduling allocation verification",
+      "level": 3
+    },
+    {
+      "id": "21-common-mistakes",
+      "text": "21. Common Mistakes",
+      "level": 2
+    },
+    {
+      "id": "22-phase-9-preview",
+      "text": "22. Phase 9 Preview",
+      "level": 2
+    },
+    {
+      "id": "summary-checklist",
+      "text": "Summary Checklist",
+      "level": 2
+    }
+  ],
+  "phases/9-helm-deployment": [
+    {
+      "id": "helm-chart-production-kubernetes-deployment",
+      "text": "Helm Chart + Production Kubernetes Deployment",
+      "level": 2
+    },
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-why-phase-9-exists",
+      "text": "1. Why Phase 9 Exists",
+      "level": 2
+    },
+    {
+      "id": "2-what-phase-9-delivers",
+      "text": "2. What Phase 9 Delivers",
+      "level": 2
+    },
+    {
+      "id": "the-helm-install-command",
+      "text": "The helm install command",
+      "level": 3
+    },
+    {
+      "id": "what-gets-deployed",
+      "text": "What gets deployed",
+      "level": 3
+    },
+    {
+      "id": "3-the-three-binary-deployment-model",
+      "text": "3. The Three-Binary Deployment Model",
+      "level": 2
+    },
+    {
+      "id": "why-three-separate-deployments",
+      "text": "Why three separate Deployments",
+      "level": 3
+    },
+    {
+      "id": "the-scheduler-s-redundancy-model",
+      "text": "The scheduler's redundancy model",
+      "level": 3
+    },
+    {
+      "id": "worker-autoscaling-logic",
+      "text": "Worker autoscaling logic",
+      "level": 3
+    },
+    {
+      "id": "4-complete-file-plan",
+      "text": "4. Complete File Plan",
+      "level": 2
+    },
+    {
+      "id": "5-dockerfiles-multi-stage-builds",
+      "text": "5. Dockerfiles — Multi-Stage Builds",
+      "level": 2
+    },
+    {
+      "id": "design-principles",
+      "text": "Design principles",
+      "level": 3
+    },
+    {
+      "id": "dockerfile-api",
+      "text": "Dockerfile.api",
+      "level": 3
+    },
+    {
+      "id": "dockerfile-worker",
+      "text": "Dockerfile.worker",
+      "level": 3
+    },
+    {
+      "id": "build-and-push",
+      "text": "Build and push",
+      "level": 3
+    },
+    {
+      "id": "6-helm-chart-structure",
+      "text": "6. Helm Chart Structure",
+      "level": 2
+    },
+    {
+      "id": "chart-yaml",
+      "text": "Chart.yaml",
+      "level": 3
+    },
+    {
+      "id": "helpers-tpl-shared-name-and-label-helpers",
+      "text": "helpers.tpl — Shared name and label helpers",
+      "level": 3
+    },
+    {
+      "id": "7-file-by-file-every-template-explained",
+      "text": "7. File-by-File: Every Template Explained",
+      "level": 2
+    },
+    {
+      "id": "configmap-yaml-non-sensitive-configuration",
+      "text": "configmap.yaml — Non-sensitive configuration",
+      "level": 3
+    },
+    {
+      "id": "secret-yaml-sensitive-configuration",
+      "text": "secret.yaml — Sensitive configuration",
+      "level": 3
+    },
+    {
+      "id": "api-deployment-yaml-api-server",
+      "text": "api-deployment.yaml — API Server",
+      "level": 3
+    },
+    {
+      "id": "scheduler-deployment-yaml-scheduler-hot-standby-ha",
+      "text": "scheduler-deployment.yaml — Scheduler (hot-standby HA)",
+      "level": 3
+    },
+    {
+      "id": "worker-deployment-yaml-worker-autoscaled",
+      "text": "worker-deployment.yaml — Worker (autoscaled)",
+      "level": 3
+    },
+    {
+      "id": "hpa-yaml-horizontalpodautoscaler",
+      "text": "hpa.yaml — HorizontalPodAutoscaler",
+      "level": 3
+    },
+    {
+      "id": "rbac-yaml-kubernetes-rbac-for-worker",
+      "text": "rbac.yaml — Kubernetes RBAC for worker",
+      "level": 3
+    },
+    {
+      "id": "servicemonitor-yaml-prometheus-scraping",
+      "text": "servicemonitor.yaml — Prometheus scraping",
+      "level": 3
+    },
+    {
+      "id": "8-values-yaml-the-complete-default-configuration",
+      "text": "8. values.yaml — The Complete Default Configuration",
+      "level": 2
+    },
+    {
+      "id": "9-production-hardening-checklist",
+      "text": "9. Production Hardening Checklist",
+      "level": 2
+    },
+    {
+      "id": "security",
+      "text": "Security",
+      "level": 3
+    },
+    {
+      "id": "reliability",
+      "text": "Reliability",
+      "level": 3
+    },
+    {
+      "id": "operational",
+      "text": "Operational",
+      "level": 3
+    },
+    {
+      "id": "10-hpa-autoscaling-workers-on-queue-depth",
+      "text": "10. HPA: Autoscaling Workers on Queue Depth",
+      "level": 2
+    },
+    {
+      "id": "why-queue-depth-is-the-right-metric",
+      "text": "Why queue depth is the right metric",
+      "level": 3
+    },
+    {
+      "id": "the-prometheus-adapter-setup",
+      "text": "The prometheus-adapter setup",
+      "level": 3
+    },
+    {
+      "id": "scale-up-scenario",
+      "text": "Scale-up scenario",
+      "level": 3
+    },
+    {
+      "id": "11-secret-management-strategy",
+      "text": "11. Secret Management Strategy",
+      "level": 2
+    },
+    {
+      "id": "option-1-direct-values-development-staging-only",
+      "text": "Option 1 — Direct values (development/staging only)",
+      "level": 3
+    },
+    {
+      "id": "option-2-existingsecret-recommended-for-production",
+      "text": "Option 2 — existingSecret (recommended for production)",
+      "level": 3
+    },
+    {
+      "id": "option-3-sealed-secrets-gitops-safe",
+      "text": "Option 3 — Sealed Secrets (GitOps-safe)",
+      "level": 3
+    },
+    {
+      "id": "12-step-by-step-build-and-deploy-order",
+      "text": "12. Step-by-Step Build and Deploy Order",
+      "level": 2
+    },
+    {
+      "id": "step-1-write-dockerfiles-and-verify-local-build",
+      "text": "Step 1 — Write Dockerfiles and verify local build",
+      "level": 3
+    },
+    {
+      "id": "step-2-write-chart-yaml-and-values-yaml",
+      "text": "Step 2 — Write Chart.yaml and values.yaml",
+      "level": 3
+    },
+    {
+      "id": "step-3-write-all-templates",
+      "text": "Step 3 — Write all templates",
+      "level": 3
+    },
+    {
+      "id": "step-4-create-a-local-kind-cluster-for-testing",
+      "text": "Step 4 — Create a local kind cluster for testing",
+      "level": 3
+    },
+    {
+      "id": "step-5-apply-migration-via-init-job",
+      "text": "Step 5 — Apply migration via init-job",
+      "level": 3
+    },
+    {
+      "id": "step-6-helm-install",
+      "text": "Step 6 — helm install",
+      "level": 3
+    },
+    {
+      "id": "step-7-verify-deployment",
+      "text": "Step 7 — Verify deployment",
+      "level": 3
+    },
+    {
+      "id": "13-complete-verification-sequence",
+      "text": "13. Complete Verification Sequence",
+      "level": 2
+    },
+    {
+      "id": "test-1-api-reachable",
+      "text": "Test 1 — API reachable",
+      "level": 3
+    },
+    {
+      "id": "test-2-end-to-end-job-execution-in-cluster",
+      "text": "Test 2 — End-to-end job execution in cluster",
+      "level": 3
+    },
+    {
+      "id": "test-3-scheduler-ha-failover",
+      "text": "Test 3 — Scheduler HA failover",
+      "level": 3
+    },
+    {
+      "id": "test-4-rolling-update-zero-downtime",
+      "text": "Test 4 — Rolling update zero-downtime",
+      "level": 3
+    },
+    {
+      "id": "test-5-hpa-scales-workers-under-load",
+      "text": "Test 5 — HPA scales workers under load",
+      "level": 3
+    },
+    {
+      "id": "14-scaling-reference",
+      "text": "14. Scaling Reference",
+      "level": 2
+    },
+    {
+      "id": "capacity-formula",
+      "text": "Capacity formula",
+      "level": 3
+    },
+    {
+      "id": "recommended-values-by-environment",
+      "text": "Recommended values by environment",
+      "level": 3
+    },
+    {
+      "id": "tuning-the-hpa",
+      "text": "Tuning the HPA",
+      "level": 3
+    },
+    {
+      "id": "15-common-mistakes",
+      "text": "15. Common Mistakes",
+      "level": 2
+    },
+    {
+      "id": "16-the-complete-journey-orion-phases-1-9",
+      "text": "16. The Complete Journey: Orion Phases 1–9",
+      "level": 2
+    },
+    {
+      "id": "what-you-ve-built",
+      "text": "What you've built",
+      "level": 3
+    },
+    {
+      "id": "summary-checklist",
+      "text": "Summary Checklist",
+      "level": 2
+    }
+  ],
+  "phases/10-observability-hardening": [
+    {
+      "id": "current-state-assessment",
+      "text": "Current State Assessment",
+      "level": 2
+    },
+    {
+      "id": "what-is-instrumented",
+      "text": "What is instrumented ✅",
+      "level": 3
+    },
+    {
+      "id": "gaps-found-what-is-missing-or-broken",
+      "text": "Gaps Found (What Is Missing or Broken) ❌",
+      "level": 3
+    },
+    {
+      "id": "phase-10-plan",
+      "text": "Phase 10 Plan",
+      "level": 2
+    },
+    {
+      "id": "10-1-fix-dboperationduration-instrumentation",
+      "text": "10.1 — Fix DBOperationDuration instrumentation",
+      "level": 3
+    },
+    {
+      "id": "10-2-add-grafana-datasource-provisioning-files",
+      "text": "10.2 — Add Grafana datasource provisioning files",
+      "level": 3
+    },
+    {
+      "id": "10-3-add-otel-interceptors-to-grpc-server",
+      "text": "10.3 — Add OTel interceptors to gRPC server",
+      "level": 3
+    },
+    {
+      "id": "10-4-no-op-tracer-when-otlp-endpoint-is-empty",
+      "text": "10.4 — No-op tracer when OTLP endpoint is empty",
+      "level": 3
+    },
+    {
+      "id": "10-5-prometheus-alerting-rules",
+      "text": "10.5 — Prometheus alerting rules",
+      "level": 3
+    },
+    {
+      "id": "10-6-phase-8-grafana-panels",
+      "text": "10.6 — Phase 8 Grafana panels",
+      "level": 3
+    },
+    {
+      "id": "10-7-trace-log-correlation-via-slog-middleware",
+      "text": "10.7 — Trace-log correlation via slog middleware",
+      "level": 3
+    },
+    {
+      "id": "10-8-tls-for-otlp-exporter-production-only",
+      "text": "10.8 — TLS for OTLP exporter (production only)",
+      "level": 3
+    },
+    {
+      "id": "summary",
+      "text": "Summary",
+      "level": 2
+    }
+  ],
+  "phases/11-frontend-completion": [
+    {
+      "id": "current-state",
+      "text": "Current State",
+      "level": 2
+    },
+    {
+      "id": "what-is-built",
+      "text": "What is built ✅",
+      "level": 3
+    },
+    {
+      "id": "what-is-missing",
+      "text": "What is missing ❌",
+      "level": 3
+    },
+    {
+      "id": "installed-stack-today",
+      "text": "Installed Stack (today)",
+      "level": 2
+    },
+    {
+      "id": "stack-to-add",
+      "text": "Stack to Add",
+      "level": 2
+    },
+    {
+      "id": "implementation-plan",
+      "text": "Implementation Plan",
+      "level": 2
+    },
+    {
+      "id": "step-1-api-client-tanstack-query-setup",
+      "text": "Step 1 — API Client + TanStack Query setup",
+      "level": 3
+    },
+    {
+      "id": "step-2-wire-existing-pages-to-live-data",
+      "text": "Step 2 — Wire existing pages to live data",
+      "level": 3
+    },
+    {
+      "id": "step-3-job-detail-page",
+      "text": "Step 3 — Job Detail page",
+      "level": 3
+    },
+    {
+      "id": "step-4-submit-job-form",
+      "text": "Step 4 — Submit Job form",
+      "level": 3
+    },
+    {
+      "id": "step-5-pipeline-detail-dag-view",
+      "text": "Step 5 — Pipeline Detail + DAG view",
+      "level": 3
+    },
+    {
+      "id": "step-6-create-pipeline-form",
+      "text": "Step 6 — Create Pipeline form",
+      "level": 3
+    },
+    {
+      "id": "step-7-observability-page",
+      "text": "Step 7 — Observability page",
+      "level": 3
+    },
+    {
+      "id": "step-8-docs-section",
+      "text": "Step 8 — Docs section",
+      "level": 3
+    },
+    {
+      "id": "step-9-loading-empty-and-error-states",
+      "text": "Step 9 — Loading, empty, and error states",
+      "level": 3
+    },
+    {
+      "id": "step-10-toast-notifications",
+      "text": "Step 10 — Toast notifications",
+      "level": 3
+    },
+    {
+      "id": "solutions",
+      "text": "Solutions",
+      "level": 2
+    },
+    {
+      "id": "gap-1-no-api-client-no-fetch-calls-step-1",
+      "text": "Gap 1 — No API client / no fetch calls (Step 1)",
+      "level": 3
+    },
+    {
+      "id": "gap-2-all-pages-show-mock-data-health-chip-hardcoded-queue-save-no-op-step-2",
+      "text": "Gap 2 — All pages show mock data / health chip hardcoded / queue Save no-op (Step 2)",
+      "level": 3
+    },
+    {
+      "id": "gap-3-no-job-detail-page-no-cancel-replay-actions-table-rows-not-linked-step-3",
+      "text": "Gap 3 — No Job Detail page / no cancel-replay actions / table rows not linked (Step 3)",
+      "level": 3
+    },
+    {
+      "id": "gap-4-no-submit-job-form-step-4",
+      "text": "Gap 4 — No Submit Job form (Step 4)",
+      "level": 3
+    },
+    {
+      "id": "gap-5-no-pipeline-detail-dag-view-step-5",
+      "text": "Gap 5 — No Pipeline Detail / DAG view (Step 5)",
+      "level": 3
+    },
+    {
+      "id": "gap-6-no-create-pipeline-form-step-6",
+      "text": "Gap 6 — No Create Pipeline form (Step 6)",
+      "level": 3
+    },
+    {
+      "id": "gap-summary",
+      "text": "Gap Summary",
+      "level": 2
+    },
+    {
+      "id": "dashboard-ux-audit-phase-11-additions",
+      "text": "Dashboard UX Audit (Phase 11 additions)",
+      "level": 2
+    },
+    {
+      "id": "gap-15-dashboard-sparklines-are-hardcoded-mock-arrays",
+      "text": "Gap 15 — Dashboard sparklines are hardcoded mock arrays",
+      "level": 3
+    },
+    {
+      "id": "gap-16-home-page-still-uses-mock-overview-import",
+      "text": "Gap 16 — Home page still uses mock overview import",
+      "level": 3
+    },
+    {
+      "id": "gap-17-no-time-series-throughput-error-rate-chart",
+      "text": "Gap 17 — No time-series throughput / error-rate chart",
+      "level": 3
+    },
+    {
+      "id": "gap-18-job-status-distribution-has-no-visual-weight",
+      "text": "Gap 18 — Job status distribution has no visual weight",
+      "level": 3
+    },
+    {
+      "id": "gap-19-dashboard-overview-job-rows-not-linked-to-detail",
+      "text": "Gap 19 — Dashboard overview job rows not linked to detail",
+      "level": 3
+    },
+    {
+      "id": "gap-20-dashboard-overview-pipeline-rows-not-linked-to-detail",
+      "text": "Gap 20 — Dashboard overview pipeline rows not linked to detail",
+      "level": 3
+    },
+    {
+      "id": "gap-21-worker-metric-card-shows-no-fleet-utilization",
+      "text": "Gap 21 — Worker metric card shows no fleet utilization %",
+      "level": 3
+    },
+    {
+      "id": "dependencies-not-in-scope-for-phase-11",
+      "text": "Dependencies Not in scope for Phase 11",
+      "level": 2
+    }
+  ],
+  "phases/12-docs-integration": [
+    {
+      "id": "current-state",
+      "text": "Current State",
+      "level": 2
+    },
+    {
+      "id": "technical-stack-to-add",
+      "text": "Technical Stack to Add",
+      "level": 2
+    },
+    {
+      "id": "architecture-of-the-docs-portal",
+      "text": "Architecture of the Docs Portal",
+      "level": 2
+    },
+    {
+      "id": "implementation-plan",
+      "text": "Implementation Plan",
+      "level": 2
+    },
+    {
+      "id": "step-1-mdx-setup-and-file-system-reader",
+      "text": "Step 1 — MDX Setup and File System Reader",
+      "level": 3
+    },
+    {
+      "id": "step-2-navigation-configuration-and-structure",
+      "text": "Step 2 — Navigation Configuration and Structure",
+      "level": 3
+    },
+    {
+      "id": "step-3-dynamic-catch-all-docs-layout-and-page",
+      "text": "Step 3 — Dynamic Catch-All Docs Layout and Page",
+      "level": 3
+    },
+    {
+      "id": "step-4-dynamic-scrollspy-table-of-contents",
+      "text": "Step 4 — Dynamic Scrollspy Table of Contents",
+      "level": 3
+    },
+    {
+      "id": "step-5-interactive-mdx-components-code-mermaid-support",
+      "text": "Step 5 — Interactive MDX Components (Code & Mermaid Support)",
+      "level": 3
+    },
+    {
+      "id": "step-6-search-engine-fuzzy-searching",
+      "text": "Step 6 — Search Engine & Fuzzy Searching",
+      "level": 3
+    },
+    {
+      "id": "design-and-visual-verification",
+      "text": "Design and Visual Verification",
+      "level": 2
+    },
+    {
+      "id": "completion-criteria",
+      "text": "Completion Criteria",
+      "level": 2
+    }
+  ]
+}
