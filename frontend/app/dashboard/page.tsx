@@ -39,8 +39,6 @@ export default function DashboardPage() {
   const { data: queues = [], isLoading: queuesLoading } = useQueues();
   const { data: pipelines = [], isLoading: pipelinesLoading } = usePipelines();
 
-  const isLoading = jobsLoading || workersLoading || queuesLoading || pipelinesLoading;
-
   const incidents = jobs.filter(j => j.status === "failed" || j.status === "dead" || j.status === "retrying");
   const totalSlots = workers.reduce((s, w) => s + w.concurrency, 0);
   const usedSlots  = workers.reduce((s, w) => s + w.active_jobs, 0);
