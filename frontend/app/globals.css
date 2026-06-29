@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
 @import 'reactflow/dist/style.css';
+@import 'highlight.js/styles/github-dark-dimmed.css';
 
 @tailwind base;
 @tailwind components;
@@ -28,6 +29,119 @@
   --glow-2: 0.05;
   --glow-3: 0.03;
 }
+
+/* Repository-backed documentation */
+.docs-prose {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.9375rem;
+  line-height: 1.8;
+}
+
+.docs-prose :where(h2, h3, h4) {
+  scroll-margin-top: 5rem;
+  color: hsl(var(--foreground));
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.docs-prose h2 {
+  margin: 2.75rem 0 1rem;
+  border-top: 1px solid hsl(var(--border) / 0.7);
+  padding-top: 1.75rem;
+  font-size: 1.55rem;
+}
+
+.docs-prose h3 { margin: 2rem 0 0.75rem; font-size: 1.2rem; }
+.docs-prose h4 { margin: 1.5rem 0 0.6rem; font-size: 1rem; }
+.docs-prose p { margin: 0.9rem 0; }
+.docs-prose strong { color: hsl(var(--foreground)); font-weight: 650; }
+.docs-prose em { color: hsl(var(--foreground) / 0.88); }
+
+.docs-prose a {
+  color: hsl(var(--primary));
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+.docs-prose a:hover { text-decoration: underline; }
+.docs-prose :where(h2, h3, h4) > a { color: inherit; }
+.docs-prose :where(h2, h3, h4) > a:hover { text-decoration: none; }
+
+.docs-prose :where(ul, ol) { margin: 0.9rem 0; padding-left: 1.4rem; }
+.docs-prose ul { list-style: disc; }
+.docs-prose ol { list-style: decimal; }
+.docs-prose li { margin: 0.3rem 0; padding-left: 0.2rem; }
+.docs-prose li::marker { color: hsl(var(--primary) / 0.75); }
+.docs-prose li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.4rem; }
+.docs-prose input[type="checkbox"] { margin-right: 0.55rem; accent-color: hsl(var(--primary)); }
+
+.docs-prose blockquote {
+  margin: 1.4rem 0;
+  border-left: 3px solid hsl(var(--primary) / 0.65);
+  border-radius: 0 0.65rem 0.65rem 0;
+  background: hsl(var(--primary) / 0.055);
+  padding: 0.7rem 1.1rem;
+  color: hsl(var(--foreground) / 0.82);
+}
+
+.docs-prose :not(pre) > code {
+  border: 1px solid hsl(var(--border) / 0.8);
+  border-radius: 0.3rem;
+  background: hsl(var(--muted) / 0.7);
+  padding: 0.12rem 0.35rem;
+  color: hsl(var(--primary));
+  font-size: 0.84em;
+}
+
+.docs-prose .docs-code {
+  margin: 1.4rem 0;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border) / 0.9);
+  border-radius: 0.75rem;
+  background: #0d1117;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16);
+}
+.docs-code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 0.45rem 0.7rem 0.45rem 0.9rem;
+  color: #8fa3b0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+}
+.docs-code-toolbar button { display: flex; align-items: center; gap: 0.35rem; border-radius: 0.35rem; padding: 0.25rem 0.45rem; }
+.docs-code-toolbar button:hover { background: rgba(255, 255, 255, 0.08); color: white; }
+.docs-code pre { margin: 0; overflow-x: auto; padding: 1rem; background: transparent !important; color: #c9d1d9; font-size: 0.79rem; line-height: 1.65; }
+.docs-code code { background: transparent !important; padding: 0; }
+
+.docs-prose .table-wrap { overflow-x: auto; }
+.docs-prose table { display: block; width: 100%; margin: 1.5rem 0; overflow-x: auto; border-collapse: collapse; font-size: 0.82rem; }
+.docs-prose th { background: hsl(var(--muted) / 0.7); color: hsl(var(--foreground)); font-weight: 600; text-align: left; }
+.docs-prose :where(th, td) { min-width: 8rem; border: 1px solid hsl(var(--border) / 0.75); padding: 0.65rem 0.8rem; vertical-align: top; }
+.docs-prose tr:nth-child(even) td { background: hsl(var(--muted) / 0.22); }
+.docs-prose hr { margin: 2.5rem 0; border: 0; border-top: 1px solid hsl(var(--border) / 0.7); }
+.docs-prose img { margin: 1.5rem auto; max-width: 100%; border: 1px solid hsl(var(--border)); border-radius: 0.75rem; }
+
+.docs-diagram, .docs-diagram-loading, .docs-diagram-error {
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  border: 1px solid hsl(var(--border) / 0.9);
+  border-radius: 0.75rem;
+  background: #09111f;
+  padding: 1.5rem;
+  text-align: center;
+}
+.docs-diagram svg { 
+  margin: auto; 
+  max-width: 100%; 
+  max-height: 35rem;
+  width: auto;
+  height: auto; 
+}
+.docs-diagram-loading { min-height: 10rem; display: grid; place-items: center; color: hsl(var(--muted-foreground)); }
+.docs-diagram-error { border-color: hsl(var(--danger) / 0.4); color: hsl(var(--danger)); }
 
 .dark {
   --background: 226 40% 1%;
