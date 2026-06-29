@@ -167,7 +167,7 @@ export default function HomePage() {
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
             Orion sits between your training pipelines and the cluster — handling priority queuing,
             retries, backpressure, DAG orchestration, and real-time status streaming so your
-            application code doesn't have to.
+            application code doesn&apos;t have to.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
