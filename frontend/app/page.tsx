@@ -376,13 +376,14 @@ export default function HomePage() {
               <span className="font-mono text-xs text-primary">orion-stack · bash</span>
             </div>
           </div>
-          <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 text-foreground/90 bg-muted/5">
-            <code>{`# Clone and boot database/cache dependencies
-git clone https://github.com/shreeharshshinde/orion.git && cd orion
-docker compose up -d
-
-# Initialize postgres schemas
-make migrate-up`}</code>
+          <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 bg-muted/5 text-[#d4d4d4]">
+            <code>
+              <span className="text-[#6a9955]"># Clone and boot database/cache dependencies</span>{"\n"}
+              <span className="text-[#569cd6]">git clone</span> <span className="text-[#ce9178]">https://github.com/shreeharshshinde/orion.git</span> <span className="text-[#569cd6]">&& cd</span> orion{"\n"}
+              <span className="text-[#569cd6]">docker compose up</span> <span className="text-[#b5cea8]">-d</span>{"\n\n"}
+              <span className="text-[#6a9955]"># Initialize postgres schemas</span>{"\n"}
+              <span className="text-[#569cd6]">make</span> <span className="text-[#ce9178]">migrate-up</span>
+            </code>
           </pre>
         </div>
       </section>
@@ -406,8 +407,25 @@ make migrate-up`}</code>
               <span className="font-mono text-xs text-primary">orion · localhost:8080</span>
             </div>
           </div>
-          <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 text-foreground/90">
-            <code>{SUBMIT_SNIPPET}</code>
+          <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 bg-muted/5 text-[#d4d4d4]">
+            <code>
+              <span className="text-[#569cd6]">curl</span> -sX POST <span className="text-[#ce9178]">http://localhost:8080/jobs</span> \<span className="text-[#6a9955]">{"\n"}</span>
+              {"  "}-H <span className="text-[#ce9178]">&apos;Content-Type: application/json&apos;</span> \<span className="text-[#6a9955]">{"\n"}</span>
+              {"  "}-d <span className="text-[#ce9178]">&apos;<span className="text-[#ffd700]">{"{"}</span></span><span className="text-[#d4d4d4]">{"\n"}</span>
+              {"    "}<span className="text-[#9cdcfe]">&quot;name&quot;</span>: <span className="text-[#ce9178]">&quot;train-resnet&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+              {"    "}<span className="text-[#9cdcfe]">&quot;type&quot;</span>: <span className="text-[#ce9178]">&quot;k8s_job&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+              {"    "}<span className="text-[#9cdcfe]">&quot;queue_name&quot;</span>: <span className="text-[#ce9178]">&quot;high&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+              {"    "}<span className="text-[#9cdcfe]">&quot;priority&quot;</span>: <span className="text-[#b5cea8]">8</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+              {"    "}<span className="text-[#9cdcfe]">&quot;max_retries&quot;</span>: <span className="text-[#b5cea8]">3</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+              {"    "}<span className="text-[#9cdcfe]">&quot;payload&quot;</span>: <span className="text-[#ffd700]">{"{"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+              {"      "}<span className="text-[#9cdcfe]">&quot;kubernetes_spec&quot;</span>: <span className="text-[#ffd700]">{"{"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+              {"        "}<span className="text-[#9cdcfe]">&quot;image&quot;</span>: <span className="text-[#ce9178]">&quot;pytorch/pytorch:2.1.0-cuda11.8&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+              {"        "}<span className="text-[#9cdcfe]">&quot;command&quot;</span>: <span className="text-[#ffd700]">[</span><span className="text-[#ce9178]">&quot;python&quot;</span>, <span className="text-[#ce9178]">&quot;train.py&quot;</span><span className="text-[#ffd700]">]</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+              {"        "}<span className="text-[#9cdcfe]">&quot;resources&quot;</span>: <span className="text-[#ffd700]">{"{"}</span> <span className="text-[#9cdcfe]">&quot;gpu&quot;</span>: <span className="text-[#b5cea8]">1</span>, <span className="text-[#9cdcfe]">&quot;memory&quot;</span>: <span className="text-[#ce9178]">&quot;16Gi&quot;</span> <span className="text-[#ffd700]">{"}"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+              {"      "}<span className="text-[#ffd700]">{"}"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+              {"    "}<span className="text-[#ffd700]">{"}"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+              {"  "}<span className="text-[#ffd700]">{"}"}</span><span className="text-[#ce9178]">&apos;</span>
+            </code>
           </pre>
         </div>
       </section>
