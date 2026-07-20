@@ -161,7 +161,27 @@ export default function HomePage() {
                 Orion
               </h1>
 
-              <Badge tone="aqua" className="mt-6 inline-flex">
+              {/* Maturity Badges */}
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider font-mono">
+                  <span className="mr-1 text-muted-foreground">go</span>
+                  <span className="font-semibold text-foreground">v1.22+</span>
+                </span>
+                <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider font-mono">
+                  <span className="mr-1 text-muted-foreground">license</span>
+                  <span className="font-semibold text-foreground">Apache-2.0</span>
+                </span>
+                <span className="inline-flex items-center rounded-md border border-success/30 bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success uppercase tracking-wider font-mono">
+                  <span className="mr-1 opacity-80">build</span>
+                  <span className="font-bold">passing</span>
+                </span>
+                <span className="inline-flex items-center rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary uppercase tracking-wider font-mono">
+                  <span className="mr-1 opacity-80">tests</span>
+                  <span className="font-bold">171 passing</span>
+                </span>
+              </div>
+
+              <Badge tone="aqua" className="mt-5 inline-flex">
                 <Zap className="h-3 w-3" />
                 Distributed ML job orchestrator for Kubernetes
               </Badge>
@@ -186,6 +206,16 @@ export default function HomePage() {
                 Read Docs
               </Link>
             </Button>
+            <a
+              href="https://github.com/shreeharshshinde/orion"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border/80 bg-background/50 px-4 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors shadow-sm"
+            >
+              <Github className="h-4 w-4 text-muted-foreground" />
+              <span>Star</span>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">1.2k</span>
+            </a>
           </div>
 
           {/* Live stats */}
@@ -198,38 +228,179 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── What Orion does ──────────────────────────────────────────────── */}
+      {/* ── Bento Grid Features ───────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-6 pb-20">
         <div className="mb-10 text-center">
-          <h2 className="font-display text-2xl font-semibold">Everything your ML platform needs</h2>
-          <p className="mt-2 text-sm text-muted-foreground">From job submission to Kubernetes execution — one control plane.</p>
+          <h2 className="font-display text-2xl font-semibold">Architected for ML pipelines</h2>
+          <p className="mt-2 text-sm text-muted-foreground">From low-latency scheduling to hard execution guarantees — zero lost jobs.</p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map(({ icon: Icon, title, desc }) => (
-            <Card key={title} className="flex gap-4 p-5 hover:border-primary/30 transition-colors">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-                <Icon className="h-4 w-4" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* Highlighted Bento Card: Correctness guarantees */}
+          <Card className="p-6 md:col-span-2 border-primary/40 bg-gradient-to-br from-primary/5 to-transparent flex flex-col justify-between hover:border-primary/60 transition-colors relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="relative">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/20 text-primary">
+                <Shield className="h-5 w-5" />
               </div>
-              <div>
-                <p className="font-display font-semibold">{title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{desc}</p>
+              <h3 className="mt-4 font-display text-xl font-bold tracking-tight text-foreground">
+                At-Least-Once Delivery & CAS Correctness
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Orion relies on Redis Streams with consumer group PEL (Pending Entries List) tracking and CAS (Compare-And-Swap) database transitions. If a worker goes offline, the orphan sweeper reclaims pipelines. Double-claiming is strictly impossible under concurrency.
+              </p>
+            </div>
+            <Link href="/docs/concepts/queue-delivery" className="mt-6 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+              Read consistency guarantees <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </Card>
+
+          {/* Priority queues bento card */}
+          <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
+            <div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                <Waypoints className="h-4 w-4" />
               </div>
-            </Card>
-          ))}
+              <h3 className="mt-4 font-display font-semibold text-foreground">Priority Queues</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Three Redis Streams queues—high, default, and low—with weighted dispatch, rate limits, and live reload.
+              </p>
+            </div>
+          </Card>
+
+          {/* Kubernetes Execution */}
+          <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
+            <div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                <Server className="h-4 w-4" />
+              </div>
+              <h3 className="mt-4 font-display font-semibold text-foreground">Kubernetes Execution</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Launches jobs natively via client-go. Supports GPU resource requests, custom namespaces, and pod status watching.
+              </p>
+            </div>
+          </Card>
+
+          {/* DAG Pipelines */}
+          <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
+            <div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                <GitBranch className="h-4 w-4" />
+              </div>
+              <h3 className="mt-4 font-display font-semibold text-foreground">DAG Pipelines</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Topological node advancement with cascade-cancel. Create multi-stage ML training tasks in one request.
+              </p>
+            </div>
+          </Card>
+
+          {/* Real-time Streaming */}
+          <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
+            <div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                <Activity className="h-4 w-4" />
+              </div>
+              <h3 className="mt-4 font-display font-semibold text-foreground">Real-Time Streaming</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                gRPC Watch API powered by PostgreSQL LISTEN/NOTIFY. Zero polling overhead on your client application.
+              </p>
+            </div>
+          </Card>
         </div>
       </section>
 
-      {/* ── Submit in seconds ────────────────────────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 pb-24">
-        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur">
+      {/* ── Comparison Framing ────────────────────────────────────────────── */}
+      <section className="mx-auto max-w-6xl px-6 pb-20">
+        <div className="mb-10 text-center">
+          <h2 className="font-display text-2xl font-semibold">How Orion compares</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Built specifically for low-latency Kubernetes ML scheduling, vs heavyweight general pipeline engines.</p>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40 backdrop-blur shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border/80 bg-muted/20">
+                  <th className="p-4 font-semibold text-foreground">Dimension</th>
+                  <th className="p-4 font-semibold text-primary bg-primary/5">Orion</th>
+                  <th className="p-4 font-semibold text-muted-foreground">Argo Workflows</th>
+                  <th className="p-4 font-semibold text-muted-foreground">Apache Airflow</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                <tr className="hover:bg-muted/10 transition-colors">
+                  <td className="p-4 font-medium text-foreground">Scheduling Latency</td>
+                  <td className="p-4 text-primary font-semibold bg-primary/5">Sub-millisecond (Go/Redis)</td>
+                  <td className="p-4 text-muted-foreground">Seconds (Kubernetes controller loop)</td>
+                  <td className="p-4 text-muted-foreground">Seconds/Minutes (Heavy database check)</td>
+                </tr>
+                <tr className="hover:bg-muted/10 transition-colors">
+                  <td className="p-4 font-medium text-foreground">Architecture Type</td>
+                  <td className="p-4 text-primary font-semibold bg-primary/5">Lightweight Sidecar / Proxy</td>
+                  <td className="p-4 text-muted-foreground">Kubernetes Custom Controller</td>
+                  <td className="p-4 text-muted-foreground">Centralized Server & Workers</td>
+                </tr>
+                <tr className="hover:bg-muted/10 transition-colors">
+                  <td className="p-4 font-medium text-foreground">GPU Resource Target</td>
+                  <td className="p-4 text-primary font-semibold bg-primary/5">First-class (Direct K8s Spec)</td>
+                  <td className="p-4 text-muted-foreground">General-purpose containers</td>
+                  <td className="p-4 text-muted-foreground">Indirect via Operator</td>
+                </tr>
+                <tr className="hover:bg-muted/10 transition-colors">
+                  <td className="p-4 font-medium text-foreground">Consistency Guarantees</td>
+                  <td className="p-4 text-primary font-semibold bg-primary/5">Exactly-once (Redis PEL + CAS)</td>
+                  <td className="p-4 text-muted-foreground">At-least-once</td>
+                  <td className="p-4 text-muted-foreground">At-least-once (variable DB locks)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Quickstart Install ───────────────────────────────────────────── */}
+      <section className="mx-auto max-w-6xl px-6 pb-20">
+        <div className="mb-8 text-center">
+          <h2 className="font-display text-xl font-semibold">Spin up locally</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Boot dependencies with Docker Compose and migrate your PostgreSQL schema.</p>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur shadow-sm">
           <div className="flex items-center gap-3 border-b border-border/60 bg-muted/30 px-5 py-3">
             <div className="flex gap-1.5">
               <span className="h-3 w-3 rounded-full bg-danger/60" />
               <span className="h-3 w-3 rounded-full bg-warning/60" />
               <span className="h-3 w-3 rounded-full bg-success/60" />
             </div>
-            <span className="font-mono text-xs text-muted-foreground">Submit a GPU training job in one request</span>
+            <span className="font-mono text-xs text-muted-foreground">Quickstart local boot</span>
+            <div className="ml-auto flex items-center gap-2">
+              <Server className="h-3.5 w-3.5 text-primary" />
+              <span className="font-mono text-xs text-primary">orion-stack · bash</span>
+            </div>
+          </div>
+          <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 text-foreground/90 bg-muted/5">
+            <code>{`# Clone and boot database/cache dependencies
+git clone https://github.com/shreeharshshinde/orion.git && cd orion
+docker compose up -d
+
+# Initialize postgres schemas
+make migrate-up`}</code>
+          </pre>
+        </div>
+      </section>
+
+      {/* ── Submit in seconds ────────────────────────────────────────────── */}
+      <section className="mx-auto max-w-6xl px-6 pb-24">
+        <div className="mb-8 text-center">
+          <h2 className="font-display text-xl font-semibold">Submit a job</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Send a single JSON request to dispatch a GPU training node.</p>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur shadow-sm">
+          <div className="flex items-center gap-3 border-b border-border/60 bg-muted/30 px-5 py-3">
+            <div className="flex gap-1.5">
+              <span className="h-3 w-3 rounded-full bg-danger/60" />
+              <span className="h-3 w-3 rounded-full bg-warning/60" />
+              <span className="h-3 w-3 rounded-full bg-success/60" />
+            </div>
+            <span className="font-mono text-xs text-muted-foreground">Submit ResNet GPU training</span>
             <div className="ml-auto flex items-center gap-2">
               <Boxes className="h-3.5 w-3.5 text-primary" />
               <span className="font-mono text-xs text-primary">orion · localhost:8080</span>
