@@ -40,13 +40,18 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-[96rem] items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-6">
-            <Link href="/docs/overview" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2">
               <Image src="/orion_logo.png" alt="Orion Logo" width={28} height={28} className="rounded" />
               <span className="font-display font-semibold tracking-wide text-foreground">Orion</span>
               <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                 DOCS
               </span>
             </Link>
+            <nav className="hidden md:flex items-center gap-4 border-l border-border/60 pl-6 text-sm font-medium text-muted-foreground">
+              <Link href="/" className="transition-colors hover:text-foreground">
+                Home
+              </Link>
+            </nav>
           </div>
 
           {/* Docs Search Trigger */}
@@ -121,6 +126,15 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
               >
                 <X className="h-4 w-4" />
               </button>
+            </div>
+            <div className="mb-4">
+              <Link
+                href="/"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Home Page
+              </Link>
             </div>
             <button
               onClick={() => {
