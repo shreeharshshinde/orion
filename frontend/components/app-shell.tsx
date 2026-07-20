@@ -135,20 +135,32 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         {/* System status footer */}
-        <div className="shrink-0 border-t border-border/60 p-3">
-          <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+        <div className="shrink-0 border-t border-border/50 p-4">
+          <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 shadow-sm">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <StatusDot tone={healthTone} pulse={healthLoading || apiOk} />
-                <span className="font-medium">{healthLabel}</span>
+                <span className="font-medium text-foreground/90">{healthLabel}</span>
               </div>
-              <span className="text-muted-foreground">5s refresh</span>
+              <span className="text-[10px] text-muted-foreground/80 font-mono">5s refresh</span>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-muted-foreground">
-              <span>{activeWorkers} workers</span>
-              <span>{runningJobs} running</span>
-              <span>{queuedJobs} queued</span>
-              <span>{failedJobs} failed</span>
+            <div className="mt-3 space-y-2 border-t border-border/40 pt-3 text-[11px] text-muted-foreground">
+              <div className="flex items-center justify-between">
+                <span>Active Workers</span>
+                <span className="font-mono font-semibold text-foreground">{activeWorkers}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Running Jobs</span>
+                <span className="font-mono font-semibold text-foreground">{runningJobs}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Queued Jobs</span>
+                <span className="font-mono font-semibold text-foreground">{queuedJobs}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Failed Jobs</span>
+                <span className="font-mono font-semibold text-foreground">{failedJobs}</span>
+              </div>
             </div>
           </div>
         </div>
