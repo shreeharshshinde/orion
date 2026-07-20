@@ -104,9 +104,9 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
 
       {/* Docs Layout Containers */}
       <div className="mx-auto max-w-[96rem] px-4 sm:px-6 lg:px-8">
-        <div className="lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
+        <div className="lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-8">
           {/* Docs Left Navigation Sidebar */}
-          <aside className="fixed bottom-0 top-14 hidden w-64 overflow-y-auto border-r border-border/50 py-8 pr-6 lg:sticky lg:block">
+          <aside className="fixed bottom-0 top-14 hidden w-72 overflow-y-auto border-r border-border/50 py-8 pr-6 lg:sticky lg:block">
             <DocsSidebar />
           </aside>
 
