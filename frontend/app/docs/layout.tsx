@@ -93,7 +93,7 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
             {/* Mobile Navigation Trigger */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
               aria-label="Open documentation navigation"
             >
               <Menu className="h-5 w-5" />
@@ -104,9 +104,9 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
 
       {/* Docs Layout Containers */}
       <div className="mx-auto max-w-[96rem] px-4 sm:px-6 lg:px-8">
-        <div className="xl:grid xl:grid-cols-[16rem_minmax(0,1fr)] xl:gap-8">
+        <div className="lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
           {/* Docs Left Navigation Sidebar */}
-          <aside className="fixed bottom-0 top-14 hidden w-64 overflow-y-auto border-r border-border/50 py-8 pr-6 xl:sticky xl:block">
+          <aside className="fixed bottom-0 top-14 hidden w-64 overflow-y-auto border-r border-border/50 py-8 pr-6 lg:sticky lg:block">
             <DocsSidebar />
           </aside>
 
@@ -119,7 +119,7 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
 
       {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-[min(85vw,20rem)] overflow-y-auto border-r border-border bg-card p-6 shadow-2xl">
             <div className="mb-6 flex items-center justify-between">
