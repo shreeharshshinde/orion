@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Job, Pipeline, QueueConfig, Worker } from "./api";
 import { api } from "./client";
 
-// ─── Jobs ────────────────────────────────────────────────────────────────────
+const hasApiConfigured = typeof window !== "undefined"
+  ? (!!process.env.NEXT_PUBLIC_API_URL || window.location.hostname === "localhost")
+  : true;
 
 export type JobFilter = { status?: string; queue?: string; type?: string };
 
@@ -14,7 +16,8 @@ export function useJobs(filters?: JobFilter) {
   return useQuery<Job[]>({
     queryKey: ["jobs", filters],
     queryFn: () => api.get<Job[]>(path),
-    refetchInterval: 5000,
+    refetchInterval: hasApiConfigured ? 5000 : false,
+    enabled: hasApiConfigured,
   });
 }
 
@@ -68,7 +71,8 @@ export function usePipelines() {
   return useQuery<Pipeline[]>({
     queryKey: ["pipelines"],
     queryFn: () => api.get<Pipeline[]>("/pipelines"),
-    refetchInterval: 5000,
+    refetchInterval: hasApiConfigured ? 5000 : false,
+    enabled: hasApiConfigured,
   });
 }
 
@@ -143,7 +147,8 @@ export function useWorkers() {
   return useQuery<Worker[]>({
     queryKey: ["workers"],
     queryFn: () => api.get<Worker[]>("/workers"),
-    refetchInterval: 5000,
+    refetchInterval: hasApiConfigured ? 5000 : false,
+    enabled: hasApiConfigured,
   });
 }
 

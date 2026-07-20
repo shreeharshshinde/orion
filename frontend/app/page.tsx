@@ -91,10 +91,14 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const running = jobs.filter(j => j.status === "running").length;
-  const queued = jobs.filter(j => j.status === "queued").length;
-  const active = workers.filter(w => w.status !== "offline").length;
-  const pRunning = pipelines.filter(p => p.status === "running").length;
+  const hasApi = typeof window !== "undefined"
+    ? (!!process.env.NEXT_PUBLIC_API_URL || window.location.hostname === "localhost")
+    : true;
+
+  const running = hasApi ? jobs.filter(j => j.status === "running").length : 14;
+  const queued = hasApi ? jobs.filter(j => j.status === "queued").length : 3;
+  const active = hasApi ? workers.filter(w => w.status !== "offline").length : 8;
+  const pRunning = hasApi ? pipelines.filter(p => p.status === "running").length : 2;
 
   return (
     <main className="bg-grid min-h-screen">
@@ -105,7 +109,6 @@ export default function HomePage() {
           <span className="font-display text-lg font-bold tracking-wide text-foreground">Orion</span>
         </div>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
-          <Link href="/dashboard" className="transition-colors hover:text-foreground">Dashboard</Link>
           <Link href="/docs/architecture" className="transition-colors hover:text-foreground">Architecture</Link>
           <Link href="/docs/runbook" className="transition-colors hover:text-foreground">Runbook</Link>
           <Link href="/docs" className="flex items-center rounded-md border border-border/60 bg-muted/20 px-3 py-1.5 transition-colors hover:bg-muted/40 hover:text-foreground text-foreground">
@@ -171,11 +174,6 @@ export default function HomePage() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="md">
-              <Link href="/dashboard">
-                Open Dashboard <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
             <Button asChild variant="outline" size="md">
               <Link href="/docs">
                 <BookOpen className="h-4 w-4" />
