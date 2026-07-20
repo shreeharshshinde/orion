@@ -228,91 +228,99 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Bento Grid Features ───────────────────────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 pb-20">
-        <div className="mb-10 text-center">
-          <h2 className="font-display text-2xl font-semibold">Architected for ML pipelines</h2>
-          <p className="mt-2 text-sm text-muted-foreground">From low-latency scheduling to hard execution guarantees — zero lost jobs.</p>
-        </div>
+      {/* ── Bento Grid Features (Shaded Full-Width Section to break rhythm) ── */}
+      <section className="w-full border-y border-border/40 bg-muted/20 py-24 my-6">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="mb-12 text-center">
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              Architected for ML workloads
+            </h2>
+            <p className="mt-3 text-base text-muted-foreground max-w-2xl mx-auto">
+              From low-latency scheduling to hard execution guarantees — zero lost jobs.
+            </p>
+          </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {/* Highlighted Bento Card: Correctness guarantees */}
-          <Card className="p-6 md:col-span-2 border-primary/40 bg-gradient-to-br from-primary/5 to-transparent flex flex-col justify-between hover:border-primary/60 transition-colors relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-            <div className="relative">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/20 text-primary">
-                <Shield className="h-5 w-5" />
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Highlighted Bento Card: Correctness guarantees */}
+            <Card className="p-6 md:col-span-2 border-primary/40 bg-gradient-to-br from-primary/5 to-transparent flex flex-col justify-between hover:border-primary/60 transition-colors relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="relative">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/20 text-primary">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <h3 className="mt-4 font-display text-xl font-bold tracking-tight text-foreground">
+                  At-Least-Once Delivery & CAS Correctness
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Orion relies on Redis Streams with consumer group PEL (Pending Entries List) tracking and CAS (Compare-And-Swap) database transitions. If a worker goes offline, the orphan sweeper reclaims pipelines. Double-claiming is strictly impossible under concurrency.
+                </p>
               </div>
-              <h3 className="mt-4 font-display text-xl font-bold tracking-tight text-foreground">
-                At-Least-Once Delivery & CAS Correctness
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Orion relies on Redis Streams with consumer group PEL (Pending Entries List) tracking and CAS (Compare-And-Swap) database transitions. If a worker goes offline, the orphan sweeper reclaims pipelines. Double-claiming is strictly impossible under concurrency.
-              </p>
-            </div>
-            <Link href="/docs/concepts/queue-delivery" className="mt-6 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
-              Read consistency guarantees <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </Card>
+              <Link href="/docs/concepts/queue-delivery" className="mt-6 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                Read consistency guarantees <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Card>
 
-          {/* Priority queues bento card */}
-          <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
-            <div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-                <Waypoints className="h-4 w-4" />
+            {/* Priority queues bento card */}
+            <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
+              <div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                  <Waypoints className="h-4 w-4" />
+                </div>
+                <h3 className="mt-4 font-display font-semibold text-foreground">Priority Queues</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Three Redis Streams queues—high, default, and low—with weighted dispatch, rate limits, and live reload.
+                </p>
               </div>
-              <h3 className="mt-4 font-display font-semibold text-foreground">Priority Queues</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Three Redis Streams queues—high, default, and low—with weighted dispatch, rate limits, and live reload.
-              </p>
-            </div>
-          </Card>
+            </Card>
 
-          {/* Kubernetes Execution */}
-          <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
-            <div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-                <Server className="h-4 w-4" />
+            {/* Kubernetes Execution */}
+            <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
+              <div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                  <Server className="h-4 w-4" />
+                </div>
+                <h3 className="mt-4 font-display font-semibold text-foreground">Kubernetes Execution</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Launches jobs natively via client-go. Supports GPU resource requests, custom namespaces, and pod status watching.
+                </p>
               </div>
-              <h3 className="mt-4 font-display font-semibold text-foreground">Kubernetes Execution</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Launches jobs natively via client-go. Supports GPU resource requests, custom namespaces, and pod status watching.
-              </p>
-            </div>
-          </Card>
+            </Card>
 
-          {/* DAG Pipelines */}
-          <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
-            <div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-                <GitBranch className="h-4 w-4" />
+            {/* DAG Pipelines */}
+            <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
+              <div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                  <GitBranch className="h-4 w-4" />
+                </div>
+                <h3 className="mt-4 font-display font-semibold text-foreground">DAG Pipelines</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Topological node advancement with cascade-cancel. Create multi-stage ML training tasks in one request.
+                </p>
               </div>
-              <h3 className="mt-4 font-display font-semibold text-foreground">DAG Pipelines</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Topological node advancement with cascade-cancel. Create multi-stage ML training tasks in one request.
-              </p>
-            </div>
-          </Card>
+            </Card>
 
-          {/* Real-time Streaming */}
-          <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
-            <div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-                <Activity className="h-4 w-4" />
+            {/* Real-time Streaming */}
+            <Card className="p-6 flex flex-col justify-between hover:border-primary/30 transition-colors">
+              <div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                  <Activity className="h-4 w-4" />
+                </div>
+                <h3 className="mt-4 font-display font-semibold text-foreground">Real-Time Streaming</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  gRPC Watch API powered by PostgreSQL LISTEN/NOTIFY. Zero polling overhead on your client application.
+                </p>
               </div>
-              <h3 className="mt-4 font-display font-semibold text-foreground">Real-Time Streaming</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                gRPC Watch API powered by PostgreSQL LISTEN/NOTIFY. Zero polling overhead on your client application.
-              </p>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
       </section>
 
-      {/* ── Comparison Framing ────────────────────────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 pb-20">
-        <div className="mb-10 text-center">
-          <h2 className="font-display text-2xl font-semibold">How Orion compares</h2>
+      {/* ── Comparison Framing (Standard background with clean table) ────── */}
+      <section className="mx-auto max-w-6xl px-6 py-24">
+        <div className="mb-12 text-center">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            How Orion compares
+          </h2>
           <p className="mt-2 text-sm text-muted-foreground">Built specifically for low-latency Kubernetes ML scheduling, vs heavyweight general pipeline engines.</p>
         </div>
         <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40 backdrop-blur shadow-sm">
@@ -357,76 +365,103 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Quickstart Install ───────────────────────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 pb-20">
-        <div className="mb-8 text-center">
-          <h2 className="font-display text-xl font-semibold">Spin up locally</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Boot dependencies with Docker Compose and migrate your PostgreSQL schema.</p>
-        </div>
-        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur shadow-sm">
-          <div className="flex items-center gap-3 border-b border-border/60 bg-muted/30 px-5 py-3">
-            <div className="flex gap-1.5">
-              <span className="h-3 w-3 rounded-full bg-danger/60" />
-              <span className="h-3 w-3 rounded-full bg-warning/60" />
-              <span className="h-3 w-3 rounded-full bg-success/60" />
-            </div>
-            <span className="font-mono text-xs text-muted-foreground">Quickstart local boot</span>
-            <div className="ml-auto flex items-center gap-2">
-              <Server className="h-3.5 w-3.5 text-primary" />
-              <span className="font-mono text-xs text-primary">orion-stack · bash</span>
-            </div>
-          </div>
-          <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 bg-muted/5 text-[#d4d4d4]">
-            <code>
-              <span className="text-[#6a9955]"># Clone and boot database/cache dependencies</span>{"\n"}
-              <span className="text-[#569cd6]">git clone</span> <span className="text-[#ce9178]">https://github.com/shreeharshshinde/orion.git</span> <span className="text-[#569cd6]">&& cd</span> orion{"\n"}
-              <span className="text-[#569cd6]">docker compose up</span> <span className="text-[#b5cea8]">-d</span>{"\n\n"}
-              <span className="text-[#6a9955]"># Initialize postgres schemas</span>{"\n"}
-              <span className="text-[#569cd6]">make</span> <span className="text-[#ce9178]">migrate-up</span>
-            </code>
-          </pre>
-        </div>
-      </section>
+      {/* ── Interactive Code Demos (Full-width Section with Asymmetric Layouts) ── */}
+      <section className="w-full border-t border-border/40 bg-zinc-950/40 py-24 relative overflow-hidden">
+        {/* Ambient background glow */}
+        <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
 
-      {/* ── Submit in seconds ────────────────────────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 pb-24">
-        <div className="mb-8 text-center">
-          <h2 className="font-display text-xl font-semibold">Submit a job</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Send a single JSON request to dispatch a GPU training node.</p>
-        </div>
-        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur shadow-sm">
-          <div className="flex items-center gap-3 border-b border-border/60 bg-muted/30 px-5 py-3">
-            <div className="flex gap-1.5">
-              <span className="h-3 w-3 rounded-full bg-danger/60" />
-              <span className="h-3 w-3 rounded-full bg-warning/60" />
-              <span className="h-3 w-3 rounded-full bg-success/60" />
+        <div className="mx-auto max-w-6xl px-6">
+          {/* Quickstart Demo */}
+          <div className="grid gap-12 lg:grid-cols-5 items-center">
+            <div className="lg:col-span-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary mb-5">
+                <Server className="h-5 w-5" />
+              </div>
+              <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                Spin up locally in 30 seconds
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                Boot cluster cache/database dependencies with Docker Compose and migrate your PostgreSQL schema automatically. Orion fits right into your local development workflows.
+              </p>
             </div>
-            <span className="font-mono text-xs text-muted-foreground">Submit ResNet GPU training</span>
-            <div className="ml-auto flex items-center gap-2">
-              <Boxes className="h-3.5 w-3.5 text-primary" />
-              <span className="font-mono text-xs text-primary">orion · localhost:8080</span>
+            <div className="lg:col-span-3">
+              <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur shadow-lg">
+                <div className="flex items-center gap-3 border-b border-border/60 bg-muted/30 px-5 py-3">
+                  <div className="flex gap-1.5">
+                    <span className="h-3 w-3 rounded-full bg-danger/60" />
+                    <span className="h-3 w-3 rounded-full bg-warning/60" />
+                    <span className="h-3 w-3 rounded-full bg-success/60" />
+                  </div>
+                  <span className="font-mono text-xs text-muted-foreground">Quickstart local boot</span>
+                  <div className="ml-auto">
+                    <span className="font-mono text-[10px] text-primary/80 bg-primary/10 px-2 py-0.5 rounded">orion-stack · bash</span>
+                  </div>
+                </div>
+                <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 bg-muted/5 text-[#d4d4d4]">
+                  <code>
+                    <span className="text-[#6a9955]"># Clone and boot database/cache dependencies</span>{"\n"}
+                    <span className="text-[#569cd6]">git clone</span> <span className="text-[#ce9178]">https://github.com/shreeharshshinde/orion.git</span> <span className="text-[#569cd6]">&& cd</span> orion{"\n"}
+                    <span className="text-[#569cd6]">docker compose up</span> <span className="text-[#b5cea8]">-d</span>{"\n\n"}
+                    <span className="text-[#6a9955]"># Initialize postgres schemas</span>{"\n"}
+                    <span className="text-[#569cd6]">make</span> <span className="text-[#ce9178]">migrate-up</span>
+                  </code>
+                </pre>
+              </div>
             </div>
           </div>
-          <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 bg-muted/5 text-[#d4d4d4]">
-            <code>
-              <span className="text-[#569cd6]">curl</span> -sX POST <span className="text-[#ce9178]">http://localhost:8080/jobs</span> \<span className="text-[#6a9955]">{"\n"}</span>
-              {"  "}-H <span className="text-[#ce9178]">&apos;Content-Type: application/json&apos;</span> \<span className="text-[#6a9955]">{"\n"}</span>
-              {"  "}-d <span className="text-[#ce9178]">&apos;<span className="text-[#ffd700]">{"{"}</span></span><span className="text-[#d4d4d4]">{"\n"}</span>
-              {"    "}<span className="text-[#9cdcfe]">&quot;name&quot;</span>: <span className="text-[#ce9178]">&quot;train-resnet&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
-              {"    "}<span className="text-[#9cdcfe]">&quot;type&quot;</span>: <span className="text-[#ce9178]">&quot;k8s_job&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
-              {"    "}<span className="text-[#9cdcfe]">&quot;queue_name&quot;</span>: <span className="text-[#ce9178]">&quot;high&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
-              {"    "}<span className="text-[#9cdcfe]">&quot;priority&quot;</span>: <span className="text-[#b5cea8]">8</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
-              {"    "}<span className="text-[#9cdcfe]">&quot;max_retries&quot;</span>: <span className="text-[#b5cea8]">3</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
-              {"    "}<span className="text-[#9cdcfe]">&quot;payload&quot;</span>: <span className="text-[#ffd700]">{"{"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
-              {"      "}<span className="text-[#9cdcfe]">&quot;kubernetes_spec&quot;</span>: <span className="text-[#ffd700]">{"{"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
-              {"        "}<span className="text-[#9cdcfe]">&quot;image&quot;</span>: <span className="text-[#ce9178]">&quot;pytorch/pytorch:2.1.0-cuda11.8&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
-              {"        "}<span className="text-[#9cdcfe]">&quot;command&quot;</span>: <span className="text-[#ffd700]">[</span><span className="text-[#ce9178]">&quot;python&quot;</span>, <span className="text-[#ce9178]">&quot;train.py&quot;</span><span className="text-[#ffd700]">]</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
-              {"        "}<span className="text-[#9cdcfe]">&quot;resources&quot;</span>: <span className="text-[#ffd700]">{"{"}</span> <span className="text-[#9cdcfe]">&quot;gpu&quot;</span>: <span className="text-[#b5cea8]">1</span>, <span className="text-[#9cdcfe]">&quot;memory&quot;</span>: <span className="text-[#ce9178]">&quot;16Gi&quot;</span> <span className="text-[#ffd700]">{"}"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
-              {"      "}<span className="text-[#ffd700]">{"}"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
-              {"    "}<span className="text-[#ffd700]">{"}"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
-              {"  "}<span className="text-[#ffd700]">{"}"}</span><span className="text-[#ce9178]">&apos;</span>
-            </code>
-          </pre>
+
+          {/* Divider */}
+          <div className="my-20 border-t border-border/20" />
+
+          {/* Job Submission Demo */}
+          <div className="grid gap-12 lg:grid-cols-5 items-center">
+            <div className="lg:col-span-3 order-last lg:order-first">
+              <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur shadow-lg">
+                <div className="flex items-center gap-3 border-b border-border/60 bg-muted/30 px-5 py-3">
+                  <div className="flex gap-1.5">
+                    <span className="h-3 w-3 rounded-full bg-danger/60" />
+                    <span className="h-3 w-3 rounded-full bg-warning/60" />
+                    <span className="h-3 w-3 rounded-full bg-success/60" />
+                  </div>
+                  <span className="font-mono text-xs text-muted-foreground">Submit ResNet GPU training</span>
+                  <div className="ml-auto">
+                    <span className="font-mono text-[10px] text-primary/80 bg-primary/10 px-2 py-0.5 rounded">orion · localhost:8080</span>
+                  </div>
+                </div>
+                <pre className="overflow-x-auto p-6 font-mono text-xs leading-6 bg-muted/5 text-[#d4d4d4]">
+                  <code>
+                    <span className="text-[#569cd6]">curl</span> -sX POST <span className="text-[#ce9178]">http://localhost:8080/jobs</span> \<span className="text-[#6a9955]">{"\n"}</span>
+                    {"  "}-H <span className="text-[#ce9178]">&apos;Content-Type: application/json&apos;</span> \<span className="text-[#6a9955]">{"\n"}</span>
+                    {"  "}-d <span className="text-[#ce9178]">&apos;<span className="text-[#ffd700]">{"{"}</span></span><span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"    "}<span className="text-[#9cdcfe]">&quot;name&quot;</span>: <span className="text-[#ce9178]">&quot;train-resnet&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"    "}<span className="text-[#9cdcfe]">&quot;type&quot;</span>: <span className="text-[#ce9178]">&quot;k8s_job&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"    "}<span className="text-[#9cdcfe]">&quot;queue_name&quot;</span>: <span className="text-[#ce9178]">&quot;high&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"    "}<span className="text-[#9cdcfe]">&quot;priority&quot;</span>: <span className="text-[#b5cea8]">8</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"    "}<span className="text-[#9cdcfe]">&quot;max_retries&quot;</span>: <span className="text-[#b5cea8]">3</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"    "}<span className="text-[#9cdcfe]">&quot;payload&quot;</span>: <span className="text-[#ffd700]">{"{"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"      "}<span className="text-[#9cdcfe]">&quot;kubernetes_spec&quot;</span>: <span className="text-[#ffd700]">{"{"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"        "}<span className="text-[#9cdcfe]">&quot;image&quot;</span>: <span className="text-[#ce9178]">&quot;pytorch/pytorch:2.1.0-cuda11.8&quot;</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"        "}<span className="text-[#9cdcfe]">&quot;command&quot;</span>: <span className="text-[#ffd700]">[</span><span className="text-[#ce9178]">&quot;python&quot;</span>, <span className="text-[#ce9178]">&quot;train.py&quot;</span><span className="text-[#ffd700]">]</span>,<span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"        "}<span className="text-[#9cdcfe]">&quot;resources&quot;</span>: <span className="text-[#ffd700]">{"{"}</span> <span className="text-[#9cdcfe]">&quot;gpu&quot;</span>: <span className="text-[#b5cea8]">1</span>, <span className="text-[#9cdcfe]">&quot;memory&quot;</span>: <span className="text-[#ce9178]">&quot;16Gi&quot;</span> <span className="text-[#ffd700]">{"}"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"      "}<span className="text-[#ffd700]">{"}"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"    "}<span className="text-[#ffd700]">{"}"}</span><span className="text-[#d4d4d4]">{"\n"}</span>
+                    {"  "}<span className="text-[#ffd700]">{"}"}</span><span className="text-[#ce9178]">&apos;</span>
+                  </code>
+                </pre>
+              </div>
+            </div>
+            <div className="lg:col-span-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary mb-5">
+                <Boxes className="h-5 w-5" />
+              </div>
+              <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                Submit a job instantly
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                Orion features a clean REST API. Send a single JSON request to request GPUs, specify namespace constraints, and run training nodes natively.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -445,7 +480,7 @@ export default function HomePage() {
         </div>
         <div className="mt-8">
           <p>
-            Built by the <span className="text-primary font-medium">Shreeharsh Shinde</span>.
+            Built by <span className="text-primary font-medium">Shreeharsh Shinde</span>.
           </p>
           <p className="mt-2 text-xs text-muted-foreground/60">
             Independent project, open-source distributed ML orchestration.
