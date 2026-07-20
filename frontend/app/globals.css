@@ -114,7 +114,24 @@
 .docs-code-toolbar button { display: flex; align-items: center; gap: 0.35rem; border-radius: 0.35rem; padding: 0.25rem 0.45rem; }
 .docs-code-toolbar button:hover { background: rgba(255, 255, 255, 0.08); color: white; }
 .docs-code pre { margin: 0; overflow-x: auto; padding: 1rem; background: transparent !important; color: #c9d1d9; font-size: 0.79rem; line-height: 1.65; }
-.docs-code code { background: transparent !important; padding: 0; }
+.docs-code code { background: transparent !important; padding: 0; font-family: 'JetBrains Mono', monospace; }
+
+/* VS Code Dark syntax highlighting classes for rehype-highlight */
+.docs-code .hljs-comment { color: #6a9955; font-style: italic; }
+.docs-code .hljs-keyword { color: #569cd6; font-weight: 500; }
+.docs-code .hljs-string { color: #ce9178; }
+.docs-code .hljs-number { color: #b5cea8; }
+.docs-code .hljs-literal { color: #569cd6; }
+.docs-code .hljs-type { color: #4ec9b0; }
+.docs-code .hljs-built_in { color: #dcdcaa; }
+.docs-code .hljs-title { color: #dcdcaa; }
+.docs-code .hljs-title.class_ { color: #4ec9b0; }
+.docs-code .hljs-attr { color: #9cdcfe; }
+.docs-code .hljs-meta { color: #808080; }
+.docs-code .hljs-variable { color: #9cdcfe; }
+.docs-code .hljs-property { color: #9cdcfe; }
+.docs-code .hljs-operator { color: #d4d4d4; }
+.docs-code .hljs-punctuation { color: #d4d4d4; }
 
 .docs-prose .table-wrap { overflow-x: auto; }
 .docs-prose table { display: block; width: 100%; margin: 1.5rem 0; overflow-x: auto; border-collapse: collapse; font-size: 0.82rem; }
@@ -139,6 +156,51 @@
   max-height: 35rem;
   width: auto;
   height: auto; 
+}
+/* Ensure maximum contrast, readability, and modern styling inside Mermaid SVGs */
+.docs-diagram svg text,
+.docs-diagram svg .label {
+  font-family: var(--font-sans), 'Space Grotesk', 'Inter', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  fill: #f8fafc !important; /* Pure crisp white for text */
+}
+.docs-diagram svg .node rect, 
+.docs-diagram svg .node circle, 
+.docs-diagram svg .node polygon,
+.docs-diagram svg .node path {
+  fill: #0b1329 !important; /* Deep navy/slate background for node cards */
+  stroke: hsl(var(--primary)) !important; /* Beautiful cyan border */
+  stroke-width: 1.5px !important;
+  transition: all 0.2s ease;
+}
+.docs-diagram svg .node:hover rect,
+.docs-diagram svg .node:hover circle,
+.docs-diagram svg .node:hover polygon,
+.docs-diagram svg .node:hover path {
+  stroke-width: 2.2px !important;
+  filter: drop-shadow(0 0 6px hsl(var(--primary) / 0.4));
+}
+.docs-diagram svg .edgePath .path {
+  stroke: #475569 !important; /* Crisp slate-500 edge lines */
+  stroke-width: 1.8px !important;
+}
+.docs-diagram svg .edgeLabel rect {
+  fill: #0b1329 !important; /* Background matching node cards for labels */
+  opacity: 0.95;
+}
+.docs-diagram svg .edgeLabel text {
+  fill: hsl(var(--primary)) !important; /* Bright cyan text for labels like "XREADGROUP / Dequeue" */
+  font-weight: 600 !important;
+}
+.docs-diagram svg .cluster rect {
+  fill: rgba(30, 41, 59, 0.4) !important; /* Semi-transparent slate-800 background */
+  stroke: #334155 !important; /* Slate-700 dashed border */
+  stroke-width: 1.2px !important;
+  stroke-dasharray: 4 4 !important;
+}
+.docs-diagram svg .markerPath {
+  fill: #475569 !important; /* Match arrow color to edge lines */
 }
 .docs-diagram-loading { min-height: 10rem; display: grid; place-items: center; color: hsl(var(--muted-foreground)); }
 .docs-diagram-error { border-color: hsl(var(--danger) / 0.4); color: hsl(var(--danger)); }
