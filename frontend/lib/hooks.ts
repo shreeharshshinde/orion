@@ -2,9 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Job, Pipeline, QueueConfig, Worker } from "./api";
 import { api } from "./client";
 
-const hasApiConfigured = typeof window !== "undefined"
-  ? (!!process.env.NEXT_PUBLIC_API_URL || window.location.hostname === "localhost")
-  : true;
+const hasApiConfigured = true;
 
 export type JobFilter = { status?: string; queue?: string; type?: string };
 

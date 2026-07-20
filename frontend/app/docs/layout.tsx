@@ -83,7 +83,12 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
                 <div className="h-4 w-4" />
               )}
             </Button>
-            {/* Go to Console button removed temporarily for docs-only deployment */}
+            <Button asChild size="sm" variant="secondary" className="hidden sm:inline-flex">
+              <Link href="/dashboard" className="flex items-center gap-1">
+                Go to Console
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
 
             {/* Mobile Navigation Trigger */}
             <button

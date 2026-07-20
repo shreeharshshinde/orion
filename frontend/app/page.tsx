@@ -109,6 +109,7 @@ export default function HomePage() {
           <span className="font-display text-lg font-bold tracking-wide text-foreground">Orion</span>
         </div>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
+          <Link href="/dashboard" className="transition-colors hover:text-foreground">Dashboard</Link>
           <Link href="/docs/architecture" className="transition-colors hover:text-foreground">Architecture</Link>
           <Link href="/docs/runbook" className="transition-colors hover:text-foreground">Runbook</Link>
           <Link href="/docs" className="flex items-center rounded-md border border-border/60 bg-muted/20 px-3 py-1.5 transition-colors hover:bg-muted/40 hover:text-foreground text-foreground">
@@ -174,6 +175,11 @@ export default function HomePage() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Button asChild size="md">
+              <Link href="/dashboard">
+                Open Dashboard <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
             <Button asChild variant="outline" size="md">
               <Link href="/docs">
                 <BookOpen className="h-4 w-4" />
