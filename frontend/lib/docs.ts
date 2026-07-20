@@ -17,6 +17,7 @@ export interface DocHeading {
 export interface DocContent extends DocNavItem {
   content: string;
   headings: DocHeading[];
+  lastModified?: string;
 }
 
 function plainText(value: string) {
@@ -83,7 +84,13 @@ export function getDocBySlug(slug: string): DocContent | null {
   const title = typeof parsed.data.title === "string" ? parsed.data.title : entry.title;
   const description = typeof parsed.data.description === "string" ? parsed.data.description : entry.description;
   const content = rewriteDocLinks(parsed.content.replace(/^#\s+.+\n+/, ""), entry.file);
-  return { ...entry, title, description, content, headings: extractHeadings(content) };
+  const stats = fs.statSync(fullPath);
+  const lastModified = stats.mtime.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  return { ...entry, title, description, content, headings: extractHeadings(content), lastModified };
 }
 
 export function getAllDocSlugs() {
