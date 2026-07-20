@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "rm -rf .next && next dev",
     "docs:index": "node scripts/build-docs-index.mjs",
     "predev": "npm run docs:index",
     "build": "npm run docs:index && next build",
