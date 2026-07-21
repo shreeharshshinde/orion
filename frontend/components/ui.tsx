@@ -357,27 +357,16 @@ import { ENV_META, type Environment } from "@/lib/status-colors";
 
 export function EnvironmentBadge({ env }: { env: Environment }) {
   const meta = ENV_META[env];
-  const isProd = env === "production";
 
   return (
     <span
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold font-mono uppercase tracking-wider bg-card/65 backdrop-blur-sm"
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 5,
-        padding: "3px 9px",
-        borderRadius: 5,
-        border: `1px solid ${meta.color}`,
-        background: isProd ? "rgba(251, 113, 133, 0.1)" : "transparent",
-        fontFamily: "var(--font-data)",
-        fontSize: "var(--text-xs)",
-        fontWeight: 500,
-        letterSpacing: "0.03em",
+        borderColor: `${meta.color}35`,
         color: meta.color,
-        textTransform: "uppercase",
       }}
     >
-      {isProd && <span style={{ width: 5, height: 5, borderRadius: "50%", background: meta.color }} />}
+      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
       {meta.label}
     </span>
   );

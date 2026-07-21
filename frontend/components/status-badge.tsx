@@ -105,15 +105,19 @@ export function ConnectionIndicator({ connected }: { connected: boolean }) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        padding: '4px 10px',
+        padding: '2px 8px',
         borderRadius: 999,
         background: dim,
+        border: `1px solid ${color}35`,
         fontFamily: 'var(--font-data)',
-        fontSize: 'var(--text-xs)',
+        fontSize: '10px',
+        fontWeight: 600,
+        letterSpacing: '0.05em',
         color,
+        textTransform: 'uppercase',
       }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: color }} />
       {connected ? 'api connected' : 'api unreachable'}
     </span>
   );
