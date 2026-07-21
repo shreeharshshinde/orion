@@ -299,16 +299,178 @@ export function UtilizationRing({
 
 // ─── EmptyState ───────────────────────────────────────────────────────────────
 
-export function EmptyState({ icon, title, description }: {
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+}: {
   icon?: ReactNode;
   title: string;
   description?: string;
+  action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
       {icon && <div className="text-muted-foreground opacity-40">{icon}</div>}
-      <p className="font-medium text-muted-foreground">{title}</p>
-      {description && <p className="max-w-sm text-sm text-muted-foreground/60">{description}</p>}
+      <div>
+        <p className="font-medium text-muted-foreground">{title}</p>
+        {description && <p className="mt-1 max-w-sm text-xs text-muted-foreground/60">{description}</p>}
+      </div>
+      {action && <div className="mt-2">{action}</div>}
+    </div>
+  );
+}
+
+// ─── ErrorState ───────────────────────────────────────────────────────────────
+
+export function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center border border-danger/25 rounded-xl bg-danger/5 px-6">
+      <div className="text-danger">
+        <svg className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <div>
+        <p className="font-semibold text-danger">Connection issue</p>
+        <p className="mt-1 max-w-md text-xs text-muted-foreground/70">{message}</p>
+      </div>
+      {onRetry && (
+        <Button onClick={onRetry} variant="danger" size="sm">
+          Retry connection
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ─── EnvironmentBadge ─────────────────────────────────────────────────────────
+
+import { ENV_META, type Environment } from "@/lib/status-colors";
+
+export function EnvironmentBadge({ env }: { env: Environment }) {
+  const meta = ENV_META[env];
+  const isProd = env === "production";
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        padding: "3px 9px",
+        borderRadius: 5,
+        border: `1px solid ${meta.color}`,
+        background: isProd ? "rgba(251, 113, 133, 0.1)" : "transparent",
+        fontFamily: "var(--font-data)",
+        fontSize: "var(--text-xs)",
+        fontWeight: 500,
+        letterSpacing: "0.03em",
+        color: meta.color,
+        textTransform: "uppercase",
+      }}
+    >
+      {isProd && <span style={{ width: 5, height: 5, borderRadius: "50%", background: meta.color }} />}
+      {meta.label}
+    </span>
+  );
+}
+
+// ─── Skeletons ────────────────────────────────────────────────────────────────
+
+import { motion } from "framer-motion";
+
+const shimmer = {
+  animate: { opacity: [0.35, 0.65, 0.35] },
+  transition: { duration: 1.5, repeat: Infinity, ease: "easeInOut" as const },
+};
+
+function Bar({ width, height = 12 }: { width: string | number; height?: number }) {
+  return (
+    <motion.div
+      {...shimmer}
+      className="bg-muted-foreground/15 rounded animate-pulse"
+      style={{
+        width,
+        height,
+      }}
+    />
+  );
+}
+
+export function SkeletonTableRows({ rows = 5, columns = 4 }: { rows?: number; columns?: number }) {
+  return (
+    <div className="flex flex-col gap-1 w-full">
+      {Array.from({ length: rows }).map((_, r) => (
+        <div
+          key={r}
+          className="grid gap-4 py-3 px-4 border-b border-border/40"
+          style={{
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+          }}
+        >
+          {Array.from({ length: columns }).map((_, c) => (
+            <Bar key={c} width={c === 0 ? "70%" : "45%"} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonChart({ height = 200 }: { height?: number }) {
+  const bars = [40, 65, 45, 80, 60, 90, 70, 85, 55, 95, 75, 100];
+  return (
+    <div className="flex items-end gap-2.5 px-2 w-full" style={{ height }}>
+      {bars.map((h, i) => (
+        <motion.div
+          key={i}
+          animate={{ opacity: [0.25, 0.5, 0.25] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.05 }}
+          className="flex-1 bg-muted-foreground/15 rounded-t"
+          style={{
+            height: `${h}%`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonMetricCard() {
+  return (
+    <div className="bg-card/70 border border-border/50 rounded-xl p-5 flex flex-col gap-2.5">
+      <Bar width="60%" height={10} />
+      <Bar width="40%" height={26} />
+    </div>
+  );
+}
+
+export function SkeletonDAG() {
+  const nodes = [{ x: 8 }, { x: 40 }, { x: 40 }, { x: 72 }];
+  return (
+    <div className="relative w-full px-2" style={{ height: 140 }}>
+      {nodes.map((n, i) => (
+        <motion.div
+          key={i}
+          {...shimmer}
+          transition={{ ...shimmer.transition, delay: i * 0.1 }}
+          className="absolute bg-muted-foreground/15 rounded-lg"
+          style={{
+            left: `${n.x}%`,
+            top: i === 1 ? "20%" : i === 2 ? "60%" : "40%",
+            width: 96,
+            height: 40,
+          }}
+        />
+      ))}
     </div>
   );
 }
