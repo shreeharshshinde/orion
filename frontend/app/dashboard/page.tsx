@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   Activity, AlertTriangle, BriefcaseBusiness,
@@ -13,46 +14,34 @@ import {
   EnvironmentBadge, SkeletonTableRows, SkeletonChart, SkeletonMetricCard, SkeletonDAG
 } from "@/components/ui";
 import { StatusBadge, ConnectionIndicator } from "@/components/status-badge";
-import { useJobs, usePipelines, useQueues, useWorkers, useHealth } from "@/lib/hooks";
+import { useTelemetry } from "@/lib/telemetry-context";
 import { formatRelativeTime } from "@/lib/utils";
 import { WorkerHeatmap } from "@/components/dashboard/worker-heatmap";
 import { PipelineDagView } from "@/components/dashboard/pipeline-dag-view";
 import { QueueDepthChart } from "@/components/dashboard/queue-depth-chart";
 import { JobDurationChart } from "@/components/dashboard/job-duration-chart";
-import {
-  DEMO_JOBS, DEMO_PIPELINES, DEMO_QUEUES, DEMO_WORKERS
-} from "@/lib/demo-data";
 
 export default function DashboardPage() {
-  const { data: healthData, isError: healthError } = useHealth();
-  const { data: apiJobs, isLoading: jobsLoading } = useJobs();
-  const { data: apiWorkers, isLoading: workersLoading } = useWorkers();
-  const { data: apiQueues, isLoading: queuesLoading } = useQueues();
-  const { data: apiPipelines, isLoading: pipelinesLoading } = usePipelines();
-
-  const apiConnected = !!healthData && !healthError;
-  const [demoMode, setDemoMode] = useState(false);
-
-  // Auto-enable demo mode if the API is offline
-  useEffect(() => {
-    if (!apiConnected && healthError) {
-      setDemoMode(true);
-    }
-  }, [apiConnected, healthError]);
-
-  // Select source datasets based on demo mode
-  const jobs = demoMode ? DEMO_JOBS : (apiJobs ?? []);
-  const workers = demoMode ? DEMO_WORKERS : (apiWorkers ?? []);
-  const queues = demoMode ? DEMO_QUEUES : (apiQueues ?? []);
-  const pipelines = demoMode ? DEMO_PIPELINES : (apiPipelines ?? []);
+  const router = useRouter();
+  const {
+    demoMode,
+    setDemoMode,
+    apiConnected,
+    environment,
+    jobs,
+    workers,
+    pipelines,
+    jobsLoading,
+    pipelinesLoading,
+    runningJobsCount,
+    queuedJobsCount,
+    failedJobsCount,
+    activeWorkersCount,
+    totalSlots,
+    usedSlots,
+  } = useTelemetry();
 
   const incidents = jobs.filter(j => j.status === "failed" || j.status === "dead" || j.status === "retrying");
-  const totalSlots = workers.reduce((s, w) => s + w.concurrency, 0);
-  const usedSlots  = workers.reduce((s, w) => s + w.active_jobs, 0);
-  const runningJobs  = jobs.filter(j => j.status === "running").length;
-  const queuedJobs   = jobs.filter(j => j.status === "queued").length;
-  const failedJobs   = jobs.filter(j => j.status === "failed" || j.status === "dead").length;
-  const activeWorkers = workers.filter(w => w.status !== "offline").length;
 
   return (
     <>
@@ -61,7 +50,7 @@ export default function DashboardPage() {
         description="Real-time telemetry and operational control panel."
         badge={
           <div className="flex items-center gap-2">
-            <EnvironmentBadge env={demoMode ? "staging" : "local"} />
+            <EnvironmentBadge env={environment} />
             <ConnectionIndicator connected={apiConnected} />
             {demoMode && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-[10px] font-semibold font-mono uppercase tracking-wider text-cyan-400 animate-pulse">
@@ -94,6 +83,34 @@ export default function DashboardPage() {
         }
       />
 
+      {/* High-visibility Sandbox/Demo Warning Banner */}
+      {demoMode && (
+        <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-xs backdrop-blur-sm shadow-[0_0_15px_rgba(34,211,238,0.05)]">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-cyan-400 animate-pulse shrink-0" />
+            <div>
+              <span className="font-semibold text-cyan-400 font-mono uppercase tracking-wider">Sandbox Simulation Active</span>
+              <p className="text-slate-400 mt-0.5">Showing synthetic telemetry. Live deployments and mutations are simulated.</p>
+            </div>
+          </div>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => {
+              setDemoMode(false);
+              if (!apiConnected) {
+                toast.warning("API unreachable. Showing offline status.");
+              } else {
+                toast.success("Connected to live Orion API.");
+              }
+            }}
+            className="border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10 cursor-pointer text-[10px] font-semibold tracking-wider uppercase px-2.5 py-1 rounded-full shrink-0"
+          >
+            Exit Sandbox
+          </Button>
+        </div>
+      )}
+
       {/* Incident Alert Strip */}
       {incidents.length > 0 && (
         <div className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-2.5 text-xs transition-all duration-300 backdrop-blur-sm">
@@ -113,30 +130,30 @@ export default function DashboardPage() {
           <MetricCard 
             label="Worker Capacity"    
             value={`${usedSlots}/${totalSlots}`} 
-            detail={`${activeWorkers} active nodes`} 
+            detail={`${activeWorkersCount} active nodes`} 
             icon={<Server className="h-5 w-5" />}            
             tone="aqua"    
           />
           <MetricCard 
             label="Active Executions"       
-            value={runningJobs}  
+            value={runningJobsCount}  
             detail="scheduled and executing"                      
             icon={<BriefcaseBusiness className="h-5 w-5" />}  
             tone="success" 
           />
           <MetricCard 
             label="Queued Backlog"        
-            value={queuedJobs}   
+            value={queuedJobsCount}   
             detail="awaiting execution"                   
             icon={<Waypoints className="h-5 w-5" />}          
             tone="warning" 
           />
           <MetricCard 
             label="Terminal Failures" 
-            value={failedJobs}   
+            value={failedJobsCount}   
             detail="unhandled terminations"                        
             icon={<Skull className="h-5 w-5" />}              
-            tone={failedJobs > 0 ? "danger" : "success"} 
+            tone={failedJobsCount > 0 ? "danger" : "success"} 
           />
         </div>
       </section>
@@ -176,20 +193,27 @@ export default function DashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-border/20">
                   {jobs.slice(0, 6).map((job) => (
-                    <tr key={job.id} className="hover:bg-muted/10 cursor-pointer transition-colors duration-100">
+                    <tr 
+                      key={job.id} 
+                      onClick={() => router.push(`/dashboard/jobs/${job.id}`)}
+                      className="hover:bg-muted/10 cursor-pointer transition-colors duration-100 group"
+                    >
                       <Td className="py-2.5"><StatusBadge status={job.status} kind="job" /></Td>
                       <Td className="py-2.5">
-                        <p className="font-semibold text-text-bright font-ui text-sm">{job.name}</p>
+                        <p className="font-semibold text-text-bright font-ui text-sm group-hover:text-primary transition-colors">{job.name}</p>
                         {job.error_message ? (
                           <p className="mt-0.5 text-xs text-rose-400 font-mono truncate max-w-xs">{job.error_message}</p>
                         ) : (
                           <p className="mt-0.5 text-[10px] text-muted-foreground font-mono truncate">{job.id}</p>
                         )}
                       </Td>
-                      <Td className="py-2.5">
-                        <span className="rounded border border-border/40 bg-muted/20 px-2 py-0.5 font-mono text-[11px] text-cyan-400/90">
+                      <Td className="py-2.5" onClick={(e) => e.stopPropagation()}>
+                        <Link 
+                          href="/dashboard/queues" 
+                          className="rounded border border-border/40 bg-muted/20 px-2 py-0.5 font-mono text-[11px] text-cyan-400/90 hover:border-cyan-400/50 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                        >
                           {job.queue_name.replace("orion:queue:", "")}
-                        </span>
+                        </Link>
                       </Td>
                       <Td className="tabular-nums text-muted-foreground font-mono text-xs py-2.5">{job.attempt} / {job.max_retries}</Td>
                       <Td className="text-muted-foreground text-[11px] font-mono py-2.5">{formatRelativeTime(job.updated_at)}</Td>
@@ -231,7 +255,11 @@ export default function DashboardPage() {
           {(["queued","scheduled","running","completed","retrying","failed","dead","cancelled"] as const).map(s => {
             const count = jobs.filter(j => j.status === s).length;
             return (
-              <div key={s} className="rounded-xl border border-border/45 bg-panel-solid/50 p-3.5 text-center hover:border-primary/40 hover:bg-panel-raised cursor-pointer transition-all duration-120">
+              <div 
+                key={s} 
+                onClick={() => router.push(`/dashboard/jobs?status=${s}`)}
+                className="rounded-xl border border-border/45 bg-panel-solid/50 p-3.5 text-center hover:border-primary/40 hover:bg-panel-raised cursor-pointer transition-all duration-120 hover:scale-[1.02] active:scale-[0.98]"
+              >
                 <p className="text-2xl font-bold font-mono text-text-bright mb-1.5">{count}</p>
                 <StatusBadge status={s} kind="job" size="sm" />
               </div>

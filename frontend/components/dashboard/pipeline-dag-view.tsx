@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { StatusBadge } from '../status-badge';
 import type { Pipeline } from '@/lib/api';
 
@@ -152,21 +153,22 @@ export function PipelineDagView({ pipeline }: PipelineDagViewProps) {
             const isCurrentNodeRunning = pipeline.status === 'running';
 
             return (
-              <div
+              <Link
                 key={node.id}
+                href={`/dashboard/pipelines/${pipeline.id}`}
                 style={{
                   position: 'absolute',
                   left: `${(coord.x / 600) * 100}%`,
                   top: `${(coord.y / 180) * 100}%`,
                   transform: 'translate(-50%, -50%)',
                 }}
-                className="group flex flex-col items-center"
+                className="group flex flex-col items-center cursor-pointer select-none"
               >
                 <div
                   style={{
                     backgroundColor: isCurrentNodeRunning ? '#161c2c' : '#131826',
                   }}
-                  className={`flex items-center justify-center rounded-lg border px-3 py-1.5 min-w-[90px] text-center font-mono text-[11px] shadow-md transition-all ${
+                  className={`flex items-center justify-center rounded-lg border px-3 py-1.5 min-w-[90px] text-center font-mono text-[11px] shadow-md transition-all group-hover:scale-105 group-hover:border-primary/80 group-hover:shadow-[0_0_12px_rgba(34,211,238,0.2)] ${
                     isCurrentNodeRunning
                       ? 'border-nebula text-text-bright shadow-[0_0_12px_rgba(139,127,232,0.25)]'
                       : 'border-border/60 text-muted-foreground'
@@ -174,7 +176,7 @@ export function PipelineDagView({ pipeline }: PipelineDagViewProps) {
                 >
                   {node.id}
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>

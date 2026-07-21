@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { StatusBadge } from "@/components/status-badge";
 import { Button, Card, CardBody, CardHeader, CardTitle, StatRow } from "@/components/ui";
 import { useCancelPipeline, usePipeline, usePipelineJobs } from "@/lib/hooks";
+import { useTelemetry } from "@/lib/telemetry-context";
 import { formatRelativeTime } from "@/lib/utils";
 import type { Job, JobStatus } from "@/lib/api";
 
@@ -115,9 +116,18 @@ export default function PipelineDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data: pipeline, isLoading, isError, refetch } = usePipeline(id);
-  const { data: pipelineJobs = [] } = usePipelineJobs(id);
+  const { pipelines, jobs, apiConnected, demoMode } = useTelemetry();
+  const { data: apiPipeline, isLoading: apiPipelineLoading, isError: apiPipelineError, refetch } = usePipeline(id);
+  const { data: apiPipelineJobs = [] } = usePipelineJobs(id);
   const cancel = useCancelPipeline();
+
+  const pipeline = demoMode ? pipelines.find(p => p.id === id) : apiPipeline;
+  const isLoading = demoMode ? false : apiPipelineLoading;
+  const isError = demoMode ? !pipeline : (apiPipelineError || !pipeline);
+
+  const pipelineJobs = demoMode
+    ? jobs.filter(j => j.pipeline_id === id || (pipeline && pipeline.dag_spec.nodes.some(n => n.job_id === j.id)))
+    : apiPipelineJobs;
 
   const jobMap = useMemo(
     () => Object.fromEntries((pipelineJobs as Job[]).map(j => [j.id, j])),
@@ -134,6 +144,10 @@ export default function PipelineDetailPage({ params }: { params: Promise<{ id: s
   }, []);
 
   function handleCancel() {
+    if (demoMode) {
+      toast.success("Pipeline cancellation simulated in Sandbox mode");
+      return;
+    }
     cancel.mutate(id, {
       onSuccess: () => toast.success("Pipeline cancelled"),
       onError: (e) => toast.error(e.message),

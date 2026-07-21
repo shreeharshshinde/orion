@@ -52,10 +52,11 @@ export const WORKER_STATUS_META: Record<WorkerStatus, StatusMeta> = {
   offline: { color: 'var(--text-faint)', dim: 'transparent', label: 'offline', pulses: false },
 };
 
-export type Environment = 'local' | 'staging' | 'production';
+export type Environment = 'local' | 'staging' | 'production' | 'sandbox';
 
 export const ENV_META: Record<Environment, { color: string; label: string }> = {
   local: { color: 'var(--env-local)', label: 'local' },
   staging: { color: 'var(--env-staging)', label: 'staging' },
   production: { color: 'var(--env-prod)', label: 'production' },
+  sandbox: { color: 'var(--star)', label: 'sandbox' },
 };

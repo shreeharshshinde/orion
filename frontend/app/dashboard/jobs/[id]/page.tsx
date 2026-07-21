@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, StatRow, Table, Td, Th } from "@/components/ui";
 import { useCancelJob, useJob, useJobExecutions, useReplayJob } from "@/lib/hooks";
+import { useTelemetry } from "@/lib/telemetry-context";
 import { formatRelativeTime } from "@/lib/utils";
 
 const TERMINAL = new Set(["completed", "failed", "dead", "cancelled"]);
@@ -27,13 +28,35 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const { id } = use(params);
   const [tab, setTab] = useState<"overview" | "payload" | "executions">("overview");
 
-  const { data: job, isLoading, isError, refetch } = useJob(id);
-  const { data: executions = [] } = useJobExecutions(id);
+  const { jobs, apiConnected, demoMode } = useTelemetry();
+  const { data: apiJob, isLoading: apiJobLoading, isError: apiJobError, refetch } = useJob(id);
+  const { data: apiExecutions = [] } = useJobExecutions(id);
 
   const cancel = useCancelJob();
   const replay = useReplayJob();
 
+  const job = demoMode ? jobs.find(j => j.id === id) : apiJob;
+  const isLoading = demoMode ? false : apiJobLoading;
+  const isError = demoMode ? !job : (apiJobError || !job);
+
+  const executions = demoMode 
+    ? (job ? [{
+        id: `exec-${job.id}`,
+        attempt: job.attempt,
+        worker_id: job.worker_id ?? "worker-alpha",
+        status: job.status,
+        started_at: job.started_at ?? job.created_at,
+        finished_at: job.completed_at,
+        exit_code: job.status === "completed" ? 0 : job.status === "failed" ? 1 : undefined,
+        error: job.error_message,
+      }] : [])
+    : apiExecutions;
+
   function handleCancel() {
+    if (demoMode) {
+      toast.success("Job cancel simulated in Sandbox mode");
+      return;
+    }
     cancel.mutate(id, {
       onSuccess: () => toast.success("Job cancelled"),
       onError: (e) => toast.error(e.message),
@@ -41,6 +64,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   }
 
   function handleReplay() {
+    if (demoMode) {
+      toast.success("Job replay simulated in Sandbox mode");
+      return;
+    }
     replay.mutate(id, {
       onSuccess: () => toast.success("Job re-queued"),
       onError: (e) => toast.error(e.message),

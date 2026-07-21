@@ -21,6 +21,7 @@ export type Job = {
   attempt: number;
   max_retries: number;
   worker_id?: string;
+  pipeline_id?: string;
   error_message?: string;
   idempotency_key?: string;
   payload?: Record<string, unknown>;

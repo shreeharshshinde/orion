@@ -4,7 +4,7 @@ import { Clock, Loader2, Server } from "lucide-react";
 
 import { StatusBadge } from "@/components/status-badge";
 import { Card, PageHeader } from "@/components/ui";
-import { useWorkers } from "@/lib/hooks";
+import { useTelemetry } from "@/lib/telemetry-context";
 import { formatRelativeTime } from "@/lib/utils";
 
 function getHeartbeatFreshness(heartbeat: string) {
@@ -16,7 +16,7 @@ function getHeartbeatFreshness(heartbeat: string) {
 }
 
 export default function WorkersPage() {
-  const { data: workers = [], isLoading, isError, refetch } = useWorkers();
+  const { workers, workersLoading, apiConnected, demoMode } = useTelemetry();
 
   const totalConcurrency = workers.reduce((s, w) => s + w.concurrency, 0);
   const totalActive      = workers.reduce((s, w) => s + w.active_jobs, 0);
@@ -34,14 +34,14 @@ export default function WorkersPage() {
         <SummaryTile label="Available slots"   value={totalConcurrency - totalActive} />
       </div>
 
-      {isLoading ? (
+      {workersLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
         </div>
-      ) : isError ? (
+      ) : (!apiConnected && !demoMode) ? (
         <div className="py-12 text-center">
-          <p className="text-sm text-danger">Failed to load workers</p>
-          <button className="mt-2 text-xs text-muted-foreground underline" onClick={() => refetch()}>Retry</button>
+          <p className="text-sm text-danger">Failed to connect to live Orion API</p>
+          <p className="text-xs text-muted-foreground mt-1">Check if the backend is running, or switch to simulated Sandbox above.</p>
         </div>
       ) : workers.length === 0 ? (
         <div className="py-12 text-center text-sm text-muted-foreground">No workers registered</div>

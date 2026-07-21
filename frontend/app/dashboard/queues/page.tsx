@@ -4,16 +4,21 @@ import { Loader2, Save, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button, Card, PageHeader, UtilizationRing } from "@/components/ui";
-import { useQueues, useUpdateQueue } from "@/lib/hooks";
+import { useUpdateQueue } from "@/lib/hooks";
+import { useTelemetry } from "@/lib/telemetry-context";
 import { formatRelativeTime } from "@/lib/utils";
 import type { QueueConfig } from "@/lib/api";
 
 export default function QueuesPage() {
-  const { data: queues = [], isLoading, isError, refetch } = useQueues();
+  const { queues, queuesLoading, apiConnected, demoMode } = useTelemetry();
   const updateQueue = useUpdateQueue();
 
   function handleSave(queue: QueueConfig) {
     const name = queue.queue_name.replace("orion:queue:", "");
+    if (demoMode) {
+      toast.success(`Queue ${name} config update simulated in Sandbox mode`);
+      return;
+    }
     const { max_concurrent, weight, rate_per_sec, burst, enabled } = queue;
     updateQueue.mutate(
       { name, body: { max_concurrent, weight, rate_per_sec, burst, enabled } },
@@ -24,24 +29,24 @@ export default function QueuesPage() {
     );
   }
 
-  if (isLoading) {
+  if (queuesLoading) {
     return (
       <>
         <PageHeader title="Queues" description="Tune scheduler behavior live." />
         <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
         </div>
       </>
     );
   }
 
-  if (isError) {
+  if (!apiConnected && !demoMode) {
     return (
       <>
         <PageHeader title="Queues" description="Tune scheduler behavior live." />
         <div className="py-12 text-center">
-          <p className="text-sm text-danger">Failed to load queues</p>
-          <button className="mt-2 text-xs text-muted-foreground underline" onClick={() => refetch()}>Retry</button>
+          <p className="text-sm text-danger">Failed to connect to live Orion API</p>
+          <p className="text-xs text-muted-foreground mt-1">Check if the backend is running, or switch to simulated Sandbox above.</p>
         </div>
       </>
     );

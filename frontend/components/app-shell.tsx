@@ -16,7 +16,7 @@ import { type ReactNode, useState, useEffect } from "react";
 import { SearchDialog } from "@/components/search-dialog";
 import { SubmitJobDialog } from "@/components/submit-job-dialog";
 import { Button, StatusDot, EnvironmentBadge } from "@/components/ui";
-import { useHealth, useJobs, useWorkers } from "@/lib/hooks";
+import { useTelemetry } from "@/lib/telemetry-context";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -60,23 +60,21 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const { data: jobs = [] } = useJobs();
-  const { data: workers = [] } = useWorkers();
   const {
-    isError: apiDown,
-    isLoading: healthLoading,
-    isSuccess: apiOk,
-  } = useHealth();
-
-  const activeJobs = jobs.filter(j => j.status === "running" || j.status === "queued").length;
-  const runningJobs = jobs.filter(j => j.status === "running").length;
-  const queuedJobs = jobs.filter(j => j.status === "queued").length;
-  const failedJobs = jobs.filter(j => j.status === "failed" || j.status === "dead").length;
-  const activeWorkers = workers.filter(w => w.status !== "offline").length;
+    environment,
+    demoMode,
+    apiConnected,
+    healthLoading,
+    activeJobsCount,
+    runningJobsCount,
+    queuedJobsCount,
+    failedJobsCount,
+    activeWorkersCount,
+  } = useTelemetry();
 
   const healthTone: "success" | "warning" | "danger" =
-    apiOk ? "success" : apiDown ? "danger" : "warning";
-  const healthLabel = apiOk ? "API ready" : healthLoading ? "Checking API" : "API down";
+    apiConnected ? "success" : healthLoading ? "warning" : "danger";
+  const healthLabel = apiConnected ? "API READY" : healthLoading ? "CHECKING API" : "API DOWN";
 
   return (
     <div className="min-h-screen bg-grid">
@@ -87,7 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Image src="/orion_logo.png" alt="Orion Logo" width={28} height={28} className="rounded shrink-0" />
           <span className="font-display text-sm font-semibold text-foreground tracking-wide">Orion</span>
           <div className="ml-auto shrink-0 scale-90 origin-right">
-            <EnvironmentBadge env="local" />
+            <EnvironmentBadge env={environment} />
           </div>
         </div>
 
@@ -102,8 +100,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               ? pathname === item.href
               : pathname.startsWith(item.href);
 
-            const count = item.href === "/dashboard/jobs" ? activeJobs
-              : item.href === "/dashboard/workers" ? activeWorkers
+            const count = item.href === "/dashboard/jobs" ? activeJobsCount
+              : item.href === "/dashboard/workers" ? activeWorkersCount
                 : undefined;
 
             return (
@@ -134,34 +132,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        {/* System status footer */}
-        <div className="shrink-0 border-t border-border/50 p-4">
-          <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 shadow-sm">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <StatusDot tone={healthTone} pulse={healthLoading || apiOk} />
-                <span className="font-medium text-foreground/90">{healthLabel}</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground/80 font-mono">5s refresh</span>
+        {/* System status footer - slim telemetry read-out */}
+        <div className="shrink-0 border-t border-border/40 p-3 bg-void/10">
+          <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <StatusDot tone={healthTone} pulse={healthLoading || apiConnected} />
+              <span className="uppercase tracking-wider font-semibold">{healthLabel}</span>
             </div>
-            <div className="mt-3 space-y-2 border-t border-border/40 pt-3 text-[11px] text-muted-foreground">
-              <div className="flex items-center justify-between">
-                <span>Active Workers</span>
-                <span className="font-mono font-semibold text-foreground">{activeWorkers}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Running Jobs</span>
-                <span className="font-mono font-semibold text-foreground">{runningJobs}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Queued Jobs</span>
-                <span className="font-mono font-semibold text-foreground">{queuedJobs}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Failed Jobs</span>
-                <span className="font-mono font-semibold text-foreground">{failedJobs}</span>
-              </div>
-            </div>
+            <span className="opacity-75">
+              W:{activeWorkersCount} | J:{runningJobsCount}
+            </span>
           </div>
         </div>
       </aside>
@@ -185,13 +165,22 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="ml-auto flex items-center gap-2">
             <div className="hidden items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-3 py-1.5 text-xs sm:flex">
-              <Zap className="h-3 w-3 text-primary" />
-              <span className="font-medium text-primary">{runningJobs}</span>
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              <span className="font-medium text-primary">{runningJobsCount}</span>
               <span className="text-muted-foreground">running</span>
             </div>
-            <Button size="sm" variant="outline">
-              <Activity className="h-3.5 w-3.5" />
-              Live
+            <Button
+              size="sm"
+              variant="outline"
+              className={cn(
+                "gap-1.5 pointer-events-none select-none",
+                demoMode 
+                  ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-400" 
+                  : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+              )}
+            >
+              <Activity className={cn("h-3.5 w-3.5", !demoMode && "animate-pulse")} />
+              {demoMode ? "Sandbox" : "Live"}
             </Button>
             <Button size="sm" onClick={() => setDialogOpen(true)}>Submit Job</Button>
             <Button

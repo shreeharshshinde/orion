@@ -7,7 +7,7 @@ import { useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { CreatePipelineDialog } from "@/components/create-pipeline-dialog";
 import { Button, Card, PageHeader } from "@/components/ui";
-import { usePipelines } from "@/lib/hooks";
+import { useTelemetry } from "@/lib/telemetry-context";
 import { formatRelativeTime } from "@/lib/utils";
 
 function DAGPreview({ nodes, edges }: {
@@ -65,7 +65,7 @@ function DAGPreview({ nodes, edges }: {
 }
 
 export default function PipelinesPage() {
-  const { data: pipelines = [], isLoading, isError, refetch } = usePipelines();
+  const { pipelines, pipelinesLoading, apiConnected, demoMode } = useTelemetry();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
@@ -81,14 +81,14 @@ export default function PipelinesPage() {
         }
       />
 
-      {isLoading ? (
+      {pipelinesLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
         </div>
-      ) : isError ? (
+      ) : (!apiConnected && !demoMode) ? (
         <div className="py-12 text-center">
-          <p className="text-sm text-danger">Failed to load pipelines</p>
-          <button className="mt-2 text-xs text-muted-foreground underline" onClick={() => refetch()}>Retry</button>
+          <p className="text-sm text-danger">Failed to connect to live Orion API</p>
+          <p className="text-xs text-muted-foreground mt-1">Check if the backend is running, or switch to simulated Sandbox above.</p>
         </div>
       ) : pipelines.length === 0 ? (
         <div className="py-12 text-center text-sm text-muted-foreground">No pipelines yet</div>
