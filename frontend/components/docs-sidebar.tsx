@@ -13,22 +13,7 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col space-y-6">
-      <div className="px-2 space-y-3">
-        {/* Version Selector with pulsing status indicator */}
-        <div className="flex items-center justify-between rounded-lg border border-border/50 bg-secondary/10 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-sm shadow-inner transition-all hover:border-primary/30">
-          <div className="flex items-center gap-1.5">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-            </span>
-            <span className="font-semibold text-muted-foreground/90">Version</span>
-          </div>
-          <select className="bg-transparent font-mono font-bold text-primary outline-none cursor-pointer hover:text-primary-hover focus:ring-0 transition-colors">
-            <option value="v1.0.0" className="bg-[#0b1329] text-foreground">v1.0.0 (Latest)</option>
-            <option value="v0.9.0" className="bg-[#0b1329] text-foreground">v0.9.0</option>
-            <option value="v0.8.0" className="bg-[#0b1329] text-foreground">v0.8.0</option>
-          </select>
-        </div>
+      <div className="px-2">
         <DocsSearch onNavigate={onNavigate} />
       </div>
 
