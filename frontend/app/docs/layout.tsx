@@ -21,6 +21,12 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const handleOpen = () => setSearchOpen(true);
+    window.addEventListener("open-global-search", handleOpen);
+    return () => window.removeEventListener("open-global-search", handleOpen);
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
         return;
@@ -57,11 +63,11 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
           {/* Docs Search Trigger */}
           <button
             onClick={() => setSearchOpen(true)}
-            className="hidden h-8 w-full max-w-sm items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 text-xs text-muted-foreground transition hover:border-primary/40 hover:bg-muted/50 md:flex cursor-pointer text-left"
+            className="group hidden h-9 w-full max-w-sm items-center gap-2.5 rounded-lg border border-border/40 bg-muted/5 hover:bg-muted/15 px-3.5 text-xs text-muted-foreground/60 transition hover:border-primary/45 md:flex cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-primary/20 backdrop-blur-md"
           >
-            <Search className="h-3.5 w-3.5 shrink-0" />
-            <span>Search docs...</span>
-            <kbd className="ml-auto rounded border border-border/80 bg-card px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+            <Search className="h-3.5 w-3.5 text-muted-foreground/75 group-hover:text-primary transition-colors shrink-0" />
+            <span className="flex-1 text-muted-foreground/50 group-hover:text-muted-foreground/80 transition-colors">Search documentation...</span>
+            <kbd className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground/60">⌘K</kbd>
           </button>
 
           {/* Right Controls */}
