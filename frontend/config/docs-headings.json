@@ -3999,318 +3999,414 @@
   ],
   "phases/9-helm-deployment": [
     {
-      "id": "helm-chart-production-kubernetes-deployment",
-      "text": "Helm Chart + Production Kubernetes Deployment",
+      "id": "overview-objectives",
+      "text": "📋 Overview & Objectives",
       "level": 2
     },
     {
-      "id": "table-of-contents",
-      "text": "Table of Contents",
+      "id": "prerequisites",
+      "text": "🚀 Prerequisites",
       "level": 2
     },
     {
-      "id": "1-why-phase-9-exists",
-      "text": "1. Why Phase 9 Exists",
+      "id": "what-phase-9-delivers",
+      "text": "📦 What Phase 9 Delivers",
       "level": 2
     },
     {
-      "id": "2-what-phase-9-delivers",
-      "text": "2. What Phase 9 Delivers",
+      "id": "guide-navigation",
+      "text": "🗺️ Guide Navigation",
       "level": 2
     },
     {
-      "id": "the-helm-install-command",
-      "text": "The helm install command",
+      "id": "1-dockerfiles-build-design",
+      "text": "1. Dockerfiles Build & Design",
       "level": 3
     },
     {
-      "id": "what-gets-deployed",
-      "text": "What gets deployed",
+      "id": "2-helm-chart-templates-configuration",
+      "text": "2. Helm Chart Templates & Configuration",
       "level": 3
     },
     {
-      "id": "3-the-three-binary-deployment-model",
-      "text": "3. The Three-Binary Deployment Model",
+      "id": "3-implementation-operational-runbook",
+      "text": "3. Implementation & Operational Runbook",
+      "level": 3
+    },
+    {
+      "id": "the-three-binary-deployment-model",
+      "text": "📐 The Three-Binary Deployment Model",
+      "level": 2
+    }
+  ],
+  "phases/9-helm-deployment/dockerfiles": [
+    {
+      "id": "what-this-document-covers",
+      "text": "What This Document Covers",
       "level": 2
     },
     {
-      "id": "why-three-separate-deployments",
-      "text": "Why three separate Deployments",
-      "level": 3
-    },
-    {
-      "id": "the-scheduler-s-redundancy-model",
-      "text": "The scheduler's redundancy model",
-      "level": 3
-    },
-    {
-      "id": "worker-autoscaling-logic",
-      "text": "Worker autoscaling logic",
-      "level": 3
-    },
-    {
-      "id": "4-complete-file-plan",
-      "text": "4. Complete File Plan",
+      "id": "design-multi-stage-builds",
+      "text": "Design: Multi-Stage Builds",
       "level": 2
     },
     {
-      "id": "5-dockerfiles-multi-stage-builds",
-      "text": "5. Dockerfiles — Multi-Stage Builds",
+      "id": "why-scratch",
+      "text": "Why scratch",
       "level": 2
-    },
-    {
-      "id": "design-principles",
-      "text": "Design principles",
-      "level": 3
     },
     {
       "id": "dockerfile-api",
       "text": "Dockerfile.api",
-      "level": 3
+      "level": 2
+    },
+    {
+      "id": "dockerfile-scheduler",
+      "text": "Dockerfile.scheduler",
+      "level": 2
     },
     {
       "id": "dockerfile-worker",
       "text": "Dockerfile.worker",
-      "level": 3
+      "level": 2
     },
     {
-      "id": "build-and-push",
-      "text": "Build and push",
-      "level": 3
+      "id": "build-flags-explained",
+      "text": "Build Flags Explained",
+      "level": 2
     },
     {
-      "id": "6-helm-chart-structure",
-      "text": "6. Helm Chart Structure",
+      "id": "layer-caching-strategy",
+      "text": "Layer Caching Strategy",
+      "level": 2
+    },
+    {
+      "id": "non-root-user",
+      "text": "Non-Root User",
+      "level": 2
+    },
+    {
+      "id": "build-commands",
+      "text": "Build Commands",
+      "level": 2
+    },
+    {
+      "id": "verifying-image-size",
+      "text": "Verifying Image Size",
+      "level": 2
+    },
+    {
+      "id": "inspecting-the-final-image",
+      "text": "Inspecting the Final Image",
+      "level": 2
+    },
+    {
+      "id": "push-to-registry",
+      "text": "Push to Registry",
+      "level": 2
+    },
+    {
+      "id": "note-on-prestop-and-scratch",
+      "text": "Note on preStop and scratch",
+      "level": 2
+    }
+  ],
+  "phases/9-helm-deployment/helm-chart": [
+    {
+      "id": "what-this-document-covers",
+      "text": "What This Document Covers",
+      "level": 2
+    },
+    {
+      "id": "chart-structure",
+      "text": "Chart Structure",
       "level": 2
     },
     {
       "id": "chart-yaml",
       "text": "Chart.yaml",
-      "level": 3
-    },
-    {
-      "id": "helpers-tpl-shared-name-and-label-helpers",
-      "text": "helpers.tpl — Shared name and label helpers",
-      "level": 3
-    },
-    {
-      "id": "7-file-by-file-every-template-explained",
-      "text": "7. File-by-File: Every Template Explained",
       "level": 2
     },
     {
-      "id": "configmap-yaml-non-sensitive-configuration",
-      "text": "configmap.yaml — Non-sensitive configuration",
+      "id": "helpers-tpl-shared-functions",
+      "text": "helpers.tpl — Shared Functions",
+      "level": 2
+    },
+    {
+      "id": "orion-fullname",
+      "text": "orion.fullname",
       "level": 3
     },
     {
-      "id": "secret-yaml-sensitive-configuration",
-      "text": "secret.yaml — Sensitive configuration",
+      "id": "orion-labels",
+      "text": "orion.labels",
       "level": 3
+    },
+    {
+      "id": "orion-selectorlabels",
+      "text": "orion.selectorLabels",
+      "level": 3
+    },
+    {
+      "id": "orion-secretname",
+      "text": "orion.secretName",
+      "level": 3
+    },
+    {
+      "id": "configmap-yaml-non-sensitive-configuration",
+      "text": "configmap.yaml — Non-Sensitive Configuration",
+      "level": 2
+    },
+    {
+      "id": "secret-yaml-sensitive-configuration",
+      "text": "secret.yaml — Sensitive Configuration",
+      "level": 2
+    },
+    {
+      "id": "rbac-yaml-service-accounts-and-permissions",
+      "text": "rbac.yaml — Service Accounts and Permissions",
+      "level": 2
     },
     {
       "id": "api-deployment-yaml-api-server",
       "text": "api-deployment.yaml — API Server",
+      "level": 2
+    },
+    {
+      "id": "deployment-highlights",
+      "text": "Deployment highlights",
       "level": 3
     },
     {
-      "id": "scheduler-deployment-yaml-scheduler-hot-standby-ha",
-      "text": "scheduler-deployment.yaml — Scheduler (hot-standby HA)",
+      "id": "service",
+      "text": "Service",
       "level": 3
     },
     {
-      "id": "worker-deployment-yaml-worker-autoscaled",
-      "text": "worker-deployment.yaml — Worker (autoscaled)",
+      "id": "poddisruptionbudget",
+      "text": "PodDisruptionBudget",
       "level": 3
+    },
+    {
+      "id": "scheduler-deployment-yaml-scheduler",
+      "text": "scheduler-deployment.yaml — Scheduler",
+      "level": 2
+    },
+    {
+      "id": "worker-deployment-yaml-worker",
+      "text": "worker-deployment.yaml — Worker",
+      "level": 2
     },
     {
       "id": "hpa-yaml-horizontalpodautoscaler",
       "text": "hpa.yaml — HorizontalPodAutoscaler",
-      "level": 3
-    },
-    {
-      "id": "rbac-yaml-kubernetes-rbac-for-worker",
-      "text": "rbac.yaml — Kubernetes RBAC for worker",
-      "level": 3
+      "level": 2
     },
     {
       "id": "servicemonitor-yaml-prometheus-scraping",
-      "text": "servicemonitor.yaml — Prometheus scraping",
-      "level": 3
-    },
-    {
-      "id": "8-values-yaml-the-complete-default-configuration",
-      "text": "8. values.yaml — The Complete Default Configuration",
+      "text": "servicemonitor.yaml — Prometheus Scraping",
       "level": 2
     },
     {
-      "id": "9-production-hardening-checklist",
-      "text": "9. Production Hardening Checklist",
+      "id": "values-yaml-reference",
+      "text": "values.yaml Reference",
       "level": 2
     },
     {
-      "id": "security",
-      "text": "Security",
+      "id": "global",
+      "text": "Global",
       "level": 3
     },
     {
-      "id": "reliability",
-      "text": "Reliability",
+      "id": "api",
+      "text": "API",
       "level": 3
     },
     {
-      "id": "operational",
-      "text": "Operational",
+      "id": "scheduler",
+      "text": "Scheduler",
       "level": 3
     },
     {
-      "id": "10-hpa-autoscaling-workers-on-queue-depth",
-      "text": "10. HPA: Autoscaling Workers on Queue Depth",
+      "id": "worker",
+      "text": "Worker",
+      "level": 3
+    },
+    {
+      "id": "database",
+      "text": "Database",
+      "level": 3
+    },
+    {
+      "id": "redis",
+      "text": "Redis",
+      "level": 3
+    },
+    {
+      "id": "queues-phase-8-rate-limiting",
+      "text": "Queues (Phase 8 rate limiting)",
+      "level": 3
+    },
+    {
+      "id": "observability",
+      "text": "Observability",
+      "level": 3
+    },
+    {
+      "id": "common-operations",
+      "text": "Common Operations",
       "level": 2
     },
     {
-      "id": "why-queue-depth-is-the-right-metric",
-      "text": "Why queue depth is the right metric",
+      "id": "install",
+      "text": "Install",
       "level": 3
     },
     {
-      "id": "the-prometheus-adapter-setup",
-      "text": "The prometheus-adapter setup",
+      "id": "upgrade-new-image-version",
+      "text": "Upgrade (new image version)",
       "level": 3
     },
     {
-      "id": "scale-up-scenario",
-      "text": "Scale-up scenario",
+      "id": "scale-workers-manually-hpa-disabled",
+      "text": "Scale workers manually (HPA disabled)",
       "level": 3
     },
     {
-      "id": "11-secret-management-strategy",
-      "text": "11. Secret Management Strategy",
+      "id": "rollback",
+      "text": "Rollback",
+      "level": 3
+    },
+    {
+      "id": "uninstall",
+      "text": "Uninstall",
+      "level": 3
+    },
+    {
+      "id": "lint-and-template-validation",
+      "text": "Lint and Template Validation",
+      "level": 2
+    }
+  ],
+  "phases/9-helm-deployment/implementation": [
+    {
+      "id": "helm-chart-production-kubernetes-deployment",
+      "text": "Helm Chart + Production Kubernetes Deployment",
       "level": 2
     },
     {
-      "id": "option-1-direct-values-development-staging-only",
-      "text": "Option 1 — Direct values (development/staging only)",
-      "level": 3
-    },
-    {
-      "id": "option-2-existingsecret-recommended-for-production",
-      "text": "Option 2 — existingSecret (recommended for production)",
-      "level": 3
-    },
-    {
-      "id": "option-3-sealed-secrets-gitops-safe",
-      "text": "Option 3 — Sealed Secrets (GitOps-safe)",
-      "level": 3
-    },
-    {
-      "id": "12-step-by-step-build-and-deploy-order",
-      "text": "12. Step-by-Step Build and Deploy Order",
+      "id": "what-phase-9-added",
+      "text": "What Phase 9 Added",
       "level": 2
     },
     {
-      "id": "step-1-write-dockerfiles-and-verify-local-build",
-      "text": "Step 1 — Write Dockerfiles and verify local build",
-      "level": 3
-    },
-    {
-      "id": "step-2-write-chart-yaml-and-values-yaml",
-      "text": "Step 2 — Write Chart.yaml and values.yaml",
-      "level": 3
-    },
-    {
-      "id": "step-3-write-all-templates",
-      "text": "Step 3 — Write all templates",
-      "level": 3
-    },
-    {
-      "id": "step-4-create-a-local-kind-cluster-for-testing",
-      "text": "Step 4 — Create a local kind cluster for testing",
-      "level": 3
-    },
-    {
-      "id": "step-5-apply-migration-via-init-job",
-      "text": "Step 5 — Apply migration via init-job",
-      "level": 3
-    },
-    {
-      "id": "step-6-helm-install",
-      "text": "Step 6 — helm install",
-      "level": 3
-    },
-    {
-      "id": "step-7-verify-deployment",
-      "text": "Step 7 — Verify deployment",
-      "level": 3
-    },
-    {
-      "id": "13-complete-verification-sequence",
-      "text": "13. Complete Verification Sequence",
+      "id": "files-created",
+      "text": "Files Created",
       "level": 2
     },
     {
-      "id": "test-1-api-reachable",
-      "text": "Test 1 — API reachable",
+      "id": "dockerfiles",
+      "text": "Dockerfiles",
       "level": 3
     },
     {
-      "id": "test-2-end-to-end-job-execution-in-cluster",
-      "text": "Test 2 — End-to-end job execution in cluster",
+      "id": "helm-chart",
+      "text": "Helm Chart",
       "level": 3
     },
     {
-      "id": "test-3-scheduler-ha-failover",
-      "text": "Test 3 — Scheduler HA failover",
+      "id": "kubernetes-manifests",
+      "text": "Kubernetes Manifests",
       "level": 3
     },
     {
-      "id": "test-4-rolling-update-zero-downtime",
-      "text": "Test 4 — Rolling update zero-downtime",
+      "id": "makefile-additions",
+      "text": "Makefile Additions",
       "level": 3
     },
     {
-      "id": "test-5-hpa-scales-workers-under-load",
-      "text": "Test 5 — HPA scales workers under load",
-      "level": 3
-    },
-    {
-      "id": "14-scaling-reference",
-      "text": "14. Scaling Reference",
+      "id": "key-decisions",
+      "text": "Key Decisions",
       "level": 2
     },
     {
-      "id": "capacity-formula",
-      "text": "Capacity formula",
+      "id": "1-scratch-as-the-final-image-base",
+      "text": "1. scratch as the final image base",
       "level": 3
     },
     {
-      "id": "recommended-values-by-environment",
-      "text": "Recommended values by environment",
+      "id": "2-three-separate-deployments-not-one",
+      "text": "2. Three separate Deployments, not one",
       "level": 3
     },
     {
-      "id": "tuning-the-hpa",
-      "text": "Tuning the HPA",
+      "id": "3-scheduler-redundancy-via-pg-advisory-lock-not-leader-election-sidecar",
+      "text": "3. Scheduler redundancy via PG advisory lock (not leader election sidecar)",
       "level": 3
     },
     {
-      "id": "15-common-mistakes",
-      "text": "15. Common Mistakes",
+      "id": "4-hpa-on-queue-depth-not-cpu",
+      "text": "4. HPA on queue depth, not CPU",
+      "level": 3
+    },
+    {
+      "id": "5-existingsecret-pattern-for-production-secrets",
+      "text": "5. existingSecret pattern for production secrets",
+      "level": 3
+    },
+    {
+      "id": "6-maxunavailable-0-on-all-deployments",
+      "text": "6. maxUnavailable: 0 on all Deployments",
+      "level": 3
+    },
+    {
+      "id": "7-checksum-config-annotation-forces-pod-restarts-on-configmap-changes",
+      "text": "7. checksum/config annotation forces pod restarts on ConfigMap changes",
+      "level": 3
+    },
+    {
+      "id": "8-topologyspreadconstraints-on-api-pods",
+      "text": "8. topologySpreadConstraints on API pods",
+      "level": 3
+    },
+    {
+      "id": "resource-defaults",
+      "text": "Resource Defaults",
       "level": 2
     },
     {
-      "id": "16-the-complete-journey-orion-phases-1-9",
-      "text": "16. The Complete Journey: Orion Phases 1–9",
+      "id": "what-gets-deployed",
+      "text": "What Gets Deployed",
       "level": 2
     },
     {
-      "id": "what-you-ve-built",
-      "text": "What you've built",
+      "id": "verification",
+      "text": "Verification",
+      "level": 2
+    },
+    {
+      "id": "helm-lint",
+      "text": "helm lint",
       "level": 3
     },
     {
-      "id": "summary-checklist",
-      "text": "Summary Checklist",
+      "id": "template-render-no-cluster-needed",
+      "text": "Template render (no cluster needed)",
+      "level": 3
+    },
+    {
+      "id": "local-kind-cluster-test",
+      "text": "Local kind cluster test",
+      "level": 3
+    },
+    {
+      "id": "architecture-after-phase-9",
+      "text": "Architecture After Phase 9",
+      "level": 2
+    },
+    {
+      "id": "what-phase-9-completes",
+      "text": "What Phase 9 Completes",
       "level": 2
     }
   ],
