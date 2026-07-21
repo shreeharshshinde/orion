@@ -6,6 +6,37 @@ const root = process.cwd();
 const docsDirectory = path.resolve(root, "../docs");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "config/docs-manifest.json"), "utf8"));
 
+const searchIndexPath = path.join(root, "public/docs-search-index.json");
+const headingsPath = path.join(root, "config/docs-headings.json");
+const manifestPath = path.join(root, "config/docs-manifest.json");
+
+if (fs.existsSync(searchIndexPath) && fs.existsSync(headingsPath)) {
+  const searchIndexMtime = fs.statSync(searchIndexPath).mtimeMs;
+  const headingsMtime = fs.statSync(headingsPath).mtimeMs;
+  const targetMtime = Math.min(searchIndexMtime, headingsMtime);
+
+  let upToDate = true;
+
+  if (fs.statSync(manifestPath).mtimeMs > targetMtime) {
+    upToDate = false;
+  } else {
+    for (const entry of manifest) {
+      const file = path.resolve(docsDirectory, entry.file);
+      if (fs.existsSync(file)) {
+        if (fs.statSync(file).mtimeMs > targetMtime) {
+          upToDate = false;
+          break;
+        }
+      }
+    }
+  }
+
+  if (upToDate) {
+    console.log("Orion docs index and headings are up to date. Skipping indexing.");
+    process.exit(0);
+  }
+}
+
 const headingsMap = {};
 
 const index = manifest.flatMap((entry) => {
