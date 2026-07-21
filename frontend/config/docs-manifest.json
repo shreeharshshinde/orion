@@ -34,6 +34,9 @@
   { "slug": "phases/7-grpc-streaming", "file": "phases/phase-07/PHASE_07_GUIDE.md", "title": "Phase 7: gRPC Streaming", "section": "Implementation Phases" },
   { "slug": "phases/8-rate-limiting", "file": "phases/phase-08/PHASE_08_GUIDE.md", "title": "Phase 8: Rate Limiting & Priority", "section": "Implementation Phases" },
   { "slug": "phases/9-helm-deployment", "file": "phases/phase-09/PHASE_09_GUIDE.md", "title": "Phase 9: Helm & Production", "section": "Implementation Phases" },
+  { "slug": "phases/9-helm-deployment/dockerfiles", "file": "phases/phase-09/DOCKERFILES.md", "title": "Dockerfiles Build", "section": "Implementation Phases", "parent": "phases/9-helm-deployment" },
+  { "slug": "phases/9-helm-deployment/helm-chart", "file": "phases/phase-09/HELM_CHART.md", "title": "Helm Chart Templates", "section": "Implementation Phases", "parent": "phases/9-helm-deployment" },
+  { "slug": "phases/9-helm-deployment/implementation", "file": "phases/phase-09/PHASE_09_IMPLEMENTATION.md", "title": "Implementation Record", "section": "Implementation Phases", "parent": "phases/9-helm-deployment" },
   { "slug": "phases/10-observability-hardening", "file": "phases/phase-10/OBSERVABILITY_HARDENING.md", "title": "Phase 10: Observability Hardening", "section": "Implementation Phases" },
   { "slug": "phases/11-frontend-completion", "file": "phases/phase-11/FRONTEND_COMPLETION.md", "title": "Phase 11: Frontend Completion", "section": "Implementation Phases" },
   { "slug": "phases/12-docs-integration", "file": "phases/phase-12/DOCS_INTEGRATION.md", "title": "Phase 12: Documentation Portal", "section": "Implementation Phases" }

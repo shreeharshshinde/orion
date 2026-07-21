@@ -6,6 +6,8 @@ export interface DocNavItem {
   title: string;
   description?: string;
   section: string;
+  parent?: string;
+  children?: DocNavItem[];
 }
 
 export interface DocNavSection {
@@ -16,12 +18,23 @@ export interface DocNavSection {
 export const docs = manifest as DocNavItem[];
 
 export const docsNavigation = docs.reduce<DocNavSection[]>((sections, item) => {
+  // Skip sub-pages from becoming top-level items in sections
+  if (item.parent) return sections;
+
   let section = sections.find((entry) => entry.title === item.section);
   if (!section) {
     section = { title: item.section, items: [] };
     sections.push(section);
   }
-  section.items.push(item);
+
+  // Find any sub-pages belonging to this parent item
+  const children = docs.filter((d) => d.parent === item.slug);
+  
+  section.items.push({
+    ...item,
+    children: children.length > 0 ? children : undefined,
+  });
+
   return sections;
 }, []);
 
