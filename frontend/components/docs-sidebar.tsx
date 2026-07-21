@@ -41,7 +41,9 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
             <ul className="space-y-1">
               {section.items.map((item) => {
                 const href = `/docs/${item.slug}`;
-                const active = pathname === href || (pathname === "/docs" && item.slug === "overview");
+                const isParentActive = pathname === href || (pathname === "/docs" && item.slug === "overview");
+                const isChildActive = item.children?.some((child) => pathname === `/docs/${child.slug}`);
+                const isCategoryActive = isParentActive || isChildActive;
                 const headings = headingsData[item.slug as keyof typeof headingsData] || [];
                 const hasHeadings = headings.length > 0;
 
@@ -49,12 +51,14 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
                   <li key={item.slug} className="group/item">
                     <div className="flex items-center">
                       <Link
-                        aria-current={active ? "page" : undefined}
+                        aria-current={isParentActive ? "page" : undefined}
                         className={cn(
                           "flex-1 py-1.5 px-3 text-sm transition-all border-l-2 -ml-[2px]",
-                          active
+                          isParentActive
                             ? "font-semibold text-primary border-primary bg-gradient-to-r from-primary/10 to-transparent"
-                            : "text-muted-foreground/80 hover:text-foreground hover:border-border/60 hover:bg-muted/10 border-transparent"
+                            : isChildActive
+                              ? "font-medium text-foreground/95 border-primary/40 bg-muted/5"
+                              : "text-muted-foreground/80 hover:text-foreground hover:border-border/60 hover:bg-muted/10 border-transparent"
                         )}
                         href={href}
                         onClick={onNavigate}
@@ -63,8 +67,34 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
                       </Link>
                     </div>
 
-                    {/* Subheadings: auto-expand only when active with a neat vertical tree line */}
-                    {active && hasHeadings && (
+                    {/* Sub-pages list: displayed only when category is active */}
+                    {isCategoryActive && item.children && (
+                      <ul className="mt-1 ml-4 border-l border-border/40 pl-3 space-y-1.5">
+                        {item.children.map((child) => {
+                          const childHref = `/docs/${child.slug}`;
+                          const isCurrentChild = pathname === childHref;
+                          return (
+                            <li key={child.slug}>
+                              <Link
+                                href={childHref}
+                                className={cn(
+                                  "group flex items-center py-1.5 text-xs transition-all border-l-2 -ml-[15px] pl-3",
+                                  isCurrentChild
+                                    ? "font-semibold text-primary border-primary bg-gradient-to-r from-primary/10 to-transparent"
+                                    : "text-muted-foreground/70 hover:text-foreground hover:border-border/60 hover:bg-muted/10 border-transparent"
+                                )}
+                                onClick={onNavigate}
+                              >
+                                <span className="block leading-snug whitespace-normal break-words">{child.title}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+
+                    {/* Subheadings: auto-expand only when active with a neat vertical tree line, and only when there are no sub-pages */}
+                    {isParentActive && !item.children && hasHeadings && (
                       <ul className="mt-1 mb-2 ml-[12px] border-l border-border/40 pl-3 space-y-1">
                         {headings.map((heading) => (
                           <li key={heading.id}>
