@@ -15,7 +15,7 @@ import { type ReactNode, useState, useEffect } from "react";
 
 import { SearchDialog } from "@/components/search-dialog";
 import { SubmitJobDialog } from "@/components/submit-job-dialog";
-import { Button, StatusDot } from "@/components/ui";
+import { Button, StatusDot, EnvironmentBadge } from "@/components/ui";
 import { useHealth, useJobs, useWorkers } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
@@ -86,9 +86,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border/60 px-4">
           <Image src="/orion_logo.png" alt="Orion Logo" width={28} height={28} className="rounded shrink-0" />
           <span className="font-display text-sm font-semibold text-foreground tracking-wide">Orion</span>
-          <span className="ml-auto shrink-0 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning">
-            LOCAL
-          </span>
+          <div className="ml-auto shrink-0 scale-90 origin-right">
+            <EnvironmentBadge env="local" />
+          </div>
         </div>
 
         {/* Nav */}

@@ -83,10 +83,10 @@ export function PipelineDagView({ pipeline }: PipelineDagViewProps) {
         <StatusBadge status={pipeline.status} kind="pipeline" size="sm" />
       </div>
 
-      <div className="relative overflow-x-auto w-full">
-        <div style={{ width, height }} className="mx-auto relative bg-[#090d16]/30 rounded-lg border border-border/10 p-2">
+      <div className="w-full">
+        <div className="relative bg-[#090d16]/30 rounded-lg border border-border/10 p-2 w-full aspect-[600/180]">
           {/* SVG for edges */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <svg viewBox="0 0 600 180" className="absolute inset-0 w-full h-full pointer-events-none">
             <defs>
               <marker
                 id="arrow"
@@ -156,17 +156,20 @@ export function PipelineDagView({ pipeline }: PipelineDagViewProps) {
                 key={node.id}
                 style={{
                   position: 'absolute',
-                  left: coord.x,
-                  top: coord.y,
+                  left: `${(coord.x / 600) * 100}%`,
+                  top: `${(coord.y / 180) * 100}%`,
                   transform: 'translate(-50%, -50%)',
                 }}
                 className="group flex flex-col items-center"
               >
                 <div
+                  style={{
+                    backgroundColor: isCurrentNodeRunning ? '#161c2c' : '#131826',
+                  }}
                   className={`flex items-center justify-center rounded-lg border px-3 py-1.5 min-w-[90px] text-center font-mono text-[11px] shadow-md transition-all ${
                     isCurrentNodeRunning
-                      ? 'border-nebula bg-nebula-dim text-text-bright glow-primary'
-                      : 'border-border/60 bg-panel-solid text-muted-foreground'
+                      ? 'border-nebula text-text-bright shadow-[0_0_12px_rgba(139,127,232,0.25)]'
+                      : 'border-border/60 text-muted-foreground'
                   }`}
                 >
                   {node.id}

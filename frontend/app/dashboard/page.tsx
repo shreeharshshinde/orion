@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Activity, AlertTriangle, BriefcaseBusiness,
   GitBranch, Server, Waypoints, TrendingUp, Skull, Sparkles, RefreshCw
@@ -14,7 +15,7 @@ import {
 import { StatusBadge, ConnectionIndicator } from "@/components/status-badge";
 import { useJobs, usePipelines, useQueues, useWorkers, useHealth } from "@/lib/hooks";
 import { formatRelativeTime } from "@/lib/utils";
-import { OrbitTopology } from "@/components/dashboard/orbit-topology";
+import { WorkerHeatmap } from "@/components/dashboard/worker-heatmap";
 import { PipelineDagView } from "@/components/dashboard/pipeline-dag-view";
 import { QueueDepthChart } from "@/components/dashboard/queue-depth-chart";
 import { JobDurationChart } from "@/components/dashboard/job-duration-chart";
@@ -60,12 +61,12 @@ export default function DashboardPage() {
         description="Real-time telemetry and operational control panel."
         badge={
           <div className="flex items-center gap-2">
-            <EnvironmentBadge env={demoMode ? "staging" : "production"} />
+            <EnvironmentBadge env={demoMode ? "staging" : "local"} />
             <ConnectionIndicator connected={apiConnected} />
             {demoMode && (
-              <span className="flex items-center gap-1 text-[11px] font-mono text-cyan-400 border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-0.5 rounded-full animate-pulse">
-                <Sparkles className="h-3 w-3" />
-                demo mode active
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-[10px] font-semibold font-mono uppercase tracking-wider text-cyan-400 animate-pulse">
+                <Sparkles className="h-3 w-3 shrink-0" />
+                demo active
               </span>
             )}
           </div>
@@ -74,7 +75,17 @@ export default function DashboardPage() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => setDemoMode(!demoMode)}
+            onClick={() => {
+              const targetDemo = !demoMode;
+              setDemoMode(targetDemo);
+              if (!targetDemo && !apiConnected) {
+                toast.warning("API unreachable. Showing offline status. Ensure orion-api is running on port :8080.");
+              } else if (targetDemo) {
+                toast.info("Switched to simulated Sandbox environment.");
+              } else {
+                toast.success("Successfully connected to live Orion API.");
+              }
+            }}
             className="flex items-center gap-1.5"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -85,22 +96,18 @@ export default function DashboardPage() {
 
       {/* Incident Alert Strip */}
       {incidents.length > 0 && (
-        <div className="mb-5 flex items-start gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm transition-all duration-300">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400 animate-bounce" />
-          <div>
-            <span className="font-semibold text-rose-400 font-ui">{incidents.length} system incident{incidents.length > 1 ? "s" : ""} requiring action: </span>
-            <span className="text-slate-300 font-mono text-xs">{incidents.map(j => j.name).join(", ")}</span>
+        <div className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-2.5 text-xs transition-all duration-300 backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-rose-400 animate-pulse shrink-0" />
+            <span className="text-rose-400 font-mono uppercase tracking-wider font-semibold">incidents active:</span>
+            <span className="text-slate-300 font-mono truncate max-w-lg">{incidents.map(j => `${j.name} (${j.status})`).join(", ")}</span>
           </div>
         </div>
       )}
 
       {/* Core Cockpit Topology & Metric Cards Row */}
       <section className="grid gap-5 lg:grid-cols-[1fr_1.1fr] mb-5">
-        <OrbitTopology 
-          apiConnected={apiConnected || demoMode} 
-          schedulerActive={apiConnected || demoMode} 
-          workerCount={activeWorkers} 
-        />
+        <WorkerHeatmap workers={workers} />
         
         <div className="grid gap-3 sm:grid-cols-2">
           <MetricCard 
