@@ -206,27 +206,75 @@
 .docs-diagram-error { border-color: hsl(var(--danger) / 0.4); color: hsl(var(--danger)); }
 
 .dark {
-  --background: 226 40% 1%;
+  --background: 226 38% 7%;
   --foreground: 190 100% 96%;
-  --card: 224 42% 9%;
+  --card: 223 33% 11%;
   --card-foreground: 190 100% 96%;
   --muted: 223 32% 13%;
   --muted-foreground: 198 22% 62%;
-  --primary: 184 85% 52%;
+  --primary: 188 86% 53%;
   --primary-foreground: 225 58% 6%;
-  --border: 220 25% 18%;
+  --border: 222 28% 16%;
   --input: 220 25% 18%;
-  --ring: 184 85% 52%;
-  --success: 152 80% 50%;
-  --warning: 38 95% 58%;
-  --danger: 350 85% 60%;
-  --aqua: 184 85% 52%;
+  --ring: 188 86% 53%;
+  --success: 152 63% 48%;
+  --warning: 36 94% 69%;
+  --danger: 352 95% 71%;
+  --aqua: 188 86% 53%;
   --violet: 263 90% 68%;
-  --panel-glow: 184 85% 52%;
+  --panel-glow: 188 86% 53%;
   --grid-opacity: 0.04;
   --glow-1: 0.05;
   --glow-2: 0.04;
   --glow-3: 0.02;
+
+  /* ── Constellation V2 design system tokens ── */
+  --void: #0a0e17;
+  --panel-solid: #131826;
+  --panel-edge: #1e2536;
+  --panel-raised: #161c2c;
+
+  /* ── Interactive accent ── */
+  --star: #22d3ee;
+  --star-dim: rgba(34, 211, 238, 0.14);
+  --star-glow: rgba(34, 211, 238, 0.35);
+
+  /* ── Concept accents ── */
+  --nebula: #8b7fe8;
+  --nebula-dim: rgba(139, 127, 232, 0.14);
+
+  --flare: #fbbf66;
+  --flare-dim: rgba(251, 191, 102, 0.14);
+
+  --collapse: #fb7185;
+  --collapse-dim: rgba(251, 113, 133, 0.14);
+
+  --drift: #34d399;
+  --drift-dim: rgba(52, 211, 153, 0.14);
+
+  /* ── Text ── */
+  --text-bright: #f1f5f9;
+  --text-body: #94a3b8;
+  --text-faint: #4b5567;
+
+  /* ── Environment badge ── */
+  --env-local: #64748b;
+  --env-staging: #fbbf66;
+  --env-prod: #fb7185;
+
+  /* ── Typography ── */
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-data: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+
+  /* ── Status colors mapping ── */
+  --status-queued: var(--text-faint);
+  --status-scheduled: var(--flare);
+  --status-running: var(--star);
+  --status-completed: var(--drift);
+  --status-retrying: var(--flare);
+  --status-failed: var(--collapse);
+  --status-dead: var(--collapse);
+  --status-cancelled: var(--text-faint);
 }
 
 * {
