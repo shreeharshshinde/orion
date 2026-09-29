@@ -14,11 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/grpc"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
 
-	"github.com/shreeharshshinde/orion/internal/api/handler"
 	grpcserver "github.com/shreeharshshinde/orion/internal/api/grpc"
+	"github.com/shreeharshshinde/orion/internal/api/handler"
 	"github.com/shreeharshshinde/orion/internal/config"
 	"github.com/shreeharshshinde/orion/internal/observability"
 	redisqueue "github.com/shreeharshshinde/orion/internal/queue/redis"
