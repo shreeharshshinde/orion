@@ -86,7 +86,7 @@ type QueueStatsResponse struct {
 func (h *QueueHandler) ListQueues(w http.ResponseWriter, r *http.Request) {
 	configs, err := h.store.ListQueueConfigs(r.Context())
 	if err != nil {
-		h.logger.Error("failed to list queue configs", "err", err)
+		RequestLogger(r, h.logger).Error("failed to list queue configs", "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to list queue configs")
 		return
 	}
@@ -115,7 +115,7 @@ func (h *QueueHandler) GetQueue(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "queue not found: "+name)
 			return
 		}
-		h.logger.Error("failed to get queue config", "queue", name, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get queue config", "queue", name, "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to get queue config")
 		return
 	}
@@ -154,7 +154,7 @@ func (h *QueueHandler) UpdateQueue(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "queue not found: "+name)
 			return
 		}
-		h.logger.Error("failed to get queue config for update", "queue", name, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get queue config for update", "queue", name, "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to get queue config")
 		return
 	}
@@ -200,7 +200,7 @@ func (h *QueueHandler) UpdateQueue(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := h.store.UpsertQueueConfig(r.Context(), existing)
 	if err != nil {
-		h.logger.Error("failed to update queue config", "queue", name, "err", err)
+		RequestLogger(r, h.logger).Error("failed to update queue config", "queue", name, "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to update queue config")
 		return
 	}
@@ -211,7 +211,7 @@ func (h *QueueHandler) UpdateQueue(w http.ResponseWriter, r *http.Request) {
 		h.rateLimiter.UpdateConfig(updated.QueueName, updated.RatePerSec, updated.Burst)
 	}
 
-	h.logger.Info("queue config updated",
+	RequestLogger(r, h.logger).Info("queue config updated",
 		"queue", name,
 		"rate_per_sec", updated.RatePerSec,
 		"burst", updated.Burst,

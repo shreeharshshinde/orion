@@ -138,7 +138,7 @@ func (h *JobHandler) SubmitJob(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		h.logger.Error("failed to create job", "name", req.Name, "err", err)
+		RequestLogger(r, h.logger).Error("failed to create job", "name", req.Name, "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to create job")
 		return
 	}
@@ -162,7 +162,7 @@ func (h *JobHandler) GetJob(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "job not found")
 			return
 		}
-		h.logger.Error("failed to get job", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get job", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -190,7 +190,7 @@ func (h *JobHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
 
 	jobs, err := h.store.ListJobs(r.Context(), filter)
 	if err != nil {
-		h.logger.Error("failed to list jobs", "err", err)
+		RequestLogger(r, h.logger).Error("failed to list jobs", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -226,14 +226,14 @@ func (h *JobHandler) GetExecutions(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "job not found")
 			return
 		}
-		h.logger.Error("failed to verify job", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to verify job", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	executions, err := h.store.GetExecutions(r.Context(), id)
 	if err != nil {
-		h.logger.Error("failed to get executions", "job_id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get executions", "job_id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -282,7 +282,7 @@ func (h *JobHandler) CancelJob(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.cancelSignaler.Publish(r.Context(), id); err != nil {
-			h.logger.Error("failed to publish cancel signal", "id", id, "err", err)
+			RequestLogger(r, h.logger).Error("failed to publish cancel signal", "id", id, "err", err)
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
@@ -293,7 +293,7 @@ func (h *JobHandler) CancelJob(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "job status changed concurrently, please retry")
 			return
 		}
-		h.logger.Error("failed to cancel job", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to cancel job", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -328,7 +328,7 @@ func (h *JobHandler) ReplayJob(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "job not found")
 			return
 		}
-		h.logger.Error("failed to get job for replay", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get job for replay", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -346,7 +346,7 @@ func (h *JobHandler) ReplayJob(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "job status changed concurrently, please retry")
 			return
 		}
-		h.logger.Error("failed to transition job for replay", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to transition job for replay", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -357,7 +357,7 @@ func (h *JobHandler) ReplayJob(w http.ResponseWriter, r *http.Request) {
 	if err := h.queue.Enqueue(r.Context(), job); err != nil {
 		// DB transition already committed; log but don't fail the request.
 		// The scheduler's orphan reclaimer will pick it up on the next cycle.
-		h.logger.Error("failed to enqueue replayed job; scheduler will reclaim it", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to enqueue replayed job; scheduler will reclaim it", "id", id, "err", err)
 	}
 
 	writeJSON(w, http.StatusOK, job)
@@ -379,7 +379,7 @@ func (h *JobHandler) DeleteJob(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "job not found")
 			return
 		}
-		h.logger.Error("failed to get job", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get job", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -390,7 +390,7 @@ func (h *JobHandler) DeleteJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.DeleteJob(r.Context(), id); err != nil {
-		h.logger.Error("failed to delete job", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to delete job", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}

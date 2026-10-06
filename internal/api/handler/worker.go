@@ -25,7 +25,7 @@ func NewWorkerHandler(s store.Store, logger *slog.Logger) *WorkerHandler {
 func (h *WorkerHandler) ListWorkers(w http.ResponseWriter, r *http.Request) {
 	workers, err := h.store.ListActiveWorkers(r.Context(), workerTTL)
 	if err != nil {
-		h.logger.Error("failed to list workers", "err", err)
+		RequestLogger(r, h.logger).Error("failed to list workers", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}

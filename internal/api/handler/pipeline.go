@@ -103,12 +103,12 @@ func (h *PipelineHandler) CreatePipeline(w http.ResponseWriter, r *http.Request)
 
 	created, err := h.store.CreatePipeline(r.Context(), p)
 	if err != nil {
-		h.logger.Error("failed to create pipeline", "name", req.Name, "err", err)
+		RequestLogger(r, h.logger).Error("failed to create pipeline", "name", req.Name, "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to create pipeline")
 		return
 	}
 
-	h.logger.Info("pipeline created",
+	RequestLogger(r, h.logger).Info("pipeline created",
 		"pipeline_id", created.ID,
 		"name", created.Name,
 		"nodes", len(created.DAGSpec.Nodes),
@@ -144,7 +144,7 @@ func (h *PipelineHandler) GetPipeline(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "pipeline not found")
 			return
 		}
-		h.logger.Error("failed to get pipeline", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get pipeline", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -180,7 +180,7 @@ func (h *PipelineHandler) ListPipelines(w http.ResponseWriter, r *http.Request) 
 
 	pipelines, err := h.store.ListPipelines(r.Context(), filter)
 	if err != nil {
-		h.logger.Error("failed to list pipelines", "err", err)
+		RequestLogger(r, h.logger).Error("failed to list pipelines", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -232,14 +232,14 @@ func (h *PipelineHandler) GetPipelineJobs(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusNotFound, "pipeline not found")
 			return
 		}
-		h.logger.Error("failed to get pipeline", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get pipeline", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	jobs, err := h.store.GetPipelineJobs(r.Context(), id)
 	if err != nil {
-		h.logger.Error("failed to get pipeline jobs", "pipeline_id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get pipeline jobs", "pipeline_id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -282,7 +282,7 @@ func (h *PipelineHandler) CancelPipeline(w http.ResponseWriter, r *http.Request)
 			writeError(w, http.StatusNotFound, "pipeline not found")
 			return
 		}
-		h.logger.Error("failed to get pipeline", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to get pipeline", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -299,13 +299,13 @@ func (h *PipelineHandler) CancelPipeline(w http.ResponseWriter, r *http.Request)
 			writeError(w, http.StatusNotFound, "pipeline not found")
 			return
 		}
-		h.logger.Error("failed to cancel pipeline", "id", id, "err", err)
+		RequestLogger(r, h.logger).Error("failed to cancel pipeline", "id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	p.Status = domain.PipelineStatusCancelled
-	h.logger.Info("pipeline cancelled", "pipeline_id", id, "name", p.Name)
+	RequestLogger(r, h.logger).Info("pipeline cancelled", "pipeline_id", id, "name", p.Name)
 	writeJSON(w, http.StatusOK, p)
 }
 
