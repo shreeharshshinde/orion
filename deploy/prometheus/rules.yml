@@ -1,6 +1,8 @@
 groups:
-  - name: orion
+  # ── Job Health ───────────────────────────────────────────────────────────────
+  - name: orion.jobs
     rules:
+      # Dead job rate rising fast → executors are failing or workers are misconfigured.
       - alert: HighDeadJobRate
         expr: rate(orion_jobs_dead_total[5m]) > 0.1
         for: 5m
@@ -8,35 +10,208 @@ groups:
           severity: warning
         annotations:
           summary: "Dead job rate > 0.1/s for 5 minutes"
+          description: >
+            {{ $value | printf "%.2f" }} jobs/s are reaching dead state (exhausted all retries).
+            Check executor errors and job payloads. Queue: {{ $labels.queue }}.
 
-      - alert: QueueDepthSaturated
+      # Sudden spike in failures — could be a bad deploy or downstream dependency down.
+      - alert: JobFailureRateSpike
+        expr: |
+          rate(orion_jobs_failed_total[2m]) > 1
+          and
+          rate(orion_jobs_failed_total[2m]) / (rate(orion_jobs_completed_total[2m]) + 0.001) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Job failure rate > 50% of completions for 2 minutes"
+          description: >
+            More than half of recently finishing jobs are failing.
+            Reason: {{ $labels.reason }}. Queue: {{ $labels.queue }}.
+
+      # No jobs completing at all — scheduler or worker may be down.
+      - alert: NoJobCompletions
+        expr: sum(rate(orion_jobs_completed_total[10m])) == 0
+          and sum(orion_queue_depth) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No job completions for 10 minutes despite non-empty queues"
+          description: >
+            There are jobs in the queues but nothing is completing.
+            Check worker health and scheduler leader election.
+
+  # ── Queue Saturation ─────────────────────────────────────────────────────────
+  - name: orion.queues
+    rules:
+      # High-priority queue backed up — SLA risk for critical jobs.
+      - alert: HighPriorityQueueDepthHigh
         expr: orion_queue_depth{queue="orion:queue:high"} > 1000
         for: 10m
         labels:
           severity: warning
         annotations:
           summary: "High-priority queue depth > 1000 for 10 minutes"
+          description: >
+            Queue {{ $labels.queue }} has {{ $value }} pending messages.
+            Scale up workers or increase rate limit for this queue.
 
+      # Any queue growing unboundedly — something is blocking dispatch.
+      - alert: QueueDepthGrowing
+        expr: |
+          deriv(orion_queue_depth[10m]) > 10
+          and orion_queue_depth > 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue {{ $labels.queue }} depth growing at > 10 jobs/s"
+          description: >
+            Queue is accumulating jobs faster than they are being consumed.
+            Current depth: {{ $value }}. Check worker concurrency.
+
+      # Rate limiter firing heavily — configured throughput ceiling is being hit.
+      - alert: QueueRateLimiterThrottling
+        expr: rate(orion_queue_rate_limited_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "Queue {{ $labels.queue }} rate limiter rejecting > 5 jobs/s"
+          description: >
+            The token bucket is exhausted. {{ $value | printf "%.1f" }} jobs/s are being
+            deferred. Consider raising rate_per_sec in queue_config if intentional throughput
+            is higher than the limit.
+
+  # ── Worker Health ────────────────────────────────────────────────────────────
+  - name: orion.workers
+    rules:
+      # All worker slots occupied — full backpressure, no capacity for new jobs.
+      - alert: AllWorkerSlotsBusy
+        expr: sum(orion_worker_active_jobs) >= sum(orion_queue_concurrency_limit)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "All worker slots occupied — backpressure active for 5 minutes"
+          description: >
+            {{ $value }} active jobs filling all available slots.
+            New jobs will queue in Redis until a slot frees. Scale workers or
+            increase ORION_WORKER_CONCURRENCY.
+
+      # Worker went completely idle but queues are not empty — dequeue loop stuck?
+      - alert: WorkerIdleWithPendingJobs
+        expr: |
+          sum(orion_worker_active_jobs) == 0
+          and sum(orion_queue_depth) > 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Workers idle but queues non-empty for 5 minutes"
+          description: >
+            No active jobs but {{ $value }} messages are pending.
+            Possible causes: Redis connectivity issue, dequeue loop crash, or worker not running.
+
+  # ── Scheduler Health ─────────────────────────────────────────────────────────
+  - name: orion.scheduler
+    rules:
+      # Dispatch cycle taking too long — could indicate slow DB or large batch size.
       - alert: SchedulerCycleLatencyHigh
         expr: histogram_quantile(0.95, rate(orion_scheduler_cycle_duration_seconds_bucket[5m])) > 1
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Scheduler p95 cycle latency > 1s"
+          summary: "Scheduler p95 dispatch cycle latency > 1s"
+          description: >
+            The scheduler is taking {{ $value | printf "%.2f" }}s at p95 for its dispatch cycle.
+            Check PostgreSQL query performance and index health on the jobs table.
 
-      - alert: AllWorkersBusy
-        expr: sum(orion_worker_active_jobs) >= sum(orion_queue_concurrency_limit)
+      # Pipeline advancer getting slow — could affect DAG throughput.
+      - alert: PipelineAdvancerLatencyHigh
+        expr: histogram_quantile(0.95, rate(orion_advancer_cycle_duration_seconds_bucket[5m])) > 2
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "All worker slots occupied — backpressure active"
+          summary: "Pipeline advancer p95 latency > 2s"
+          description: >
+            AdvanceAll() is taking {{ $value | printf "%.2f" }}s at p95.
+            High pipeline counts or slow DB joins on pipeline_jobs may be the cause.
 
-      - alert: DBLatencyHigh
+  # ── Database Health ──────────────────────────────────────────────────────────
+  - name: orion.database
+    rules:
+      # DB latency critical — likely to cause job dispatch stalls and timeouts.
+      - alert: DBLatencyCritical
         expr: histogram_quantile(0.95, rate(orion_db_operation_duration_seconds_bucket[5m])) > 0.5
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "DB p95 latency > 500ms — check PostgreSQL"
+          summary: "DB p95 operation latency > 500ms"
+          description: >
+            PostgreSQL is responding slowly (p95 = {{ $value | printf "%.3f" }}s).
+            Check connection pool saturation, slow query log, and VACUUM status.
+
+      # Specific operation spiking — useful for identifying which query is slow.
+      - alert: DBOperationLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            rate(orion_db_operation_duration_seconds_bucket[5m])
+          ) by (operation) > 0.25
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DB operation {{ $labels.operation }} p95 > 250ms"
+          description: >
+            The {{ $labels.operation }} store method is slow (p95 = {{ $value | printf "%.3f" }}s).
+            Check if the corresponding query is missing an index or hitting table bloat.
+
+  # ── Pipeline Health ──────────────────────────────────────────────────────────
+  - name: orion.pipelines
+    rules:
+      # Pipeline failure rate rising — upstream data issues or executor problems.
+      - alert: PipelineFailureRateHigh
+        expr: rate(orion_pipelines_failed_total[10m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pipeline failure rate > 0.05/s for 10 minutes"
+          description: >
+            {{ $value | printf "%.3f" }} pipelines/s are failing.
+            A node reaching dead state cascades the entire pipeline to failed.
+            Inspect job_executions for the failing node.
+
+  # ── HTTP API Health ──────────────────────────────────────────────────────────
+  - name: orion.api
+    rules:
+      # High HTTP error rate — API may be broken for clients.
+      - alert: APIHighErrorRate
+        expr: |
+          rate(orion_http_requests_total{status_code=~"5.."}[5m])
+          / rate(orion_http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 5xx error rate > 5% for 5 minutes"
+          description: >
+            {{ $value | humanizePercentage }} of API requests are returning 5xx errors.
+            Route: {{ $labels.path }}. Check API server logs.
+
+      # High API latency — may indicate DB or downstream slowness.
+      - alert: APILatencyHigh
+        expr: histogram_quantile(0.95, rate(orion_http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 request latency > 1s"
+          description: >
+            HTTP handler p95 latency is {{ $value | printf "%.2f" }}s.
+            Path: {{ $labels.path }}. Method: {{ $labels.method }}.
