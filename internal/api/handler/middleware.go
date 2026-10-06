@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -132,4 +133,24 @@ type statusRecorder struct {
 func (r *statusRecorder) WriteHeader(code int) {
 	r.statusCode = code
 	r.ResponseWriter.WriteHeader(code)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RequestLogger
+// ─────────────────────────────────────────────────────────────────────────────
+
+// RequestLogger returns a logger enriched with trace_id and span_id from the
+// active OTel span in the request context. TracingMiddleware must have run
+// first to populate the span; otherwise the original logger is returned unchanged.
+//
+// Usage inside any HTTP handler:
+//
+//	logger := handler.RequestLogger(r, h.logger)
+//	logger.Error("failed to create job", "err", err)
+//
+// This produces log lines like:
+//
+//	{"level":"ERROR","msg":"failed to create job","trace_id":"abc123","span_id":"def456","err":"..."}
+func RequestLogger(r *http.Request, logger *slog.Logger) *slog.Logger {
+	return observability.WithTrace(r.Context(), logger)
 }
