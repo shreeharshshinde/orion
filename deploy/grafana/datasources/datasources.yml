@@ -1,18 +1,58 @@
 apiVersion: 1
 
+# Grafana provisioned datasources for Orion.
+# Loaded automatically on startup from the volume mount in docker-compose.yml:
+#   ./deploy/grafana/datasources:/etc/grafana/provisioning/datasources
+#
+# After changing this file, restart Grafana or POST /api/admin/provisioning/datasources/reload.
+
 datasources:
+  # ── Prometheus ──────────────────────────────────────────────────────────────
+  # All Orion metrics: job lifecycle counters, queue depth, DB latency,
+  # scheduler cycle latency, pipeline throughput, HTTP request rates.
   - name: Prometheus
     type: prometheus
     uid: prometheus
     url: http://prometheus:9090
     isDefault: true
     access: proxy
+    jsonData:
+      timeInterval: "15s"      # matches scrape_interval in prometheus.yml
+      httpMethod: POST          # POST is more efficient for long PromQL queries
+      exemplarTraceIdDestinations:
+        # Clicking an exemplar data point opens the linked trace in Jaeger.
+        - name: trace_id
+          datasourceUid: jaeger
 
+  # ── Jaeger ───────────────────────────────────────────────────────────────────
+  # OTel traces from all three Orion binaries (api, scheduler, worker).
+  # Spans: HTTP requests, scheduler dispatch cycles, per-job dispatch,
+  #        worker.execute_job, pipeline AdvanceAll, DB operations.
   - name: Jaeger
     type: jaeger
     uid: jaeger
     url: http://jaeger:16686
     access: proxy
     jsonData:
+      # tracesToLogsV2: clicking a trace span opens correlated logs in Loki (if configured).
+      # Currently wired to Prometheus — replace datasourceUid with "loki" if Loki is added.
       tracesToLogsV2:
         datasourceUid: prometheus
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
+        filterByTraceID: false
+        filterBySpanID: false
+        customQuery: false
+      # tracesToMetrics: clicking a trace span opens correlated Prometheus metrics.
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
+        queries:
+          - name: "Job Duration"
+            query: "histogram_quantile(0.95, rate(orion_job_duration_seconds_bucket[5m]))"
+          - name: "DB Latency p95"
+            query: "histogram_quantile(0.95, rate(orion_db_operation_duration_seconds_bucket[5m]))"
+      # nodeGraph: renders the service topology as a node graph in trace view.
+      nodeGraph:
+        enabled: true
