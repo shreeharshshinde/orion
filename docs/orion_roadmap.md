@@ -2,7 +2,7 @@
 
 > **Orion** is a production-grade distributed ML job orchestrator built in Go.
 > It accepts job submissions via HTTP, stores them durably in PostgreSQL, dispatches them through Redis Streams, executes them on Kubernetes or inline, and self-heals from any failure.
-> This roadmap covers every phase from skeleton to production-ready platform. As of now, core Phases 1-9 are complete and in production.
+> This roadmap covers every phase from skeleton to production-ready platform. As of now, core Phases 1-10 are complete and in production.
 
 ---
 
@@ -132,7 +132,7 @@ OBSERVABILITY (all phases)
 | **7** | gRPC Streaming | ✅ Complete | Real-time job event streams, SDK-ready API | `WatchJob` streams live status transitions |
 | **8** | Rate Limiting & Priority | ✅ Complete | Per-queue concurrency limits, fair scheduling | High-priority jobs preempt low-priority backlog |
 | **9** | Helm + Production | ✅ Complete | Kubernetes deployment, TLS, autoscaling | `helm install orion` deploys all services |
-| **10** | Observability Hardening | 🔲 Planned | Fix missing metrics, Jaeger UI, OTel interceptors, alerting | Grafana traces work, alerts fire |
+| **10** | Observability Hardening | ✅ Complete | DB metrics wired, Grafana datasources provisioned, OTel gRPC interceptors, 14 alerting rules, trace-log correlation in all log paths | Grafana traces work, alerts fire, DB latency panel has data |
 | **11** | Frontend Completion | 🔲 Planned | Fully interactive Next.js dashboard UI | Jobs submitted via UI, live updates |
 | **12** | Documentation Site | 🔲 Planned | Integrated modern documentation portal | Docs served seamlessly from frontend |
 
