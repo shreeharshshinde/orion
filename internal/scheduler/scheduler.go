@@ -344,11 +344,18 @@ func (s *Scheduler) scheduleQueuedJobs(ctx context.Context) error {
 // no Go-side filtering is needed and no failed-but-not-yet-due rows are
 // fetched.
 func (s *Scheduler) promoteRetryableJobs(ctx context.Context) error {
+	ctx, span := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.promote_retries")
+	defer span.End()
+
+	logger := observability.WithTrace(ctx, s.logger)
+
 	jobs, err := s.store.ListRetryableJobs(ctx, s.cfg.BatchSize)
 	if err != nil {
+		span.RecordError(err)
 		return fmt.Errorf("listing retryable jobs: %w", err)
 	}
 
+	promoted := 0
 	for _, job := range jobs {
 		// failed → retrying → queued (two-step to preserve audit clarity)
 		if err := s.store.TransitionJobState(ctx, job.ID,
@@ -359,19 +366,29 @@ func (s *Scheduler) promoteRetryableJobs(ctx context.Context) error {
 			domain.JobStatusRetrying, domain.JobStatusQueued); err != nil {
 			continue
 		}
-		s.logger.Info("promoted job for retry", "job_id", job.ID, "attempt", job.Attempt)
+		logger.Info("promoted job for retry", "job_id", job.ID, "attempt", job.Attempt)
+		promoted++
 	}
+
+	span.SetAttributes(attribute.Int("jobs.promoted", promoted))
 	return nil
 }
 
 // reclaimOrphanedJobs finds jobs stuck in 'running' whose worker has stopped heartbeating.
 func (s *Scheduler) reclaimOrphanedJobs(ctx context.Context) error {
+	ctx, span := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.reclaim_orphans")
+	defer span.End()
+
+	logger := observability.WithTrace(ctx, s.logger)
+
 	count, err := s.store.ReclaimOrphanedJobs(ctx, workerHeartbeatTTL*2)
 	if err != nil {
+		span.RecordError(err)
 		return fmt.Errorf("reclaiming orphaned jobs: %w", err)
 	}
 	if count > 0 {
-		s.logger.Warn("reclaimed orphaned jobs", "count", count)
+		logger.Warn("reclaimed orphaned jobs", "count", count)
 	}
+	span.SetAttributes(attribute.Int("jobs.reclaimed", count))
 	return nil
 }
