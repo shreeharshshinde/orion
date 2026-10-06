@@ -43,6 +43,8 @@ func (s *Server) SubmitJob(ctx context.Context, req *orionv1.SubmitJobRequest) (
 	ctx, span := observability.Tracer("orion.grpc").Start(ctx, "grpc.SubmitJob")
 	defer span.End()
 
+	logger := observability.WithTrace(ctx, s.logger)
+
 	if req.Name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")
 	}
@@ -79,7 +81,7 @@ func (s *Server) SubmitJob(ctx context.Context, req *orionv1.SubmitJobRequest) (
 
 	created, err := s.store.CreateJob(ctx, job)
 	if err != nil {
-		s.logger.Error("gRPC SubmitJob: store error", "err", err)
+		logger.Error("gRPC SubmitJob: store error", "err", err)
 		return nil, status.Errorf(codes.Internal, "creating job: %v", err)
 	}
 
@@ -141,7 +143,8 @@ func (s *Server) WatchJob(req *orionv1.WatchJobRequest, stream grpc.ServerStream
 		return status.Errorf(codes.Internal, "getting job: %v", err)
 	}
 
-	s.logger.Info("gRPC WatchJob started", "job_id", id, "status", job.Status)
+	logger := observability.WithTrace(ctx, s.logger)
+	logger.Info("gRPC WatchJob started", "job_id", id, "status", job.Status)
 
 	// Send current status as first event so client knows the starting state
 	if err := stream.Send(&orionv1.JobEvent{
@@ -170,7 +173,7 @@ func (s *Server) WatchJob(req *orionv1.WatchJobRequest, stream grpc.ServerStream
 	for {
 		select {
 		case <-ctx.Done():
-			s.logger.Info("gRPC WatchJob: client disconnected", "job_id", id)
+			logger.Info("gRPC WatchJob: client disconnected", "job_id", id)
 			return nil
 
 		case event, ok := <-ch:
