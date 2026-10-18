@@ -1,21 +1,29 @@
 # Phase 12 — Documentation Site Integration
 
-**Status:** Planned
-**Prerequisite:** Phase 11 (Frontend Completion)
-**Location:** `frontend/` (Next.js 15 app router, MDX integration, Tailwind CSS)
+**Status:** ✅ Complete  
+**Prerequisite:** Phase 11 (Frontend Completion)  
+**Location:** `frontend/` (Next.js 15 app router, MDX integration, Tailwind CSS)  
+**Completed:** 2026-07-21  
 
 ---
 
-## Current State
+## State Overview
 
-The Orion project has extensive documentation written in Markdown, located under the repository's root `docs/` directory:
-- System Architecture (`docs/architecture/overview.md`, `docs/project_architecture_details.md`)
-- Operational Runbooks (`docs/RUNBOOK.md`)
-- Deployment Guides (`docs/DEPLOYMENT_PLAN.md` and phase-specific notes)
-- Architecture Decision Records (10 ADRs under `docs/adr/`)
-- Phase Guides and Implementation Records (Phases 1-11 under `docs/phases/`)
+The Orion documentation site is **fully integrated directly into the frontend web portal**. It compiles 41 technical guides, architecture deep-dives, operational runbooks, and ADRs into a seamless developer portal with rich syntax highlighting, native Mermaid diagrams, search, and dynamic table of contents.
 
-Currently, the frontend has a placeholder docs landing page (`frontend/app/docs/page.tsx`) displaying a grid of cards with hardcoded descriptions. All links are inactive or wireframe markers (`href="#"`). There is no live parsing, sidebar navigation, dynamic table of contents, search, or formatting suitable for an interactive developer-focused docs experience.
+### What is built & delivered ✅
+
+| Component / Feature | Implementation |
+|---|---|
+| **Dynamic Routing** | `app/docs/[...slug]/page.tsx` dynamic catch-all route generating 41+ pages via `generateStaticParams` |
+| **MDX Engine** | Server-side markdown compilation with `next-mdx-remote`, `gray-matter`, `remark-gfm`, `rehype-slug`, `rehype-autolink-headings`, and custom code blocks |
+| **Interactive Search** | Global `Cmd+K` search dialog (`components/search-dialog.tsx`) querying pre-indexed headings and content |
+| **Indexing Script** | `scripts/build-docs-index.mjs` extracting frontmatter, hierarchy, and headings into `docs-headings.json` and `docs-search-index.json` |
+| **Navigation Sidebar** | `components/docs-sidebar.tsx` with collapsible parent-child nested categories and active route tracking |
+| **Dynamic Table of Contents** | `components/docs-toc.tsx` with scrollspy observer highlighting active sections as the user scrolls |
+| **Mermaid Visualizer** | Client-side Mermaid diagram rendering component (`components/mermaid-renderer.tsx`) |
+| **Documentation Pager** | `components/docs-pager.tsx` providing sequential Previous / Next document navigation |
+| **Mobile Drawer** | `components/docs-mobile-nav.tsx` for full responsive navigation on smaller viewports |
 
 ---
 
