@@ -6,8 +6,10 @@ import (
 	"strconv"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/shreeharshshinde/orion/internal/observability"
@@ -86,7 +88,8 @@ func TracingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract W3C traceparent from incoming request headers.
 		// otel.GetTextMapPropagator() reads the global propagator set in SetupTracing.
-		prop := observability.Tracer("orion.api")
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		tracer := observability.Tracer("orion.api")
 
 		route := r.Pattern
 		if route == "" {
@@ -95,7 +98,7 @@ func TracingMiddleware(next http.Handler) http.Handler {
 
 		spanName := r.Method + " " + route
 
-		ctx, span := prop.Start(r.Context(), spanName,
+		ctx, span := tracer.Start(ctx, spanName,
 			trace.WithSpanKind(trace.SpanKindServer),
 			trace.WithAttributes(
 				attribute.String("http.method", r.Method),
