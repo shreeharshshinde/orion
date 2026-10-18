@@ -4412,68 +4412,48 @@
   ],
   "phases/10-observability-hardening": [
     {
-      "id": "current-state-assessment",
-      "text": "Current State Assessment",
+      "id": "what-was-done",
+      "text": "What Was Done",
       "level": 2
     },
     {
-      "id": "what-is-instrumented",
-      "text": "What is instrumented ✅",
-      "level": 3
-    },
-    {
-      "id": "gaps-found-what-is-missing-or-broken",
-      "text": "Gaps Found (What Is Missing or Broken) ❌",
-      "level": 3
-    },
-    {
-      "id": "phase-10-plan",
-      "text": "Phase 10 Plan",
+      "id": "changes-made",
+      "text": "Changes Made",
       "level": 2
     },
     {
-      "id": "10-1-fix-dboperationduration-instrumentation",
-      "text": "10.1 — Fix DBOperationDuration instrumentation",
+      "id": "1-dboperationduration-metric-wired-internal-store-postgres",
+      "text": "1. DBOperationDuration metric wired — internal/store/postgres/",
       "level": 3
     },
     {
-      "id": "10-2-add-grafana-datasource-provisioning-files",
-      "text": "10.2 — Add Grafana datasource provisioning files",
+      "id": "2-grafana-datasource-provisioning-deploy-grafana-datasources-datasources-yml",
+      "text": "2. Grafana datasource provisioning — deploy/grafana/datasources/datasources.yml",
       "level": 3
     },
     {
-      "id": "10-3-add-otel-interceptors-to-grpc-server",
-      "text": "10.3 — Add OTel interceptors to gRPC server",
+      "id": "3-otel-grpc-server-interceptors-cmd-api-main-go",
+      "text": "3. OTel gRPC server interceptors — cmd/api/main.go",
       "level": 3
     },
     {
-      "id": "10-4-no-op-tracer-when-otlp-endpoint-is-empty",
-      "text": "10.4 — No-op tracer when OTLP endpoint is empty",
+      "id": "4-prometheus-alerting-rules-deploy-prometheus-rules-yml",
+      "text": "4. Prometheus alerting rules — deploy/prometheus/rules.yml",
       "level": 3
     },
     {
-      "id": "10-5-prometheus-alerting-rules",
-      "text": "10.5 — Prometheus alerting rules",
+      "id": "5-trace-log-correlation-scheduler-grpc-server-http-handlers",
+      "text": "5. Trace-log correlation — scheduler, gRPC server, HTTP handlers",
       "level": 3
     },
     {
-      "id": "10-6-phase-8-grafana-panels",
-      "text": "10.6 — Phase 8 Grafana panels",
-      "level": 3
+      "id": "complete-observability-matrix-post-phase-10",
+      "text": "Complete Observability Matrix (Post Phase 10)",
+      "level": 2
     },
     {
-      "id": "10-7-trace-log-correlation-via-slog-middleware",
-      "text": "10.7 — Trace-log correlation via slog middleware",
-      "level": 3
-    },
-    {
-      "id": "10-8-tls-for-otlp-exporter-production-only",
-      "text": "10.8 — TLS for OTLP exporter (production only)",
-      "level": 3
-    },
-    {
-      "id": "summary",
-      "text": "Summary",
+      "id": "how-to-verify",
+      "text": "How to Verify",
       "level": 2
     }
   ],
