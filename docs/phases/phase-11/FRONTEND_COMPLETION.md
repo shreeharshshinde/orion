@@ -1,47 +1,30 @@
 # Phase 11 — Frontend Completion
 
-**Status:** Planned
-**Prerequisite:** Phase 10 (Observability Hardening)
-**Location:** `frontend/` (Next.js 15, TypeScript, Tailwind, shadcn primitives)
+**Status:** ✅ Complete  
+**Prerequisite:** Phase 10 (Observability Hardening)  
+**Location:** `frontend/` (Next.js 15, TypeScript, Tailwind, shadcn primitives)  
+**Completed:** 2026-07-21  
 
 ---
 
-## Current State
+## State Overview
 
-The frontend is a **polished static mockup**. Every page renders correctly but all data comes from `lib/api.ts` — a hardcoded file with 4 jobs, 2 pipelines, 3 queues, and 3 workers. No `fetch()` call exists anywhere. Interactive controls (Submit Job, Save config, Cancel) are visual dummies.
+The frontend has been upgraded from a static mockup into a **fully functional operational cockpit** backed by TanStack Query, live Go API endpoints, and a resilient Sandbox Simulation fallback mode.
 
-### What is built ✅
+### What is built & delivered ✅
 
-| File | State |
+| Component / Page | Implementation |
 |---|---|
-| App shell — sidebar, header, health chip | Static, hardcoded "API ready" |
-| Home page | Complete, mock metrics |
-| Dashboard overview | Complete layout, mock data |
-| `/dashboard/jobs` | Table with filter UI shells, mock data |
-| `/dashboard/queues` | Queue cards, depth bars, Save button (no-op), mock data |
-| `/dashboard/workers` | Worker cards, capacity bars, mock data |
-| `/dashboard/pipelines` | Pipeline cards, linear DAG preview, mock data |
-| `/docs` | Link cards pointing to `../docs/*.md` (all `href="#"`) |
-| `StatusBadge`, `MetricCard`, `Card`, `Button`, `Badge`, `PageHeader` | Done |
-
-### What is missing ❌
-
-| Gap | Impact |
-|---|---|
-| No API client — zero `fetch` calls | Every page shows stale mock data |
-| No TanStack Query | No polling, caching, or loading/error states |
-| No Job Detail page `/dashboard/jobs/[id]` | Can't inspect a job |
-| No Submit Job form | Core user action is broken |
-| No job cancel / replay actions | Can't operate jobs |
-| No Pipeline Detail page `/dashboard/pipelines/[id]` | No DAG graph view |
-| No Create Pipeline form | Can't submit pipelines |
-| No Observability page | No links to Grafana/Jaeger/Prometheus |
-| Docs page links are all `href="#"` | Docs section is non-functional |
-| Health chip always shows "API ready" | No real liveness check |
-| Queue "Save live config" is a no-op | Can't change queue config |
-| No loading / empty / error states on any page | Bad UX on slow or unavailable API |
-| No toast notifications | No feedback on mutations |
-| `package.json` missing TanStack Query, React Flow, Recharts, Sonner | Key stack not installed |
+| **API Client** | `lib/client.ts` wrapping native `fetch` targeting `NEXT_PUBLIC_API_URL` (default `:8080`) |
+| **Data Fetching & Mutations** | `lib/hooks.ts` leveraging `@tanstack/react-query` for polling, cache invalidation, and optimistic updates |
+| **Telemetry Context** | `lib/telemetry-context.tsx` with live `/healthz` polling and seamless automatic fallback to Sandbox Simulation mode |
+| **Job Management** | `/dashboard/jobs` table + dynamic `/dashboard/jobs/[id]` detail view + `submit-job-dialog.tsx` + cancel/replay mutations |
+| **Pipeline Management** | `/dashboard/pipelines` table + dynamic `/dashboard/pipelines/[id]` detail view with SVG DAG topology + `create-pipeline-dialog.tsx` |
+| **Queue Management** | `/dashboard/queues` with live depth, token availability, and live config update dialog |
+| **Worker Cluster** | `/dashboard/workers` with node occupancy slot heatmap and capacity gauges |
+| **Cockpit Visualizations** | Orbit service topology (`orbit-topology.tsx`), worker heatmap, queue depth chart, and job duration histogram |
+| **Feedback & Notifications** | Sonner toast alerts for API mutation results (job submit, replay, cancel, queue save) |
+| **Build & Type Safety** | 100% TypeScript type check (`tsc --noEmit`) passes; `next build` static export succeeds |
 
 ---
 
