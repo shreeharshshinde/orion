@@ -2,6 +2,8 @@ package observability
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
@@ -313,5 +316,27 @@ func TestMetrics_AllLabelsLowCardinality(t *testing.T) {
 	
 	if len(families) == 0 {
 		t.Error("No metrics families found")
+	}
+}
+
+func TestWithTrace(t *testing.T) {
+	tp := sdktrace.NewTracerProvider()
+	tracer := tp.Tracer("test")
+
+	baseLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	// Without active span: returns logger unchanged
+	loggerWithout := WithTrace(context.Background(), baseLogger)
+	if loggerWithout != baseLogger {
+		t.Error("expected unchanged logger when no span in context")
+	}
+
+	// With active span: returns enriched logger
+	ctx, span := tracer.Start(context.Background(), "span-1")
+	defer span.End()
+
+	loggerWith := WithTrace(ctx, baseLogger)
+	if loggerWith == baseLogger {
+		t.Error("expected new logger with trace attributes when span in context")
 	}
 }
