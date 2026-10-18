@@ -2,7 +2,7 @@
 
 > **Orion** is a production-grade distributed ML job orchestrator built in Go.
 > It accepts job submissions via HTTP, stores them durably in PostgreSQL, dispatches them through Redis Streams, executes them on Kubernetes or inline, and self-heals from any failure.
-> This roadmap covers every phase from skeleton to production-ready platform. As of now, core Phases 1-10 are complete and in production.
+> This roadmap covers every phase from skeleton to production-ready platform. As of now, core Phases 1-12 are complete and in production.
 
 ---
 
@@ -133,8 +133,8 @@ OBSERVABILITY (all phases)
 | **8** | Rate Limiting & Priority | ✅ Complete | Per-queue concurrency limits, fair scheduling | High-priority jobs preempt low-priority backlog |
 | **9** | Helm + Production | ✅ Complete | Kubernetes deployment, TLS, autoscaling | `helm install orion` deploys all services |
 | **10** | Observability Hardening | ✅ Complete | DB metrics wired, Grafana datasources provisioned, OTel gRPC interceptors, 14 alerting rules, trace-log correlation in all log paths | Grafana traces work, alerts fire, DB latency panel has data |
-| **11** | Frontend Completion | 🔲 Planned | Fully interactive Next.js dashboard UI | Jobs submitted via UI, live updates |
-| **12** | Documentation Site | 🔲 Planned | Integrated modern documentation portal | Docs served seamlessly from frontend |
+| **11** | Frontend Completion | ✅ Complete | Interactive Next.js dashboard UI, TanStack Query hooks, React Flow DAG visualizer, live & sandbox telemetry context | Jobs & pipelines submitted via UI, live updates, typecheck passes |
+| **12** | Documentation Site | ✅ Complete | Integrated modern documentation portal with MDX engine, search dialog, dynamic TOC, and mermaid rendering | 41 docs indexed, dynamic catch-all routing, 52 static routes generated |
 
 ---
 
@@ -1007,66 +1007,62 @@ kubectl get hpa -n orion -w
 
 ## Phase 10 — Observability Hardening
 
-**Status: 🔲 Planned**
+**Status: ✅ Complete**
 
 ### What this phase does
 
-Adds deeper robustness to the observability layer added in Phase 6. Fixes missing `DBOperationDuration` metrics, wires Jaeger natively into Grafana, adds gRPC interceptors for OTel, and sets up Prometheus alerting rules.
+Audited and closed all observability gaps across metrics, distributed tracing, alerting, and log enrichment. Every signal is fully wired end-to-end.
 
-### Why this matters
-
-A system handling production jobs needs rock-solid visibility. Resolving gaps such as lack of alerting rules (e.g. queue depth saturation alerts) and missing DB timings ensures operations can be safely monitored.
-
-### Core additions
-- `DBOperationDuration` tracking across the entire PostgreSQL store
-- `otelgrpc` interceptors for gRPC visibility
-- Pre-configured Grafana datasource provisioning
-- Prometheus alerts for dead jobs, queue saturation, and DB latency.
+### What was delivered
+- `DBOperationDuration` tracking across all 28 PostgreSQL store methods via `defer db.observe(...)`
+- `otelgrpc.NewServerHandler()` stats handler for automatic gRPC server tracing
+- Pre-configured Grafana datasource provisioning (`datasources.yml`) with bidirectional exemplar and trace-to-metrics cross-links
+- 14 Prometheus alerting rules across 6 operational groups (`orion.jobs`, `orion.queues`, `orion.workers`, `orion.scheduler`, `orion.database`, `orion.pipelines`, `orion.api`)
+- Trace-log correlation via `observability.WithTrace` and `handler.RequestLogger` across all HTTP handlers, scheduler loops, worker execution, and gRPC endpoints
+- W3C `traceparent` context extraction in `TracingMiddleware` for distributed HTTP tracing
 
 ---
 
 ## Phase 11 — Frontend Completion
 
-**Status: 🔲 Planned**
+**Status: ✅ Complete**
 
 ### What this phase does
 
-Upgrades the frontend from a polished static mockup to a fully interactive dashboard backed by live API data. 
+Upgrades the frontend from a static mockup into a fully interactive operational dashboard backed by live API integration and an automated sandbox simulator fallback.
 
-### Why this matters
-
-The orchestration platform needs an operational UI. This phase enables users to monitor pipelines and individual jobs, configure queue limits on the fly, and inspect errors or pipeline topologies intuitively.
-
-### Core additions
-- `useQuery` integrations using TanStack Query for all tables
-- Job and Pipeline detail pages (DAG rendering via React Flow)
-- Live queue configurations
-- Submission forms for jobs and pipelines
+### What was delivered
+- TanStack Query hooks (`useJobs`, `useJob`, `usePipelines`, `usePipeline`, `useQueues`, `useWorkers`, etc.) with automatic background invalidation and polling
+- Job and Pipeline detail pages with SVG DAG rendering and live node state transitions
+- Interactive modal dialogs for job submissions (`submit-job-dialog.tsx`) and pipeline authoring (`create-pipeline-dialog.tsx`)
+- Live queue configuration editor for real-time concurrency limit adjustments
+- Unified `TelemetryProvider` supporting live backend polling with seamless fallback to Sandbox Simulation mode
+- Cluster worker occupancy heatmap, orbit topology overview, and queue pressure charts
 
 ---
 
 ## Phase 12 — Documentation Site Integration
 
-**Status: 🔲 Planned**
+**Status: ✅ Complete**
 
 ### What this phase does
 
-Integrates a fully-featured, modern documentation site directly into the frontend. It will feature a sleek dark-mode UI, a left-hand navigation sidebar for categories (Overview, First Steps, Guides), a main content area for rich markdown rendering, and a right-hand "On this page" table of contents.
+Integrates a full-featured developer documentation portal directly inside the Next.js application, compiling all repository architectural guides and ADRs into an interactive reading experience.
 
-### Why this matters
+### What was delivered
+- Server-rendered MDX parsing engine with syntax highlighting and GitHub Flavored Markdown support
+- 41 Orion architecture and operations documents indexed with headings and search metadata
+- Left navigation sidebar with collapsible nested hierarchy
+- Right sidebar dynamic scrollspy Table of Contents (`docs-toc.tsx`)
+- Global `Cmd+K` interactive search dialog (`search-dialog.tsx`)
+- Native client-side Mermaid diagram rendering component (`mermaid-renderer.tsx`)
+- 52 static routes generated cleanly during `next build`
 
-As the Orion orchestration platform matures, users need easily accessible, well-structured documentation to understand architecture, configuration, and API usage. A dedicated docs portal within the frontend provides a seamless developer experience, matching industry-standard documentation portals.
-
-### Core additions
-- Integrated Markdown/MDX rendering engine in Next.js
-- Left-sidebar navigation structure for project concepts and features
-- Right-sidebar dynamic Table of Contents
-- Advanced search functionality
-- Seamless aesthetic matching the frontend dashboard
+---
 
 ## End State — What Orion Looks Like Today
 
-With Phases 1-9 completed, Orion is a production ML orchestration platform offering these capabilities. Phases 10-11 will further refine monitoring and user experience:
+With Phases 1-12 completed, Orion is a production ML orchestration platform offering these capabilities across backend, infrastructure, telemetry, frontend dashboard, and integrated documentation site:
 
 ### Job submission (Phase 1–2)
 ```bash
