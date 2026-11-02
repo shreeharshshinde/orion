@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"github.com/shreeharshshinde/orion/internal/domain"
 	"github.com/shreeharshshinde/orion/internal/observability"
 	"github.com/shreeharshshinde/orion/internal/queue"
@@ -82,12 +84,24 @@ func (r *RedisQueue) Enqueue(ctx context.Context, job *domain.Job) error {
 
 	streamName := r.streamForQueue(job.QueueName)
 
+	values := map[string]any{
+		"job_id":  job.ID.String(),
+		"payload": string(body),
+	}
+
+	// W3C trace context propagation: inject traceparent / tracestate into the
+	// stream message so the worker can resume the distributed trace on Dequeue.
+	// We use a simple map carrier and write each key as a separate field so the
+	// values are human-readable in Redis and require no extra base64 decoding.
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	for k, v := range carrier {
+		values[k] = v
+	}
+
 	msg := &redis.XAddArgs{
 		Stream: streamName,
-		Values: map[string]any{
-			"job_id":  job.ID.String(),
-			"payload": string(body),
-		},
+		Values: values,
 	}
 
 	// For scheduled jobs, we use a sorted set keyed by unix timestamp.
@@ -111,10 +125,11 @@ func (r *RedisQueue) enqueueScheduled(ctx context.Context, job *domain.Job, body
 }
 
 // Dequeue blocks until a message is available using XREADGROUP.
-// Returns the job and an AckFunc. The caller MUST invoke AckFunc.
+// Returns the enriched context (with trace context extracted from the stream
+// message), the job, and an AckFunc. The caller MUST invoke AckFunc.
 // If the caller crashes without calling AckFunc, the PEL reclaim sweeper
 // will redeliver the message after visibilityTimeout.
-func (r *RedisQueue) Dequeue(ctx context.Context, queueName string, visibilityTimeout time.Duration) (*domain.Job, queue.AckFunc, error) {
+func (r *RedisQueue) Dequeue(ctx context.Context, queueName string, visibilityTimeout time.Duration) (context.Context, *domain.Job, queue.AckFunc, error) {
 	streamName := r.streamForQueue(queueName)
 
 	args := &redis.XReadGroupArgs{
@@ -129,7 +144,7 @@ func (r *RedisQueue) Dequeue(ctx context.Context, queueName string, visibilityTi
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, nil, ctx.Err()
+			return ctx, nil, nil, ctx.Err()
 		default:
 		}
 
@@ -139,7 +154,7 @@ func (r *RedisQueue) Dequeue(ctx context.Context, queueName string, visibilityTi
 			continue
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("XREADGROUP: %w", err)
+			return ctx, nil, nil, fmt.Errorf("XREADGROUP: %w", err)
 		}
 
 		for _, stream := range streams {
@@ -158,6 +173,19 @@ func (r *RedisQueue) Dequeue(ctx context.Context, queueName string, visibilityTi
 					continue
 				}
 
+				// W3C trace context propagation: rebuild the carrier from the
+				// stream message fields and extract any traceparent / tracestate
+				// that the enqueuing side injected.  The resulting context
+				// becomes the parent for the worker.execute_job span, stitching
+				// the two sides of the queue into a single Jaeger trace tree.
+				carrier := propagation.MapCarrier{}
+				for k, v := range msg.Values {
+					if s, ok := v.(string); ok {
+						carrier[k] = s
+					}
+				}
+				jobCtx := otel.GetTextMapPropagator().Extract(ctx, carrier)
+
 				ackFn := func(processingErr error) error {
 					if processingErr == nil {
 						return r.client.XAck(ctx, streamName, consumerGroup, msg.ID).Err()
@@ -167,7 +195,7 @@ func (r *RedisQueue) Dequeue(ctx context.Context, queueName string, visibilityTi
 					return nil
 				}
 
-				return &job, ackFn, nil
+				return jobCtx, &job, ackFn, nil
 			}
 		}
 	}
