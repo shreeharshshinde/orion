@@ -74,8 +74,9 @@ type Pool struct {
 }
 
 type jobTask struct {
-	job   *domain.Job
-	ackFn queue.AckFunc
+	job      *domain.Job
+	ackFn    queue.AckFunc
+	traceCtx context.Context // W3C trace context extracted from the Redis stream message
 }
 
 // NewPool creates a Pool. Call Start() to begin processing jobs.
@@ -153,7 +154,7 @@ func (p *Pool) dequeueLoop(ctx context.Context) {
 				default:
 				}
 
-				job, ackFn, err := p.queue.Dequeue(ctx, qName, p.cfg.VisibilityTimeout)
+				traceCtx, job, ackFn, err := p.queue.Dequeue(ctx, qName, p.cfg.VisibilityTimeout)
 				if err != nil {
 					if ctx.Err() != nil {
 						return
@@ -172,7 +173,7 @@ func (p *Pool) dequeueLoop(ctx context.Context) {
 				case <-ctx.Done():
 					_ = ackFn(fmt.Errorf("worker shutting down"))
 					return
-				case p.jobCh <- &jobTask{job: job, ackFn: ackFn}:
+				case p.jobCh <- &jobTask{job: job, ackFn: ackFn, traceCtx: traceCtx}:
 				}
 			}
 		}(queueName)
@@ -269,9 +270,11 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 	startedAt := time.Now()
 
 	// ── Span: wrap the full job execution ────────────────────────────────────
-	// This span links to the scheduler's dispatch_job span via the trace context
-	// propagated through the job payload (set by the scheduler when enqueueing).
-	ctx, span := observability.Tracer("orion.worker").Start(ctx, "worker.execute_job",
+	// Start the span from task.traceCtx — the context extracted from the Redis
+	// stream message by Dequeue. This carries the W3C traceparent injected by
+	// the scheduler/API at Enqueue time, making worker.execute_job a child span
+	// of the enqueuing side's dispatch_job span in Jaeger.
+	ctx, span := observability.Tracer("orion.worker").Start(task.traceCtx, "worker.execute_job",
 		trace.WithSpanKind(trace.SpanKindConsumer),
 		trace.WithAttributes(
 			attribute.String("job.id", job.ID.String()),
