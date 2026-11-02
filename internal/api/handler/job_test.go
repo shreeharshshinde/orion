@@ -630,8 +630,8 @@ func (q *fakeQueue) Enqueue(ctx context.Context, job *domain.Job) error {
 	}
 	return nil
 }
-func (q *fakeQueue) Dequeue(_ context.Context, _ string, _ time.Duration) (*domain.Job, queue.AckFunc, error) {
-	return nil, nil, nil
+func (q *fakeQueue) Dequeue(_ context.Context, _ string, _ time.Duration) (context.Context, *domain.Job, queue.AckFunc, error) {
+	return context.Background(), nil, nil, nil
 }
 func (q *fakeQueue) Len(_ context.Context, _ string) (int64, error)          { return 0, nil }
 func (q *fakeQueue) Dead(_ context.Context, _ *domain.Job, _ string) error   { return nil }

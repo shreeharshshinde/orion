@@ -169,8 +169,8 @@ func (q *fakeQueue) getEnqueued() []*domain.Job {
 	copy(out, q.enqueued)
 	return out
 }
-func (q *fakeQueue) Dequeue(ctx context.Context, queueName string, vis time.Duration) (*domain.Job, queue.AckFunc, error) {
-	return nil, nil, nil
+func (q *fakeQueue) Dequeue(ctx context.Context, queueName string, vis time.Duration) (context.Context, *domain.Job, queue.AckFunc, error) {
+	return ctx, nil, nil, nil
 }
 func (q *fakeQueue) Len(ctx context.Context, queueName string) (int64, error)        { return 0, nil }
 func (q *fakeQueue) Dead(ctx context.Context, job *domain.Job, reason string) error  { return nil }
