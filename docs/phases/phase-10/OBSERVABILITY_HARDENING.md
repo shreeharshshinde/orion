@@ -1,256 +1,188 @@
 # Phase 10 — Observability Hardening
 
-**Status:** ✅ Complete  
-**Prerequisite:** Phase 9 (Helm chart, Docker multi-stage builds)  
-**Completed:** 2026-10-06
+## W3C Trace Context Propagation Across the Redis Streams Queue Boundary
+
+### Problem
+
+Orion's distributed tracing worked end-to-end within HTTP and gRPC, but
+**broke at the Redis Streams queue boundary**. Every job enqueued by the
+scheduler or API started a new root trace on the worker side, producing two
+disconnected traces in Jaeger:
+
+```
+Trace 1 (Scheduler/API)
+└── scheduler.dispatch_job
+      └── (enqueues job to Redis — context lost)
+
+Trace 2 (Worker — orphaned root)
+└── worker.execute_job
+      └── ...
+```
+
+To find both sides of a single job execution you had to manually search by
+`job.id`. There was no causal link between dispatch and execution.
 
 ---
 
-## What Was Done
+### Solution
 
-Phase 10 audited every observability gap between what the code claimed to do and what it actually did, then closed each one. No new features were added — this phase makes the existing instrumentation actually work end-to-end.
+We propagate the [W3C Trace Context](https://www.w3.org/TR/trace-context/)
+(`traceparent` + `tracestate`) through the Redis stream message itself, using
+OpenTelemetry's standard `TextMapPropagator` API. The result is a **single,
+continuous trace tree** visible in Jaeger:
+
+```
+Trace 1 (spans from both scheduler and worker, same trace ID)
+└── scheduler.dispatch_job           (SpanKindProducer)
+      └── worker.execute_job         (SpanKindConsumer, child of dispatch_job)
+            ├── store.MarkJobRunning
+            └── executor.Execute
+```
 
 ---
 
-## Changes Made
+### Implementation
 
-### 1. `DBOperationDuration` metric wired — `internal/store/postgres/`
+#### 1. `Enqueue` — inject trace context
 
-The metric was registered and queried by Grafana but never emitted. Fixed by adding a `metrics` field and `WithMetrics` chainable option to `postgres.DB`, plus a nil-safe `observe` helper. Every public method in `db.go` (21 methods) and `pipeline.go` (7 methods) now records its latency:
+`internal/queue/redis/redis_queue.go`, `Enqueue`:
 
 ```go
-// internal/store/postgres/db.go
-
-func (db *DB) WithMetrics(m *observability.Metrics) *DB {
-    db.metrics = m
-    return db
+carrier := propagation.MapCarrier{}
+otel.GetTextMapPropagator().Inject(ctx, carrier)
+for k, v := range carrier {
+    values[k] = v   // written as plain Redis stream fields
 }
+```
 
-func (db *DB) observe(op string, start time.Time) {
-    if db.metrics != nil {
-        db.metrics.DBOperationDuration.WithLabelValues(op).Observe(time.Since(start).Seconds())
+`propagation.MapCarrier` is a `map[string]string`. The global W3C propagator
+(`TraceContext{} + Baggage{}`) writes at most two fields:
+
+| Redis field     | W3C header      | Example value                                           |
+|-----------------|-----------------|--------------------------------------------------------|
+| `traceparent`   | `traceparent`   | `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01` |
+| `tracestate`    | `tracestate`    | *(empty unless baggage is set)*                         |
+
+These are stored alongside `job_id` and `payload` as ordinary string fields in
+the Redis stream entry. They are human-readable in `redis-cli XRANGE` output
+and add no serialization overhead beyond a few bytes.
+
+#### 2. `Dequeue` — extract trace context and return enriched context
+
+`internal/queue/redis/redis_queue.go`, `Dequeue`:
+
+```go
+carrier := propagation.MapCarrier{}
+for k, v := range msg.Values {
+    if s, ok := v.(string); ok {
+        carrier[k] = s
     }
 }
+jobCtx := otel.GetTextMapPropagator().Extract(ctx, carrier)
+// ...
+return jobCtx, &job, ackFn, nil
+```
 
-// Every public method:
-func (db *DB) CreateJob(ctx context.Context, job *domain.Job) (*domain.Job, error) {
-    defer db.observe("CreateJob", time.Now())
-    // ...
+The method signature changed from:
+
+```go
+Dequeue(ctx, queueName, timeout) (*domain.Job, AckFunc, error)
+```
+
+to:
+
+```go
+Dequeue(ctx, queueName, timeout) (context.Context, *domain.Job, AckFunc, error)
+```
+
+The returned `context.Context` carries a **remote span context** whose
+`TraceID` and `SpanID` match the enqueuing side's active span. It is not a
+live span — it is the W3C parent pointer that the worker uses to create a
+child span.
+
+#### 3. Worker pool — start child span from extracted context
+
+`internal/worker/pool.go`:
+
+`jobTask` stores the extracted context:
+
+```go
+type jobTask struct {
+    job      *domain.Job
+    ackFn    queue.AckFunc
+    traceCtx context.Context // W3C trace context from the Redis stream message
 }
 ```
 
-All three `cmd/` entrypoints wire metrics at construction:
+`dequeueLoop` stores the returned context:
 
 ```go
-pgStore := postgres.New(db).WithMetrics(metrics)
+traceCtx, job, ackFn, err := p.queue.Dequeue(ctx, qName, p.cfg.VisibilityTimeout)
+// ...
+p.jobCh <- &jobTask{job: job, ackFn: ackFn, traceCtx: traceCtx}
 ```
 
-**Grafana impact:** The "DB Operation Latency p95" panel now has data. The `DBLatencyHigh` alert fires correctly.
-
-**Files:** `internal/store/postgres/db.go`, `internal/store/postgres/pipeline.go`, `cmd/api/main.go`, `cmd/scheduler/main.go`, `cmd/worker/main.go`
-
----
-
-### 2. Grafana datasource provisioning — `deploy/grafana/datasources/datasources.yml`
-
-The datasources directory was empty. Grafana was relying on its built-in defaults, meaning a fresh `make infra-up` produced a dashboard with no working datasource. The Jaeger datasource had never been configured, making the Explore tab and all trace links non-functional.
-
-`datasources.yml` now fully provisions both datasources on startup with cross-signal linking:
-
-```yaml
-datasources:
-  - name: Prometheus
-    type: prometheus
-    uid: prometheus
-    url: http://prometheus:9090
-    isDefault: true
-    jsonData:
-      exemplarTraceIdDestinations:
-        - name: trace_id
-          datasourceUid: jaeger   # exemplar click → Jaeger trace
-
-  - name: Jaeger
-    type: jaeger
-    uid: jaeger
-    url: http://jaeger:16686
-    jsonData:
-      tracesToMetrics:            # span click → Prometheus PromQL
-        datasourceUid: prometheus
-        queries:
-          - name: "Job Duration"
-            query: "histogram_quantile(0.95, rate(orion_job_duration_seconds_bucket[5m]))"
-          - name: "DB Latency p95"
-            query: "histogram_quantile(0.95, rate(orion_db_operation_duration_seconds_bucket[5m]))"
-      tracesToLogsV2:             # span click → correlated log window
-        datasourceUid: prometheus
-        spanStartTimeShift: "-1m"
-        spanEndTimeShift: "1m"
-      nodeGraph:
-        enabled: true             # service topology in trace view
-```
-
-A fresh `make infra-up` now produces a fully working Grafana with no manual setup.
-
-**Files:** `deploy/grafana/datasources/datasources.yml`
-
----
-
-### 3. OTel gRPC server interceptors — `cmd/api/main.go`
-
-The gRPC server was created with no options. gRPC calls (`SubmitJob`, `GetJob`, `WatchJob`, `WatchPipeline`) produced no spans in Jaeger — the gRPC side was dark while the HTTP side was fully traced.
-
-Fixed by wiring `otelgrpc.NewServerHandler()` (the modern stats-handler API, supersedes the deprecated per-interceptor approach):
+`executeJob` starts the span from `task.traceCtx` instead of the local worker
+context, making `worker.execute_job` a child of the enqueuing span:
 
 ```go
-grpcSrv := grpc.NewServer(
-    grpc.StatsHandler(otelgrpc.NewServerHandler()),
+ctx, span := observability.Tracer("orion.worker").Start(task.traceCtx, "worker.execute_job",
+    trace.WithSpanKind(trace.SpanKindConsumer),
+    // ...
 )
 ```
 
-All four gRPC RPCs now produce spans automatically including propagated trace context from calling clients.
+---
 
-**Files:** `cmd/api/main.go`
+### What you see in Jaeger
+
+Before this change: two unrelated root spans for the same job.
+
+After this change: one trace tree. Click any `worker.execute_job` span and you
+will see its parent `scheduler.dispatch_job` (or the HTTP handler span if the
+job was submitted via the API directly).
+
+The `trace_id` logged on every worker log line (`observability.WithTrace`) now
+matches the trace ID that started in the scheduler or API, making cross-service
+log correlation trivial.
 
 ---
 
-### 4. Prometheus alerting rules — `deploy/prometheus/rules.yml`
+### Fallback behaviour
 
-The rules file had 5 basic alerts. Expanded to 14 alerts across 6 named groups covering the full operational surface:
-
-| Group | Alert | Condition | Severity |
-|---|---|---|---|
-| `orion.jobs` | `HighDeadJobRate` | `rate(orion_jobs_dead_total[5m]) > 0.1` for 5m | warning |
-| `orion.jobs` | `JobFailureRateSpike` | failure rate > 50% of completions for 2m | warning |
-| `orion.jobs` | `NoJobCompletions` | no completions for 10m with non-empty queues | critical |
-| `orion.queues` | `HighPriorityQueueDepthHigh` | high queue depth > 1000 for 10m | warning |
-| `orion.queues` | `QueueDepthGrowing` | `deriv(depth[10m]) > 10` and depth > 500 | warning |
-| `orion.queues` | `QueueRateLimiterThrottling` | rate limiter > 5 rejects/s for 5m | info |
-| `orion.workers` | `AllWorkerSlotsBusy` | active jobs ≥ concurrency limit for 5m | warning |
-| `orion.workers` | `WorkerIdleWithPendingJobs` | 0 active jobs with > 10 queued for 5m | critical |
-| `orion.scheduler` | `SchedulerCycleLatencyHigh` | p95 cycle > 1s for 5m | warning |
-| `orion.scheduler` | `PipelineAdvancerLatencyHigh` | p95 `AdvanceAll` > 2s for 5m | warning |
-| `orion.database` | `DBLatencyCritical` | p95 DB op > 500ms for 5m | critical |
-| `orion.database` | `DBOperationLatencyHigh` | any single operation p95 > 250ms for 5m | warning |
-| `orion.pipelines` | `PipelineFailureRateHigh` | > 0.05 failures/s for 10m | warning |
-| `orion.api` | `APIHighErrorRate` | > 5% 5xx for 5m | warning |
-| `orion.api` | `APILatencyHigh` | p95 HTTP latency > 1s for 5m | warning |
-
-All alert annotations include `{{ $value }}` template expressions so the alert body shows the actual measured value at fire time.
-
-**Files:** `deploy/prometheus/rules.yml`
+When no active trace context exists on the enqueuing side (e.g. a job
+submitted by a script without OTel instrumentation), `Inject` writes nothing
+into the carrier. `Extract` on the worker side returns the original `ctx`
+unchanged, so `worker.execute_job` starts as a new root span — identical to the
+previous behaviour. There is no regression for un-instrumented callers.
 
 ---
 
-### 5. Trace-log correlation — scheduler, gRPC server, HTTP handlers
+### Testing
 
-`observability.WithTrace(ctx, logger)` existed but was only called in two places (`scheduleQueuedJobs` and `executeJob`). The remaining high-volume log paths were emitting lines with no trace context.
+`TestDequeue_PropagatesTraceContext` in
+`internal/queue/redis/redis_queue_test.go` verifies the contract end-to-end:
 
-#### Scheduler — `promoteRetryableJobs` and `reclaimOrphanedJobs`
+1. Registers an in-memory `sdktrace.TracerProvider` with a `SpanRecorder`.
+2. Creates a root span on the enqueuing side and calls `Enqueue`.
+3. Calls `Dequeue` and inspects the returned `context.Context`.
+4. Asserts that `trace.SpanContextFromContext(gotCtx).TraceID()` equals the
+   enqueuing span's `TraceID`, and that the `SpanID` equals the enqueuing
+   span's `SpanID` (i.e. the worker's span will be created as a child of that
+   span).
 
-Both loops now open an OTel span and derive a trace-enriched logger from it:
-
-```go
-func (s *Scheduler) promoteRetryableJobs(ctx context.Context) error {
-    ctx, span := observability.Tracer("orion.scheduler").Start(ctx, "scheduler.promote_retries")
-    defer span.End()
-    logger := observability.WithTrace(ctx, s.logger)
-    // ...
-    logger.Info("promoted job for retry", "job_id", job.ID, "attempt", job.Attempt)
-    span.SetAttributes(attribute.Int("jobs.promoted", promoted))
-    return nil
-}
-```
-
-Same pattern for `reclaimOrphanedJobs` (`scheduler.reclaim_orphans` span).
-
-#### gRPC server — `SubmitJob` and `WatchJob`
-
-`WithTrace` added at the top of each RPC handler after the span is started. All subsequent log calls in the function body carry the trace context:
-
-```go
-func (s *Server) SubmitJob(ctx context.Context, req *orionv1.SubmitJobRequest) (*orionv1.Job, error) {
-    ctx, span := observability.Tracer("orion.grpc").Start(ctx, "grpc.SubmitJob")
-    defer span.End()
-    logger := observability.WithTrace(ctx, s.logger)
-    // logger.Error("gRPC SubmitJob: store error", ...) carries trace_id + span_id
-```
-
-#### HTTP handlers — all four handler files
-
-Added `RequestLogger(r, h.logger)` helper to `middleware.go`:
-
-```go
-// handler/middleware.go
-func RequestLogger(r *http.Request, logger *slog.Logger) *slog.Logger {
-    return observability.WithTrace(r.Context(), logger)
-}
-```
-
-`TracingMiddleware` (already in place) puts the active span into `r.Context()` for every request. All 27 `h.logger.*` call sites across `job.go`, `pipeline.go`, `queue.go`, and `worker.go` were replaced with `RequestLogger(r, h.logger).*`. Every handler log line now carries the request's `trace_id` and `span_id`.
-
-**Files:** `internal/scheduler/scheduler.go`, `internal/api/grpc/server.go`, `internal/api/handler/middleware.go`, `internal/api/handler/job.go`, `internal/api/handler/pipeline.go`, `internal/api/handler/queue.go`, `internal/api/handler/worker.go`
+The test uses `miniredis` for a real in-process Redis stream and requires no
+external infrastructure.
 
 ---
 
-## Complete Observability Matrix (Post Phase 10)
+### Files changed
 
-| Signal | Component | Status |
-|---|---|---|
-| **Prometheus** | All 20+ metrics registered and emitted | ✅ |
-| **Prometheus** | `DBOperationDuration` wired into all 28 store methods | ✅ |
-| **Prometheus** | `QueueRateLimited`, `QueueConcurrentJobs`, `QueueConcurrencyLimit`, `QueueDispatchWeight` | ✅ |
-| **Prometheus** | HTTP request count + latency via `MetricsMiddleware` | ✅ |
-| **Prometheus** | 14 alerting rules across 6 groups | ✅ |
-| **Traces** | OTel spans on HTTP requests (middleware) | ✅ |
-| **Traces** | OTel spans on gRPC RPCs (`otelgrpc.NewServerHandler`) | ✅ |
-| **Traces** | Scheduler dispatch cycle span | ✅ |
-| **Traces** | Per-job dispatch span | ✅ |
-| **Traces** | Scheduler retry promotion span | ✅ |
-| **Traces** | Scheduler orphan reclaim span | ✅ |
-| **Traces** | Worker `execute_job` span | ✅ |
-| **Traces** | Pipeline `AdvanceAll` span | ✅ |
-| **Traces** | gRPC handler spans (`SubmitJob`, `GetJob`, `WatchJob`, `WatchPipeline`) | ✅ |
-| **Logs** | JSON structured with `service` + `env` base fields | ✅ |
-| **Logs** | `trace_id` + `span_id` in scheduler dispatch logs | ✅ |
-| **Logs** | `trace_id` + `span_id` in scheduler retry/orphan logs | ✅ |
-| **Logs** | `trace_id` + `span_id` in worker execution logs | ✅ |
-| **Logs** | `trace_id` + `span_id` in gRPC handler logs | ✅ |
-| **Logs** | `trace_id` + `span_id` in all HTTP handler logs | ✅ |
-| **Grafana** | Prometheus datasource provisioned on startup | ✅ |
-| **Grafana** | Jaeger datasource provisioned on startup | ✅ |
-| **Grafana** | Exemplar click → Jaeger trace | ✅ |
-| **Grafana** | Jaeger span click → Prometheus metrics | ✅ |
-| **Grafana** | Jaeger span click → correlated log window | ✅ |
-| **Grafana** | Service topology node graph in trace view | ✅ |
-
----
-
-## How to Verify
-
-```bash
-# 1. Start infra
-make infra-up
-
-# 2. Start all three services
-make run-api
-make run-scheduler
-make run-worker
-
-# 3. Submit a job
-curl -sX POST http://localhost:8080/jobs \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"test","type":"inline","payload":{"handler_name":"noop"}}'
-
-# 4. Open Grafana → http://localhost:3000 (admin/admin)
-#    - Dashboard should load with Prometheus data immediately (no manual datasource setup)
-#    - Explore → Jaeger → find the trace for the job submission
-
-# 5. Check Prometheus alerting rules loaded
-curl -s http://localhost:9090/api/v1/rules | jq '.data.groups[].name'
-# Expected: "orion.jobs", "orion.queues", "orion.workers", "orion.scheduler",
-#           "orion.database", "orion.pipelines", "orion.api"
-
-# 6. Check DB metrics are emitting
-curl -s http://localhost:9091/metrics | grep orion_db_operation
-# Expected: orion_db_operation_duration_seconds_bucket{operation="CreateJob",...}
-```
+| File | Change |
+|------|--------|
+| `internal/queue/queue.go` | `Dequeue` now returns `(context.Context, *domain.Job, AckFunc, error)` |
+| `internal/queue/redis/redis_queue.go` | `Enqueue` injects W3C carrier; `Dequeue` extracts it and returns enriched context |
+| `internal/worker/pool.go` | `jobTask` gains `traceCtx`; `executeJob` uses it as parent span |
+| `internal/queue/redis/redis_queue_test.go` | All `Dequeue` call sites updated; `TestDequeue_PropagatesTraceContext` added |
+| `internal/scheduler/scheduler_test.go` | `fakeQueue.Dequeue` updated to new 4-return signature |
+| `internal/api/handler/job_test.go` | `fakeQueue.Dequeue` updated to new 4-return signature |
