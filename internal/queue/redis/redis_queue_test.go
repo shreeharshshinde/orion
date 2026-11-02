@@ -10,6 +10,11 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"github.com/shreeharshshinde/orion/internal/domain"
 	"github.com/shreeharshshinde/orion/internal/queue"
 )
@@ -184,7 +189,7 @@ func TestDequeue_Basic(t *testing.T) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	dequeuedJob, ackFn, err := q.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
+	_, dequeuedJob, ackFn, err := q.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
 	if err != nil {
 		t.Fatalf("Dequeue failed: %v", err)
 	}
@@ -218,7 +223,7 @@ func TestDequeue_AckFailure(t *testing.T) {
 	}
 
 	// Dequeue
-	_, ackFn, err := q.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
+	_, _, ackFn, err := q.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
 	if err != nil {
 		t.Fatalf("Dequeue failed: %v", err)
 	}
@@ -272,7 +277,7 @@ func TestLen(t *testing.T) {
 	}
 
 	// Dequeue job (this moves it to consumer group PEL)
-	_, _, err = q.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
+	_, _, _, err = q.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
 	if err != nil {
 		t.Fatalf("Dequeue failed: %v", err)
 	}
@@ -369,7 +374,7 @@ func TestReclaimStalePending_ReclaimsStaleMessages(t *testing.T) {
 	}
 
 	// Dequeue but don't ACK (simulate crashed worker)
-	_, _, err = q.Dequeue(ctx, queue.QueueDefault, 1*time.Second)
+	_, _, _, err = q.Dequeue(ctx, queue.QueueDefault, 1*time.Second)
 	if err != nil {
 		t.Fatalf("Dequeue failed: %v", err)
 	}
@@ -449,8 +454,8 @@ func TestConsumerIDStability(t *testing.T) {
 	}
 
 	// Dequeue both with same worker
-	_, ackFn1, _ := q1.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
-	_, ackFn2, _ := q1.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
+	_, _, ackFn1, _ := q1.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
+	_, _, ackFn2, _ := q1.Dequeue(ctx, queue.QueueDefault, 30*time.Second)
 
 	// ACK both
 	ackFn1(nil)
@@ -466,5 +471,79 @@ func TestConsumerIDStability(t *testing.T) {
 	}
 	if info[0].Name != "stable-worker-1" {
 		t.Errorf("expected consumer name 'stable-worker-1', got '%s'", info[0].Name)
+	}
+}
+
+// TestDequeue_PropagatesTraceContext verifies the end-to-end W3C trace context
+// propagation across the Redis Streams queue boundary:
+//
+//  1. Create an active span on the enqueuing side.
+//  2. Enqueue a job — Enqueue injects traceparent/tracestate into the stream message.
+//  3. Dequeue the job — Dequeue extracts those fields and returns an enriched context.
+//  4. Assert that the extracted span context matches the original span context.
+func TestDequeue_PropagatesTraceContext(t *testing.T) {
+	// ── Set up an in-memory OTel tracing pipeline ─────────────────────────────
+	// SpanRecorder captures spans without any network export.
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	// Install the composite W3C propagator (traceparent + tracestate).
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+	t.Cleanup(func() {
+		// Reset to the global no-op provider so we don't leak state into other tests.
+		otel.SetTracerProvider(trace.NewNoopTracerProvider())
+	})
+
+	q, mr := newTestRedisQueue(t, "trace-test-worker")
+	defer mr.Close()
+
+	// ── Enqueue side: create an active root span ──────────────────────────────
+	enqueueCtx, rootSpan := tp.Tracer("test").Start(context.Background(), "scheduler.dispatch_job")
+	wantTraceID := rootSpan.SpanContext().TraceID()
+	wantSpanID := rootSpan.SpanContext().SpanID()
+
+	job := &domain.Job{
+		ID:        uuid.New(),
+		QueueName: queue.QueueDefault,
+		Status:    domain.JobStatusQueued,
+	}
+	if err := q.Enqueue(enqueueCtx, job); err != nil {
+		t.Fatalf("Enqueue failed: %v", err)
+	}
+	rootSpan.End()
+
+	// ── Dequeue side: extract context and assert trace continuity ─────────────
+	dequeueCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	gotCtx, dequeuedJob, ackFn, err := q.Dequeue(dequeueCtx, queue.QueueDefault, 30*time.Second)
+	if err != nil {
+		t.Fatalf("Dequeue failed: %v", err)
+	}
+	if dequeuedJob.ID != job.ID {
+		t.Errorf("job ID mismatch: want %s, got %s", job.ID, dequeuedJob.ID)
+	}
+
+	// The extracted span context must carry the same TraceID as the enqueuing
+	// span, and the parent SpanID must be the enqueuing span's SpanID.
+	gotSC := trace.SpanContextFromContext(gotCtx)
+	if !gotSC.IsValid() {
+		t.Fatal("extracted span context is not valid — traceparent was not propagated")
+	}
+	if gotSC.TraceID() != wantTraceID {
+		t.Errorf("TraceID mismatch: want %s, got %s", wantTraceID, gotSC.TraceID())
+	}
+	// gotSC is a remote span context; its SpanID is the ID of the *parent* span
+	// (the enqueuing side), not a new span — that is exactly what we want.
+	if gotSC.SpanID() != wantSpanID {
+		t.Errorf("SpanID (parent) mismatch: want %s, got %s", wantSpanID, gotSC.SpanID())
+	}
+
+	// ACK to clean up the PEL.
+	if err := ackFn(nil); err != nil {
+		t.Errorf("ACK failed: %v", err)
 	}
 }
