@@ -21,10 +21,11 @@ type Queue interface {
 	Enqueue(ctx context.Context, job *domain.Job) error
 
 	// Dequeue blocks until a job is available or ctx is cancelled.
-	// Returns the job and an AckFunc. The caller MUST call AckFunc when done.
-	// The visibility timeout determines how long a dequeued but un-acked message
-	// stays invisible to other consumers before being redelivered.
-	Dequeue(ctx context.Context, queueName string, visibilityTimeout time.Duration) (*domain.Job, AckFunc, error)
+	// Returns an enriched context carrying the W3C trace context extracted from
+	// the Redis stream message, the job, and an AckFunc. The caller MUST call
+	// AckFunc when done. The visibility timeout determines how long a dequeued
+	// but un-acked message stays invisible to other consumers before redelivery.
+	Dequeue(ctx context.Context, queueName string, visibilityTimeout time.Duration) (context.Context, *domain.Job, AckFunc, error)
 
 	// Len returns the number of pending messages in the named queue.
 	Len(ctx context.Context, queueName string) (int64, error)
@@ -48,20 +49,20 @@ type Queue interface {
 // QueueNames contains the well-known queue identifiers.
 // Custom queue names are also supported.
 const (
-	QueueDefault  = "orion:queue:default"
-	QueueHigh     = "orion:queue:high"
-	QueueLow      = "orion:queue:low"
-	QueueDead     = "orion:queue:dead"
+	QueueDefault   = "orion:queue:default"
+	QueueHigh      = "orion:queue:high"
+	QueueLow       = "orion:queue:low"
+	QueueDead      = "orion:queue:dead"
 	QueueScheduled = "orion:queue:scheduled" // sorted set for future-scheduled jobs
 )
 
 // Message is the envelope stored in the queue.
 // The Job is serialized into Body as JSON.
 type Message struct {
-	ID        string         `json:"id"`
-	JobID     string         `json:"job_id"`
-	QueueName string         `json:"queue_name"`
-	Body      []byte         `json:"body"`
-	Attempt   int            `json:"attempt"`
-	EnqueuedAt time.Time    `json:"enqueued_at"`
+	ID         string    `json:"id"`
+	JobID      string    `json:"job_id"`
+	QueueName  string    `json:"queue_name"`
+	Body       []byte    `json:"body"`
+	Attempt    int       `json:"attempt"`
+	EnqueuedAt time.Time `json:"enqueued_at"`
 }
