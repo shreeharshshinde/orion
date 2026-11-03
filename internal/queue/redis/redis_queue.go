@@ -178,13 +178,28 @@ func (r *RedisQueue) Dequeue(ctx context.Context, queueName string, visibilityTi
 				// that the enqueuing side injected.  The resulting context
 				// becomes the parent for the worker.execute_job span, stitching
 				// the two sides of the queue into a single Jaeger trace tree.
+				//
+				// We extract into context.Background() — NOT ctx — so that the
+				// returned jobCtx is decoupled from Dequeue's own cancellation /
+				// timeout lifecycle.  If we used ctx here, two bugs would follow:
+				//
+				//  1. Graceful-drain failure: runWorker calls
+				//     executeJob(context.Background(), task, ...) on shutdown,
+				//     but if jobCtx were derived from the already-cancelled ctx,
+				//     every ctx-using call inside executeJob (MarkJobRunning,
+				//     Execute, etc.) would fail immediately with context.Canceled.
+				//
+				//  2. Deadline leak: a caller that passes a context with a short
+				//     timeout to Dequeue would inadvertently impose that same
+				//     deadline on the job execution, prematurely cancelling
+				//     long-running jobs.
 				carrier := propagation.MapCarrier{}
 				for k, v := range msg.Values {
 					if s, ok := v.(string); ok {
 						carrier[k] = s
 					}
 				}
-				jobCtx := otel.GetTextMapPropagator().Extract(ctx, carrier)
+				jobCtx := otel.GetTextMapPropagator().Extract(context.Background(), carrier)
 
 				ackFn := func(processingErr error) error {
 					if processingErr == nil {
