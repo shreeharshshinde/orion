@@ -270,11 +270,30 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 	startedAt := time.Now()
 
 	// ── Span: wrap the full job execution ────────────────────────────────────
-	// Start the span from task.traceCtx — the context extracted from the Redis
-	// stream message by Dequeue. This carries the W3C traceparent injected by
-	// the scheduler/API at Enqueue time, making worker.execute_job a child span
-	// of the enqueuing side's dispatch_job span in Jaeger.
-	ctx, span := observability.Tracer("orion.worker").Start(task.traceCtx, "worker.execute_job",
+	// We need two things simultaneously:
+	//   1. The span must be a child of the enqueuing side's span (the W3C
+	//      traceparent propagated through the Redis stream message).
+	//   2. The execution context (ctx) must remain the active context so that
+	//      deadline, cancellation, and baggage from the caller are honoured —
+	//      particularly during graceful-drain where ctx == context.Background().
+	//
+	// The fix: graft the remote span context extracted by Dequeue onto the live
+	// execution ctx using trace.ContextWithRemoteSpanContext, then start the
+	// span from that combined context.  This avoids three hazards:
+	//
+	//   • Nil panic: task.traceCtx may be nil in mocks/tests; guard it first.
+	//   • Lifecycle coupling: if we started from task.traceCtx directly, and
+	//     traceCtx were derived from a cancelled ctx, every DB/executor call
+	//     that uses the span's ctx would see context.Canceled immediately.
+	//   • Invalid remote span: only graft if the extracted span context is
+	//     valid (non-zero TraceID); fall back to plain ctx otherwise.
+	parentCtx := ctx
+	if task.traceCtx != nil {
+		if sc := trace.SpanContextFromContext(task.traceCtx); sc.IsValid() {
+			parentCtx = trace.ContextWithRemoteSpanContext(ctx, sc)
+		}
+	}
+	ctx, span := observability.Tracer("orion.worker").Start(parentCtx, "worker.execute_job",
 		trace.WithSpanKind(trace.SpanKindConsumer),
 		trace.WithAttributes(
 			attribute.String("job.id", job.ID.String()),
