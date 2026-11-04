@@ -4,7 +4,6 @@ import {
   Activity,
   ArrowRight, BookOpen, Boxes,
   GitBranch, Github,
-  RefreshCw,
   Server,
   Shield, Sun, Moon,
   Waypoints, Zap
@@ -16,58 +15,6 @@ import { useEffect, useState } from "react";
 
 import { Badge, Button, Card } from "@/components/ui";
 import { useJobs, usePipelines, useWorkers } from "@/lib/hooks";
-
-// ─── Static feature data ──────────────────────────────────────────────────────
-
-const features = [
-  {
-    icon: Waypoints,
-    title: "Priority queues",
-    desc: "Three Redis Streams queues — high, default, low — with weighted dispatch, per-queue rate limiting, and live config reload.",
-  },
-  {
-    icon: Shield,
-    title: "At-least-once delivery",
-    desc: "Consumer groups + PEL tracking. Unacknowledged jobs are reclaimed by the orphan sweeper. No job is silently lost.",
-  },
-  {
-    icon: Server,
-    title: "Kubernetes execution",
-    desc: "Launches K8s Jobs via client-go. Supports GPU requests, custom namespaces, service accounts, and backoff-0 retry ownership.",
-  },
-  {
-    icon: GitBranch,
-    title: "DAG pipelines",
-    desc: "Topological node advancement with cascade-cancel on failure. Create multi-stage ML workflows as a single submission.",
-  },
-  {
-    icon: Activity,
-    title: "Real-time streaming",
-    desc: "gRPC WatchJob / WatchPipeline driven by PostgreSQL LISTEN/NOTIFY. Zero polling on the client.",
-  },
-  {
-    icon: RefreshCw,
-    title: "Durable retries",
-    desc: "Full-jitter exponential backoff. CAS state transitions prevent double-claiming across concurrent scheduler instances.",
-  },
-];
-
-const SUBMIT_SNIPPET = `curl -sX POST http://localhost:8080/jobs \\
-  -H 'Content-Type: application/json' \\
-  -d '{
-    "name": "train-resnet",
-    "type": "k8s_job",
-    "queue_name": "high",
-    "priority": 8,
-    "max_retries": 3,
-    "payload": {
-      "kubernetes_spec": {
-        "image": "pytorch/pytorch:2.1.0-cuda11.8",
-        "command": ["python", "train.py"],
-        "resources": { "gpu": 1, "memory": "16Gi" }
-      }
-    }
-  }'`;
 
 // ─── Live stat pill ───────────────────────────────────────────────────────────
 
