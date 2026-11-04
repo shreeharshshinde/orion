@@ -4,14 +4,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  Activity, AlertTriangle, BriefcaseBusiness,
+  AlertTriangle, BriefcaseBusiness,
   GitBranch, Server, Waypoints, TrendingUp, Skull, Sparkles, RefreshCw
 } from "lucide-react";
 
 import {
   Card, CardHeader, CardTitle, CardBody, MetricCard, PageHeader,
-  ProgressBar, SectionHeader, Table, Td, Th, Button,
-  EnvironmentBadge, SkeletonTableRows, SkeletonChart, SkeletonMetricCard, SkeletonDAG
+  SectionHeader, Table, Td, Th, Button,
+  EnvironmentBadge, SkeletonTableRows, SkeletonDAG
 } from "@/components/ui";
 import { StatusBadge, ConnectionIndicator } from "@/components/status-badge";
 import { useTelemetry } from "@/lib/telemetry-context";

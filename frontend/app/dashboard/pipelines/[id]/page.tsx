@@ -116,7 +116,7 @@ export default function PipelineDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { pipelines, jobs, apiConnected, demoMode } = useTelemetry();
+  const { pipelines, jobs, demoMode } = useTelemetry();
   const { data: apiPipeline, isLoading: apiPipelineLoading, isError: apiPipelineError, refetch } = usePipeline(id);
   const { data: apiPipelineJobs = [] } = usePipelineJobs(id);
   const cancel = useCancelPipeline();

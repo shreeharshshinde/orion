@@ -28,7 +28,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const { id } = use(params);
   const [tab, setTab] = useState<"overview" | "payload" | "executions">("overview");
 
-  const { jobs, apiConnected, demoMode } = useTelemetry();
+  const { jobs, demoMode } = useTelemetry();
   const { data: apiJob, isLoading: apiJobLoading, isError: apiJobError, refetch } = useJob(id);
   const { data: apiExecutions = [] } = useJobExecutions(id);
 
