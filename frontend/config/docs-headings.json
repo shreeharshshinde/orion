@@ -4412,65 +4412,200 @@
   ],
   "phases/10-observability-hardening": [
     {
-      "id": "what-was-done",
-      "text": "What Was Done",
+      "id": "table-of-contents",
+      "text": "Table of Contents",
       "level": 2
     },
     {
-      "id": "changes-made",
-      "text": "Changes Made",
+      "id": "1-dboperationduration-metric-wiring",
+      "text": "1. DBOperationDuration metric wiring",
       "level": 2
     },
     {
-      "id": "1-dboperationduration-metric-wired-internal-store-postgres",
-      "text": "1. DBOperationDuration metric wired — internal/store/postgres/",
+      "id": "problem",
+      "text": "Problem",
       "level": 3
     },
     {
-      "id": "2-grafana-datasource-provisioning-deploy-grafana-datasources-datasources-yml",
-      "text": "2. Grafana datasource provisioning — deploy/grafana/datasources/datasources.yml",
+      "id": "implementation",
+      "text": "Implementation",
       "level": 3
     },
     {
-      "id": "3-otel-grpc-server-interceptors-cmd-api-main-go",
-      "text": "3. OTel gRPC server interceptors — cmd/api/main.go",
+      "id": "what-you-see-in-grafana",
+      "text": "What you see in Grafana",
       "level": 3
     },
     {
-      "id": "4-prometheus-alerting-rules-deploy-prometheus-rules-yml",
-      "text": "4. Prometheus alerting rules — deploy/prometheus/rules.yml",
-      "level": 3
-    },
-    {
-      "id": "5-trace-log-correlation-scheduler-grpc-server-http-handlers",
-      "text": "5. Trace-log correlation — scheduler, gRPC server, HTTP handlers",
-      "level": 3
-    },
-    {
-      "id": "complete-observability-matrix-post-phase-10",
-      "text": "Complete Observability Matrix (Post Phase 10)",
+      "id": "2-grafana-datasource-provisioning",
+      "text": "2. Grafana datasource provisioning",
       "level": 2
     },
     {
-      "id": "how-to-verify",
-      "text": "How to Verify",
+      "id": "problem",
+      "text": "Problem",
+      "level": 3
+    },
+    {
+      "id": "implementation",
+      "text": "Implementation",
+      "level": 3
+    },
+    {
+      "id": "how-to-reload-without-restart",
+      "text": "How to reload without restart",
+      "level": 3
+    },
+    {
+      "id": "3-prometheus-alerting-rules",
+      "text": "3. Prometheus alerting rules",
+      "level": 2
+    },
+    {
+      "id": "problem",
+      "text": "Problem",
+      "level": 3
+    },
+    {
+      "id": "implementation",
+      "text": "Implementation",
+      "level": 3
+    },
+    {
+      "id": "verify-alerts-load",
+      "text": "Verify alerts load",
+      "level": 3
+    },
+    {
+      "id": "4-trace-log-correlation",
+      "text": "4. Trace–log correlation",
+      "level": 2
+    },
+    {
+      "id": "problem",
+      "text": "Problem",
+      "level": 3
+    },
+    {
+      "id": "implementation",
+      "text": "Implementation",
+      "level": 3
+    },
+    {
+      "id": "what-you-see-in-logs",
+      "text": "What you see in logs",
+      "level": 3
+    },
+    {
+      "id": "5-grpc-opentelemetry-server-handler",
+      "text": "5. gRPC OpenTelemetry server handler",
+      "level": 2
+    },
+    {
+      "id": "problem",
+      "text": "Problem",
+      "level": 3
+    },
+    {
+      "id": "implementation",
+      "text": "Implementation",
+      "level": 3
+    },
+    {
+      "id": "what-you-see-in-jaeger",
+      "text": "What you see in Jaeger",
+      "level": 3
+    },
+    {
+      "id": "module-dependency",
+      "text": "Module dependency",
+      "level": 3
+    },
+    {
+      "id": "6-cross-queue-trace-context-propagation-context-lifecycle-fix",
+      "text": "6. Cross-queue trace context propagation — context lifecycle fix",
+      "level": 2
+    },
+    {
+      "id": "problem",
+      "text": "Problem",
+      "level": 3
+    },
+    {
+      "id": "solution",
+      "text": "Solution",
+      "level": 3
+    },
+    {
+      "id": "enqueue-side-unchanged-shown-for-reference",
+      "text": "Enqueue side (unchanged, shown for reference)",
+      "level": 3
+    },
+    {
+      "id": "what-you-see-in-jaeger",
+      "text": "What you see in Jaeger",
+      "level": 3
+    },
+    {
+      "id": "fallback-behaviour",
+      "text": "Fallback behaviour",
+      "level": 3
+    },
+    {
+      "id": "testing",
+      "text": "Testing",
+      "level": 3
+    },
+    {
+      "id": "files-changed",
+      "text": "Files changed",
+      "level": 3
+    },
+    {
+      "id": "7-architectural-note-scheduled-jobs-trace-boundary",
+      "text": "7. Architectural note: scheduled jobs trace boundary",
+      "level": 2
+    },
+    {
+      "id": "8-observability-matrix",
+      "text": "8. Observability matrix",
+      "level": 2
+    },
+    {
+      "id": "metrics-prometheus",
+      "text": "Metrics (Prometheus)",
+      "level": 3
+    },
+    {
+      "id": "traces-opentelemetry-jaeger",
+      "text": "Traces (OpenTelemetry → Jaeger)",
+      "level": 3
+    },
+    {
+      "id": "logs-slog-json",
+      "text": "Logs (slog JSON)",
+      "level": 3
+    },
+    {
+      "id": "alerting",
+      "text": "Alerting",
+      "level": 3
+    },
+    {
+      "id": "9-how-to-verify",
+      "text": "9. How to verify",
       "level": 2
     }
   ],
   "phases/11-frontend-completion": [
     {
-      "id": "current-state",
-      "text": "Current State",
+      "id": "state-overview",
+      "text": "State Overview",
       "level": 2
     },
     {
-      "id": "what-is-built",
-      "text": "What is built ✅",
-      "level": 3
-    },
-    {
-      "id": "what-is-missing",
-      "text": "What is missing ❌",
+      "id": "what-is-built-delivered",
+      "text": "What is built & delivered ✅",
       "level": 3
     },
     {
@@ -4626,9 +4761,14 @@
   ],
   "phases/12-docs-integration": [
     {
-      "id": "current-state",
-      "text": "Current State",
+      "id": "state-overview",
+      "text": "State Overview",
       "level": 2
+    },
+    {
+      "id": "what-is-built-delivered",
+      "text": "What is built & delivered ✅",
+      "level": 3
     },
     {
       "id": "technical-stack-to-add",
