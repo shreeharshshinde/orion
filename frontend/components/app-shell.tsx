@@ -67,8 +67,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     healthLoading,
     activeJobsCount,
     runningJobsCount,
-    queuedJobsCount,
-    failedJobsCount,
     activeWorkersCount,
   } = useTelemetry();
 
