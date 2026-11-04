@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import {
   Search,
   BookOpen,
@@ -119,6 +119,15 @@ export function SearchDialog({ open, onClose, onSubmitJob }: SearchDialogProps) 
     }
   }, [activeIdx]);
 
+  const triggerItem = useCallback((item: typeof combinedItems[0]) => {
+    if ("action" in item && item.action === "submit-job") {
+      onSubmitJob?.();
+    } else if (item.href) {
+      router.push(item.href);
+      onClose();
+    }
+  }, [onSubmitJob, router, onClose]);
+
   // Keyboard navigation inside modal
   useEffect(() => {
     if (!open) return;
@@ -144,16 +153,7 @@ export function SearchDialog({ open, onClose, onSubmitJob }: SearchDialogProps) 
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, combinedItems, activeIdx]);
-
-  const triggerItem = (item: typeof combinedItems[0]) => {
-    if ("action" in item && item.action === "submit-job") {
-      onSubmitJob?.();
-    } else if (item.href) {
-      router.push(item.href);
-      onClose();
-    }
-  };
+  }, [open, combinedItems, activeIdx, onClose, triggerItem]);
 
   const highlightText = (text: string, q: string) => {
     if (!q) return <span>{text}</span>;
