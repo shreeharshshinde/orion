@@ -24,6 +24,7 @@
 - [Phase 10 — Observability Hardening](#phase-10--observability-hardening)
 - [Phase 11 — Frontend Completion](#phase-11--frontend-completion)
 - [Phase 12 — Documentation Site Integration](#phase-12--documentation-site-integration)
+- [Phase 13 — Production Hardening](#phase-13--production-hardening)
 - [End State — What Orion Looks Like Today](#end-state--what-orion-looks-like-today)
 - [File Growth by Phase](#file-growth-by-phase)
 - [Decision Log](#decision-log)
@@ -135,6 +136,7 @@ OBSERVABILITY (all phases)
 | **10** | Observability Hardening | ✅ Complete | DB metrics wired, Grafana datasources provisioned, OTel gRPC interceptors, 14 alerting rules, trace-log correlation in all log paths | Grafana traces work, alerts fire, DB latency panel has data |
 | **11** | Frontend Completion | ✅ Complete | Interactive Next.js dashboard UI, TanStack Query hooks, React Flow DAG visualizer, live & sandbox telemetry context | Jobs & pipelines submitted via UI, live updates, typecheck passes |
 | **12** | Documentation Site | ✅ Complete | Integrated modern documentation portal with MDX engine, search dialog, dynamic TOC, and mermaid rendering | 41 docs indexed, dynamic catch-all routing, 52 static routes generated |
+| **13** | Production Hardening | 🔵 Planned | Bearer token auth on HTTP + gRPC, HTTP body size limit, execution log shipping to S3/MinIO, live-stack smoke test | Auth rejects unauthenticated requests; `logs_ref` populated on every execution; smoke test passes end-to-end |
 
 ---
 
@@ -1060,9 +1062,133 @@ Integrates a full-featured developer documentation portal directly inside the Ne
 
 ---
 
+## Phase 13 — Production Hardening
+
+**Status: 🔵 Planned**
+
+### What this phase does
+
+Makes Orion safe and auditable for shared or multi-tenant production
+deployments. Every item addresses a concrete gap that exists in Phases 1–12
+and becomes a real problem the moment Orion is deployed outside a single
+developer's machine.
+
+### Four work items
+
+#### 1. Authentication & Authorization
+
+Orion's HTTP and gRPC surfaces are currently open. This adds:
+- `AuthMiddleware` to the HTTP chain using `crypto/subtle.ConstantTimeCompare`
+  to prevent timing attacks on the Bearer token comparison
+- `AuthUnaryInterceptor` and `AuthStreamInterceptor` for gRPC
+- CORS OPTIONS preflight exemption so browser clients are not blocked
+- `/healthz`, `/readyz`, `/metrics` exempted from auth (load balancers and
+  Prometheus scrapers must reach them without credentials)
+- Single `ORION_API_KEY` env var; empty string leaves local dev unchanged
+
+#### 2. HTTP Request Body Size Limit
+
+Two lines of middleware using `http.MaxBytesReader` cap request bodies at
+10 MiB by default (`ORION_MAX_REQUEST_BODY_BYTES`). No handler code changes
+needed — oversized bodies surface as 400 via the existing JSON decode error
+path. The gRPC server gains a matching `grpc.MaxRecvMsgSize(10 MiB)` option.
+
+#### 3. Execution Log Shipping
+
+`domain.JobExecution.LogsRef` has always been an empty string. This wires
+it up end-to-end:
+- `LogSink` interface with `NilSink` (default, no config) and `S3Sink`
+  (AWS S3, MinIO, Cloudflare R2)
+- `S3Sink` uses `feature/s3/manager.NewUploader` for multipart streaming —
+  no Content-Length required, no memory buffering of large training logs
+- A single `executionID := uuid.New()` generated at the top of `executeJob`
+  is used as both `domain.JobExecution.ID` and the S3 object key suffix,
+  keeping the DB record and the log file in 1:1 correspondence
+- Inline handlers write to an `io.Writer`; K8s executor streams pod logs
+  after job completion, before TTL cleanup
+
+#### 4. Live Stack Smoke Test
+
+A `//go:build e2e` test suite that runs against the real Docker Compose stack
+with all three Orion binaries running as separate OS processes:
+- `make build` produces `./build/orion-{api,scheduler,worker}` first; binaries
+  are run directly so `pkill` by path leaves no orphaned children (unlike
+  `go run`, which spawns a child that outlives the wrapper)
+- Asserts full job lifecycle (submit → completed within 30 s)
+- Asserts `orion_jobs_completed_total > 0` via PromQL
+- Asserts a `worker.execute_job` span is present in Jaeger
+- `TestSmoke_Authentication` skips automatically when `ORION_API_KEY` is unset
+
+### Files to create or modify
+
+```
+internal/api/handler/auth.go           NEW  — HTTP middleware + gRPC interceptors
+internal/api/handler/auth_test.go      NEW  — table-driven auth tests
+internal/api/handler/middleware.go     MOD  — add MaxBodySizeMiddleware
+internal/worker/logs/sink.go           NEW  — LogSink interface + NilSink
+internal/worker/logs/s3_sink.go        NEW  — S3Sink with manager.NewUploader
+internal/worker/logs/sink_test.go      NEW  — unit tests with mock S3 transport
+internal/worker/pool.go                MOD  — accept LogSink, call Upload
+internal/worker/inline.go              MOD  — accept logWriter io.Writer
+internal/worker/k8s/executor.go        MOD  — stream pod logs to logWriter
+internal/config/config.go              MOD  — APIKey, MaxRequestBodyBytes, LogStorage
+cmd/api/main.go                        MOD  — wire auth + body limit middleware
+cmd/worker/main.go                     MOD  — construct LogSink from config
+deploy/helm/values.yaml                MOD  — auth.apiKey, logStorage section
+deploy/helm/templates/secret.yaml      MOD  — ORION_API_KEY
+tests/e2e/smoke_test.go                NEW  — e2e smoke test suite
+tests/e2e/helpers_test.go              NEW  — shared HTTP client + polling helpers
+Makefile                               MOD  — smoke-test target
+go.mod                                 MOD  — aws-sdk-go-v2 + feature/s3/manager
+docs/adr/ADR-011-execution-log-storage.md  NEW  — log storage design decision
+```
+
+### Recommended implementation order
+
+```
+Step 1 (together — both touch cmd/api/main.go + config.go):
+  Authentication + HTTP Body Size Limit     ~4-5 hours
+
+Step 2 (independent — touches worker only):
+  Execution Log Shipping                    ~1-2 days
+
+Step 3 (last — validation gate):
+  Live Stack Smoke Test                     ~2-3 hours
+```
+
+### Completion criteria
+
+```bash
+# Auth rejects unauthenticated requests
+curl http://localhost:8080/jobs
+# → 401
+
+# Auth passes with token
+curl -H "Authorization: Bearer $ORION_API_KEY" http://localhost:8080/jobs
+# → 200
+
+# Health bypasses auth
+curl http://localhost:8080/healthz
+# → 200
+
+# Oversized body rejected
+curl -X POST http://localhost:8080/jobs -d "$(python3 -c "print('x'*11000000)")"
+# → 400
+
+# logs_ref populated after job completion
+curl http://localhost:8080/jobs/$JOB_ID/executions | jq '.[0].logs_ref'
+# → "s3://orion-execution-logs/2026/11/06/<job-id>/<exec-id>.log"
+
+# Smoke test passes
+make smoke-test
+# → PASS (all TestSmoke_* cases)
+```
+
+---
+
 ## End State — What Orion Looks Like Today
 
-With Phases 1-12 completed, Orion is a production ML orchestration platform offering these capabilities across backend, infrastructure, telemetry, frontend dashboard, and integrated documentation site:
+With Phases 1-13 completed, Orion is a production ML orchestration platform offering these capabilities across backend, infrastructure, telemetry, frontend dashboard, integrated documentation, authentication, hardened request handling, durable execution logs, and live-stack verification:
 
 ### Job submission (Phase 1–2)
 ```bash
@@ -1117,6 +1243,24 @@ helm install orion ./deploy/helm --namespace ml-platform
 # All with TLS, RBAC, resource limits, PodDisruptionBudgets
 ```
 
+### Production security & durability (Phase 13)
+```bash
+# Every request requires a Bearer token (HTTP + gRPC)
+curl -H "Authorization: Bearer $ORION_API_KEY" \
+  -X POST http://localhost:8080/jobs -d '{...}'
+
+# Oversized payloads (>10 MiB default) are rejected before decoding
+# preventing memory exhaustion from malicious or buggy clients
+
+# Every execution log is uploaded to object storage
+curl http://localhost:8080/jobs/$JOB_ID/executions | jq '.[0].logs_ref'
+# "s3://orion-execution-logs/2026/11/06/<job-id>/<exec-id>.log"
+
+# Full-stack smoke test validates every signal end-to-end
+make smoke-test
+# Tests: job lifecycle, pipeline DAG, Prometheus metrics, Jaeger traces
+```
+
 ---
 
 ## File Growth by Phase
@@ -1131,8 +1275,11 @@ Phase 6:  53 files  (+6: instrumentation in all packages, Grafana dashboard)
 Phase 7:  60 files  (+7: proto, generated code, gRPC server, tests)
 Phase 8:  66 files  (+6: rate limiter, fair queue, config, migration)
 Phase 9:  82 files  (+16: Helm chart templates, Dockerfiles, deploy docs)
-Phase 10 & 11: Planned addition of robust frontend client components and further observability integrations.
-Phase 12: Planned integration of a comprehensive, interactive documentation portal into the frontend.
+Phase 10: 84 files  (+2: observability_hardening doc, alerting rules)
+Phase 11: 98 files  (+14: Next.js dashboard pages, components, hooks, telemetry context)
+Phase 12: 106 files (+8: MDX engine, docs sidebar, TOC, search dialog, mermaid renderer)
+Phase 13: 120 files (+14: auth middleware, body limit, LogSink + S3Sink, smoke tests,
+                         ADR-011, config additions, Helm secret update)
 ```
 
 ---
@@ -1153,6 +1300,11 @@ Key architectural decisions made early that constrain all later phases:
 | 8 | **Three separate binaries** | Independent scaling, fault isolation | Worker scale ≠ Scheduler scale ≠ API scale |
 | 9 | **JSONB for payload** | ML job specs vary wildly | No migration needed when payload shape changes |
 | 10 | **Go 1.22 pattern routing** | Built-in `{id}` path parameters | No third-party router dependency |
+| 11 | **Static API key over JWT** | Zero infra dependencies; rotation is an ops concern | Single env var enables auth; empty string disables it for dev |
+| 12 | **`LogSink` interface with `NilSink` default** | Log shipping must be optional — no S3 credentials in dev | Worker compiles and runs identically with or without object storage |
+| 13 | **`feature/s3/manager` uploader over `PutObject`** | `PutObject` requires known `Content-Length`; `io.Pipe` has none | Logs stream to S3 in real time with no memory buffering |
+| 14 | **Single `executionID` for DB row and S3 key** | Two UUIDs would break the 1:1 audit trail | `job_executions.id` is always the suffix of `logs_ref` S3 path |
+| 15 | **Build binaries before smoke test, kill by path** | `go run` spawns a child that outlives the wrapper; `pkill` misses it | Smoke test cleanup is reliable; ports are always free on next run |
 
 ---
 
@@ -1169,4 +1321,5 @@ Key architectural decisions made early that constrain all later phases:
 | `docs/phases/phase-10/OBSERVABILITY_HARDENING.md` | Phase 10 observability hardening plans |
 | `docs/phases/phase-11/FRONTEND_COMPLETION.md` | Phase 11 interactive UI features |
 | `docs/phases/phase-12/DOCS_INTEGRATION.md` | Phase 12 documentation portal |
-| **This file** | Complete project roadmap, spanning all 12 phases |
+| `docs/phases/phase-13/PHASE_13_OVERVIEW.md` | Phase 13 production-hardening overview |
+| **This file** | Complete project roadmap, spanning all 13 phases |
