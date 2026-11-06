@@ -176,7 +176,7 @@ NilSink (default, no config):
 | `internal/worker/k8s/executor.go` | **Modify** | After job completion, stream pod logs and return as `io.ReadCloser` |
 | `internal/config/config.go` | **Modify** | Add `LogStorage` config section |
 | `cmd/worker/main.go` | **Modify** | Construct `LogSink` from config; pass to `NewPool` |
-| `go.mod` | **Modify** | Add `github.com/aws/aws-sdk-go-v2` dependencies |
+| `go.mod` | **Modify** | Add `github.com/aws/aws-sdk-go-v2`, `github.com/aws/aws-sdk-go-v2/service/s3`, and `github.com/aws/aws-sdk-go-v2/feature/s3/manager` dependencies |
 | `docs/adr/ADR-011-execution-log-storage.md` | **Create** | Document the design decision |
 
 ---
@@ -228,6 +228,7 @@ import (
     "time"
 
     "github.com/aws/aws-sdk-go-v2/aws"
+    "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
     "github.com/aws/aws-sdk-go-v2/service/s3"
     "github.com/google/uuid"
 )
@@ -235,22 +236,34 @@ import (
 // S3Sink uploads execution logs to an S3-compatible bucket.
 // Works with AWS S3, MinIO, Cloudflare R2, and any S3-compatible endpoint.
 type S3Sink struct {
-    client *s3.Client
-    bucket string
+    uploader *manager.Uploader
+    bucket   string
 }
 
 // NewS3Sink creates an S3Sink. cfg is an aws.Config produced by
 // config.LoadDefaultConfig or manually constructed with a custom Endpoint
 // resolver for MinIO.
+//
+// We use manager.NewUploader (from feature/s3/manager) rather than
+// s3.Client.PutObject directly. PutObject requires a known Content-Length
+// upfront; when the body comes from an io.Pipe the length is unknown until
+// the entire log has been produced. The S3 upload manager uses multipart
+// upload internally, which allows streaming of arbitrary-length bodies
+// without buffering the entire content in memory first.
 func NewS3Sink(cfg aws.Config, bucket string) *S3Sink {
     return &S3Sink{
-        client: s3.NewFromConfig(cfg),
-        bucket: bucket,
+        uploader: manager.NewUploader(s3.NewFromConfig(cfg)),
+        bucket:   bucket,
     }
 }
 
 // Upload streams r to S3 at:
 //   s3://<bucket>/<year>/<month>/<day>/<jobID>/<executionID>.log
+//
+// The upload manager reads r in chunks (default 5 MiB parts) and uploads
+// them as a multipart upload. No Content-Length is required; the stream is
+// consumed until EOF. For logs smaller than 5 MiB (the minimum part size),
+// the manager falls back to a single PutObject call automatically.
 func (s *S3Sink) Upload(ctx context.Context, jobID, executionID uuid.UUID, r io.Reader) (string, error) {
     now := time.Now().UTC()
     key := fmt.Sprintf("%04d/%02d/%02d/%s/%s.log",
@@ -258,7 +271,7 @@ func (s *S3Sink) Upload(ctx context.Context, jobID, executionID uuid.UUID, r io.
         jobID.String(), executionID.String(),
     )
 
-    _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+    _, err := s.uploader.Upload(ctx, &s3.PutObjectInput{
         Bucket:      aws.String(s.bucket),
         Key:         aws.String(key),
         Body:        r,
@@ -276,65 +289,56 @@ func (s *S3Sink) Upload(ctx context.Context, jobID, executionID uuid.UUID, r io.
 
 Add `logSink logs.LogSink` to the `Pool` struct. Default to `logs.NilSink{}`.
 
-In `executeJob`, after `executor.Execute` returns:
+In `executeJob`, generate a single `executionID` at the top of the function
+and use it for **both** the S3 object key and `domain.JobExecution.ID`. This
+guarantees a 1:1 correlation between the database record and the S3 object —
+you can always reconstruct the S3 key from the execution ID stored in the DB,
+and vice versa.
 
 ```go
-// Capture logs regardless of success or failure.
-// logReader is non-nil only if the executor produced a readable log stream.
-var logsRef string
-if logReader != nil {
-    execID := uuid.New()
-    if uri, err := p.logSink.Upload(ctx, job.ID, execID, logReader); err != nil {
-        logger.Warn("log upload failed", "err", err)
-    } else {
-        logsRef = uri
-    }
-}
+// Generate the execution ID once at the top of executeJob.
+// It is used as the primary key in domain.JobExecution AND as the
+// filename component of the S3 log path, keeping them 1:1 correlated.
+executionID := uuid.New()
 
-// RecordExecution (success or failure path) now passes logsRef
-_ = p.store.RecordExecution(ctx, &domain.JobExecution{
-    // ... existing fields ...
-    LogsRef: logsRef,
-})
-```
+// ... existing MarkJobRunning call ...
 
-The `Executor` interface gains an optional `Logs() io.ReadCloser` pattern:
-
-```go
-// ExecutorResult is returned by Execute. LogReader is nil if the executor
-// does not produce a separate log stream (e.g., inline where logs go to
-// worker stdout).
-type ExecutorResult struct {
-    LogReader io.ReadCloser // nil = no separate log stream
-}
-```
-
-Alternatively (simpler, no interface change): both executors accept a
-`logWriter io.Writer` passed by the pool, write their logs there, and the pool
-pipes the other end to `LogSink.Upload` via `io.Pipe`. This is the preferred
-approach because it avoids changing the `Executor` interface.
-
-```go
-// In executeJob:
+// Set up the log pipe before Execute so the upload runs concurrently
+// with job execution, streaming logs in real time rather than buffering.
 pr, pw := io.Pipe()
 
-// Upload runs concurrently with execution so logs stream in real time.
 var logsRef string
 var uploadWg sync.WaitGroup
 uploadWg.Add(1)
 go func() {
     defer uploadWg.Done()
-    execID := uuid.New()
-    uri, err := p.logSink.Upload(ctx, job.ID, execID, pr)
+    // executionID is the same value used in RecordExecution below,
+    // so s3://bucket/year/month/day/<jobID>/<executionID>.log maps
+    // exactly to the job_executions row with id = executionID.
+    uri, err := p.logSink.Upload(ctx, job.ID, executionID, pr)
     if err != nil {
-        logger.Warn("log upload failed", "err", err)
+        logger.Warn("log upload failed, execution log will be unavailable", "err", err)
     }
     logsRef = uri
 }()
 
-err = executor.Execute(execCtx, job, pw) // pw is the new logWriter parameter
-pw.CloseWithError(err)                   // signal EOF or error to the reader
-uploadWg.Wait()                          // wait for upload to finish
+err = executor.Execute(execCtx, job, pw) // pw is the logWriter parameter
+pw.CloseWithError(err)                   // signals EOF (or error) to the upload goroutine
+uploadWg.Wait()                          // wait for upload to finish before recording
+
+// RecordExecution uses the same executionID for the primary key.
+// logsRef is "" if the NilSink is configured or if upload failed.
+_ = p.store.RecordExecution(ctx, &domain.JobExecution{
+    ID:         executionID,    // ← same UUID used in the S3 path
+    JobID:      job.ID,
+    Attempt:    job.Attempt + 1,
+    WorkerID:   p.cfg.WorkerID,
+    Status:     finalStatus,
+    StartedAt:  &startedAt,
+    FinishedAt: &finishedAt,
+    LogsRef:    logsRef,        // "s3://bucket/.../executionID.log" or ""
+    Error:      errMsg,
+})
 ```
 
 ### 6.4 `internal/worker/inline.go` — write to `logWriter`

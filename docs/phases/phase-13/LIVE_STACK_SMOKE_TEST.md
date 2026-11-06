@@ -215,27 +215,45 @@ smoke-test: ## Run end-to-end smoke test against live Docker Compose stack
 	@until docker compose exec -T redis redis-cli ping | grep -q PONG; do sleep 1; done
 	@$(MAKE) migrate-up
 	@echo ""
+	@echo "=== Building Orion binaries ==="
+	@$(MAKE) build
+	@echo ""
 	@echo "=== Starting Orion services ==="
 	@echo "Starting API server..."
-	@ORION_ENV=development go run ./cmd/api &
+	@ORION_ENV=development $(BUILD)/orion-api &
 	@echo "Starting scheduler..."
-	@ORION_ENV=development go run ./cmd/scheduler &
+	@ORION_ENV=development $(BUILD)/orion-scheduler &
 	@echo "Starting worker..."
-	@ORION_ENV=development go run ./cmd/worker &
+	@ORION_ENV=development $(BUILD)/orion-worker &
 	@echo "Waiting 10 seconds for services to initialize..."
 	@sleep 10
 	@echo ""
 	@echo "=== Running smoke tests ==="
 	@go test ./tests/e2e/... -tags=e2e -run TestSmoke -v -timeout 180s; \
 	  STATUS=$$?; \
-	  pkill -f "go run ./cmd/api" 2>/dev/null || true; \
-	  pkill -f "go run ./cmd/scheduler" 2>/dev/null || true; \
-	  pkill -f "go run ./cmd/worker" 2>/dev/null || true; \
+	  pkill -f "$(BUILD)/orion-api" 2>/dev/null || true; \
+	  pkill -f "$(BUILD)/orion-scheduler" 2>/dev/null || true; \
+	  pkill -f "$(BUILD)/orion-worker" 2>/dev/null || true; \
 	  exit $$STATUS
 ```
 
-The `pkill` cleanup runs even if the tests fail (via the `;` separator and
-explicit exit status preservation).
+**Why build first instead of `go run ./cmd/...`**
+
+`go run ./cmd/api &` compiles a temporary binary in `/tmp/go-build...` and
+executes it as a child process. The process tree looks like:
+
+```
+make → go run (compiler) → /tmp/go-build.../exe/api (actual server)
+```
+
+When you `pkill -f "go run ./cmd/api"`, only the `go run` wrapper is killed.
+The compiled child binary is orphaned and continues listening on `:8080`.
+The next `smoke-test` run fails with "address already in use".
+
+Building first with `make build` and running `./build/orion-api &` directly
+means the process is the binary itself. `pkill -f "build/orion-api"` kills it
+exactly, leaving no orphaned children. The `STATUS` variable preserves the
+test exit code so `make smoke-test` correctly fails CI when tests fail.
 
 ---
 
@@ -506,14 +524,15 @@ make smoke-test
 # Terminal 1: start infrastructure
 make infra-up && make migrate-up
 
-# Terminal 2: API server
-ORION_API_KEY=test-token make run-api
+# Terminal 2: build then start API server
+make build
+ORION_API_KEY=test-token ./build/orion-api
 
 # Terminal 3: scheduler
-ORION_API_KEY=test-token make run-scheduler
+ORION_API_KEY=test-token ./build/orion-scheduler
 
 # Terminal 4: worker
-ORION_API_KEY=test-token make run-worker
+ORION_API_KEY=test-token ./build/orion-worker
 
 # Terminal 5: run smoke tests
 ORION_API_KEY=test-token \
