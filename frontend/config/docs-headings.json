@@ -4825,5 +4825,560 @@
       "text": "Completion Criteria",
       "level": 2
     }
+  ],
+  "phases/13-production-hardening": [
+    {
+      "id": "what-phase-13-is",
+      "text": "What Phase 13 is",
+      "level": 2
+    },
+    {
+      "id": "the-four-items",
+      "text": "The four items",
+      "level": 2
+    },
+    {
+      "id": "1-authentication-authorization",
+      "text": "1. Authentication & Authorization",
+      "level": 3
+    },
+    {
+      "id": "2-http-request-body-size-limit",
+      "text": "2. HTTP Request Body Size Limit",
+      "level": 3
+    },
+    {
+      "id": "3-execution-log-shipping",
+      "text": "3. Execution Log Shipping",
+      "level": 3
+    },
+    {
+      "id": "4-live-stack-smoke-test",
+      "text": "4. Live Stack Smoke Test",
+      "level": 3
+    },
+    {
+      "id": "recommended-implementation-order",
+      "text": "Recommended implementation order",
+      "level": 2
+    },
+    {
+      "id": "dependency-map",
+      "text": "Dependency map",
+      "level": 2
+    },
+    {
+      "id": "what-phase-13-does-not-include",
+      "text": "What Phase 13 does NOT include",
+      "level": 2
+    },
+    {
+      "id": "completion-checklist",
+      "text": "Completion checklist",
+      "level": 2
+    }
+  ],
+  "phases/13-production-hardening/authentication": [
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-problem-statement",
+      "text": "1. Problem statement",
+      "level": 2
+    },
+    {
+      "id": "2-design-decisions",
+      "text": "2. Design decisions",
+      "level": 2
+    },
+    {
+      "id": "why-a-static-api-key-rather-than-jwt",
+      "text": "Why a static API key rather than JWT",
+      "level": 3
+    },
+    {
+      "id": "why-bearer-token-in-authorization-header",
+      "text": "Why Bearer token in Authorization header",
+      "level": 3
+    },
+    {
+      "id": "why-not-mtls-at-this-phase",
+      "text": "Why not mTLS at this phase",
+      "level": 3
+    },
+    {
+      "id": "3-architecture",
+      "text": "3. Architecture",
+      "level": 2
+    },
+    {
+      "id": "4-files-to-create-or-modify",
+      "text": "4. Files to create or modify",
+      "level": 2
+    },
+    {
+      "id": "5-implementation-plan",
+      "text": "5. Implementation plan",
+      "level": 2
+    },
+    {
+      "id": "5-1-internal-api-handler-auth-go",
+      "text": "5.1 internal/api/handler/auth.go",
+      "level": 3
+    },
+    {
+      "id": "5-2-internal-config-config-go-add-apikey",
+      "text": "5.2 internal/config/config.go — add APIKey",
+      "level": 3
+    },
+    {
+      "id": "5-3-cmd-api-main-go-wire-both-layers",
+      "text": "5.3 cmd/api/main.go — wire both layers",
+      "level": 3
+    },
+    {
+      "id": "6-configuration",
+      "text": "6. Configuration",
+      "level": 2
+    },
+    {
+      "id": "environment-variable",
+      "text": "Environment variable",
+      "level": 3
+    },
+    {
+      "id": "env-example-addition",
+      "text": ".env.example addition",
+      "level": 3
+    },
+    {
+      "id": "helm-values",
+      "text": "Helm values",
+      "level": 3
+    },
+    {
+      "id": "generating-a-key",
+      "text": "Generating a key",
+      "level": 3
+    },
+    {
+      "id": "7-exempt-paths",
+      "text": "7. Exempt paths",
+      "level": 2
+    },
+    {
+      "id": "8-grpc-authentication",
+      "text": "8. gRPC authentication",
+      "level": 2
+    },
+    {
+      "id": "9-tests",
+      "text": "9. Tests",
+      "level": 2
+    },
+    {
+      "id": "internal-api-handler-authtest-go",
+      "text": "internal/api/handler/authtest.go",
+      "level": 3
+    },
+    {
+      "id": "grpc-interceptor-tests",
+      "text": "gRPC interceptor tests",
+      "level": 3
+    },
+    {
+      "id": "10-how-to-verify",
+      "text": "10. How to verify",
+      "level": 2
+    },
+    {
+      "id": "11-future-extensions",
+      "text": "11. Future extensions",
+      "level": 2
+    }
+  ],
+  "phases/13-production-hardening/body-size-limit": [
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-problem-statement",
+      "text": "1. Problem statement",
+      "level": 2
+    },
+    {
+      "id": "2-why-this-matters-for-orion-specifically",
+      "text": "2. Why this matters for Orion specifically",
+      "level": 2
+    },
+    {
+      "id": "3-how-http-maxbytesreader-works",
+      "text": "3. How http.MaxBytesReader works",
+      "level": 2
+    },
+    {
+      "id": "4-files-to-create-or-modify",
+      "text": "4. Files to create or modify",
+      "level": 2
+    },
+    {
+      "id": "5-implementation-plan",
+      "text": "5. Implementation plan",
+      "level": 2
+    },
+    {
+      "id": "5-1-internal-api-handler-middleware-go-add-maxbodysizemiddleware",
+      "text": "5.1 internal/api/handler/middleware.go — add MaxBodySizeMiddleware",
+      "level": 3
+    },
+    {
+      "id": "5-2-internal-config-config-go-add-the-field",
+      "text": "5.2 internal/config/config.go — add the field",
+      "level": 3
+    },
+    {
+      "id": "5-3-cmd-api-main-go-wire-into-the-middleware-chain",
+      "text": "5.3 cmd/api/main.go — wire into the middleware chain",
+      "level": 3
+    },
+    {
+      "id": "5-4-grpc-maxrecvmsgsize",
+      "text": "5.4 gRPC: MaxRecvMsgSize",
+      "level": 3
+    },
+    {
+      "id": "6-configuration",
+      "text": "6. Configuration",
+      "level": 2
+    },
+    {
+      "id": "environment-variable",
+      "text": "Environment variable",
+      "level": 3
+    },
+    {
+      "id": "env-example-addition",
+      "text": ".env.example addition",
+      "level": 3
+    },
+    {
+      "id": "choosing-the-right-limit",
+      "text": "Choosing the right limit",
+      "level": 3
+    },
+    {
+      "id": "7-error-response",
+      "text": "7. Error response",
+      "level": 2
+    },
+    {
+      "id": "8-tests",
+      "text": "8. Tests",
+      "level": 2
+    },
+    {
+      "id": "9-how-to-verify",
+      "text": "9. How to verify",
+      "level": 2
+    },
+    {
+      "id": "10-what-this-does-not-protect-against",
+      "text": "10. What this does not protect against",
+      "level": 2
+    }
+  ],
+  "phases/13-production-hardening/execution-logs": [
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-problem-statement",
+      "text": "1. Problem statement",
+      "level": 2
+    },
+    {
+      "id": "2-what-already-exists",
+      "text": "2. What already exists",
+      "level": 2
+    },
+    {
+      "id": "3-design-decisions",
+      "text": "3. Design decisions",
+      "level": 2
+    },
+    {
+      "id": "streaming-upload-not-buffered",
+      "text": "Streaming upload, not buffered",
+      "level": 3
+    },
+    {
+      "id": "where-the-logsink-interface-lives",
+      "text": "Where the LogSink interface lives",
+      "level": 3
+    },
+    {
+      "id": "provider-abstraction",
+      "text": "Provider abstraction",
+      "level": 3
+    },
+    {
+      "id": "log-uri-format",
+      "text": "Log URI format",
+      "level": 3
+    },
+    {
+      "id": "no-log-streaming-to-the-api",
+      "text": "No log streaming to the API",
+      "level": 3
+    },
+    {
+      "id": "4-architecture",
+      "text": "4. Architecture",
+      "level": 2
+    },
+    {
+      "id": "5-files-to-create-or-modify",
+      "text": "5. Files to create or modify",
+      "level": 2
+    },
+    {
+      "id": "6-implementation-plan",
+      "text": "6. Implementation plan",
+      "level": 2
+    },
+    {
+      "id": "6-1-internal-worker-logs-sink-go",
+      "text": "6.1 internal/worker/logs/sink.go",
+      "level": 3
+    },
+    {
+      "id": "6-2-internal-worker-logs-s3sink-go",
+      "text": "6.2 internal/worker/logs/s3sink.go",
+      "level": 3
+    },
+    {
+      "id": "6-3-internal-worker-pool-go-accept-logsink-call-upload",
+      "text": "6.3 internal/worker/pool.go — accept LogSink, call Upload",
+      "level": 3
+    },
+    {
+      "id": "6-4-internal-worker-inline-go-write-to-logwriter",
+      "text": "6.4 internal/worker/inline.go — write to logWriter",
+      "level": 3
+    },
+    {
+      "id": "6-5-internal-worker-k8s-executor-go-stream-pod-logs",
+      "text": "6.5 internal/worker/k8s/executor.go — stream pod logs",
+      "level": 3
+    },
+    {
+      "id": "7-configuration",
+      "text": "7. Configuration",
+      "level": 2
+    },
+    {
+      "id": "config-struct-addition",
+      "text": "Config struct addition",
+      "level": 3
+    },
+    {
+      "id": "environment-variables",
+      "text": "Environment variables",
+      "level": 3
+    },
+    {
+      "id": "env-example-addition",
+      "text": ".env.example addition",
+      "level": 3
+    },
+    {
+      "id": "helm-values-addition",
+      "text": "Helm values addition",
+      "level": 3
+    },
+    {
+      "id": "8-logsink-interface",
+      "text": "8. LogSink interface",
+      "level": 2
+    },
+    {
+      "id": "9-inline-executor-log-capture",
+      "text": "9. Inline executor log capture",
+      "level": 2
+    },
+    {
+      "id": "10-kubernetes-executor-log-capture",
+      "text": "10. Kubernetes executor log capture",
+      "level": 2
+    },
+    {
+      "id": "11-database-wiring",
+      "text": "11. Database wiring",
+      "level": 2
+    },
+    {
+      "id": "12-tests",
+      "text": "12. Tests",
+      "level": 2
+    },
+    {
+      "id": "internal-worker-logs-sinktest-go",
+      "text": "internal/worker/logs/sinktest.go",
+      "level": 3
+    },
+    {
+      "id": "internal-worker-pooltest-go-additions",
+      "text": "internal/worker/pooltest.go additions",
+      "level": 3
+    },
+    {
+      "id": "13-how-to-verify",
+      "text": "13. How to verify",
+      "level": 2
+    },
+    {
+      "id": "with-minio-local-s3-compatible",
+      "text": "With MinIO (local S3-compatible)",
+      "level": 3
+    },
+    {
+      "id": "14-adr-reference",
+      "text": "14. ADR reference",
+      "level": 2
+    }
+  ],
+  "phases/13-production-hardening/smoke-test": [
+    {
+      "id": "table-of-contents",
+      "text": "Table of Contents",
+      "level": 2
+    },
+    {
+      "id": "1-problem-statement",
+      "text": "1. Problem statement",
+      "level": 2
+    },
+    {
+      "id": "2-what-the-smoke-test-covers",
+      "text": "2. What the smoke test covers",
+      "level": 2
+    },
+    {
+      "id": "3-difference-from-the-existing-integration-test",
+      "text": "3. Difference from the existing integration test",
+      "level": 2
+    },
+    {
+      "id": "4-files-to-create-or-modify",
+      "text": "4. Files to create or modify",
+      "level": 2
+    },
+    {
+      "id": "5-test-structure",
+      "text": "5. Test structure",
+      "level": 2
+    },
+    {
+      "id": "build-tag",
+      "text": "Build tag",
+      "level": 3
+    },
+    {
+      "id": "config-constants",
+      "text": "Config constants",
+      "level": 3
+    },
+    {
+      "id": "6-makefile-target",
+      "text": "6. Makefile target",
+      "level": 2
+    },
+    {
+      "id": "smoke-test",
+      "text": "─── Smoke Test ──────────────────────────────────────────────────────────────",
+      "level": 2
+    },
+    {
+      "id": "7-individual-test-cases",
+      "text": "7. Individual test cases",
+      "level": 2
+    },
+    {
+      "id": "testsmokeinfrastructurehealth",
+      "text": "TestSmokeInfrastructureHealth",
+      "level": 3
+    },
+    {
+      "id": "testsmokeinlinejoblifecycle",
+      "text": "TestSmokeInlineJobLifecycle",
+      "level": 3
+    },
+    {
+      "id": "testsmokepipelinelifecycle",
+      "text": "TestSmokePipelineLifecycle",
+      "level": 3
+    },
+    {
+      "id": "testsmokeauthentication-runs-only-if-orionapikey-is-set",
+      "text": "TestSmokeAuthentication (runs only if ORIONAPIKEY is set)",
+      "level": 3
+    },
+    {
+      "id": "8-prometheus-assertion",
+      "text": "8. Prometheus assertion",
+      "level": 2
+    },
+    {
+      "id": "9-jaeger-assertion",
+      "text": "9. Jaeger assertion",
+      "level": 2
+    },
+    {
+      "id": "10-dashboard-assertion",
+      "text": "10. Dashboard assertion",
+      "level": 2
+    },
+    {
+      "id": "11-running-the-smoke-test",
+      "text": "11. Running the smoke test",
+      "level": 2
+    },
+    {
+      "id": "option-a-fully-automated-recommended",
+      "text": "Option A: fully automated (recommended)",
+      "level": 3
+    },
+    {
+      "id": "option-b-manual-useful-for-debugging-individual-test-cases",
+      "text": "Option B: manual (useful for debugging individual test cases)",
+      "level": 3
+    },
+    {
+      "id": "option-c-run-a-single-test-case",
+      "text": "Option C: run a single test case",
+      "level": 3
+    },
+    {
+      "id": "expected-output",
+      "text": "Expected output",
+      "level": 3
+    },
+    {
+      "id": "12-ci-integration",
+      "text": "12. CI integration",
+      "level": 2
+    },
+    {
+      "id": "13-extending-the-smoke-test",
+      "text": "13. Extending the smoke test",
+      "level": 2
+    }
   ]
 }

@@ -39,5 +39,10 @@
   { "slug": "phases/9-helm-deployment/implementation", "file": "phases/phase-09/PHASE_09_IMPLEMENTATION.md", "title": "Implementation Record", "section": "Implementation Phases", "parent": "phases/9-helm-deployment" },
   { "slug": "phases/10-observability-hardening", "file": "phases/phase-10/OBSERVABILITY_HARDENING.md", "title": "Phase 10: Observability Hardening", "section": "Implementation Phases" },
   { "slug": "phases/11-frontend-completion", "file": "phases/phase-11/FRONTEND_COMPLETION.md", "title": "Phase 11: Frontend Completion", "section": "Implementation Phases" },
-  { "slug": "phases/12-docs-integration", "file": "phases/phase-12/DOCS_INTEGRATION.md", "title": "Phase 12: Documentation Portal", "section": "Implementation Phases" }
+  { "slug": "phases/12-docs-integration", "file": "phases/phase-12/DOCS_INTEGRATION.md", "title": "Phase 12: Documentation Portal", "section": "Implementation Phases" },
+  { "slug": "phases/13-production-hardening", "file": "phases/phase-13/PHASE_13_OVERVIEW.md", "title": "Phase 13: Production Hardening", "section": "Implementation Phases" },
+  { "slug": "phases/13-production-hardening/authentication", "file": "phases/phase-13/AUTHENTICATION_AND_AUTHORIZATION.md", "title": "Authentication & Authorization", "section": "Implementation Phases", "parent": "phases/13-production-hardening" },
+  { "slug": "phases/13-production-hardening/body-size-limit", "file": "phases/phase-13/HTTP_BODY_SIZE_LIMIT.md", "title": "HTTP Body Size Limit", "section": "Implementation Phases", "parent": "phases/13-production-hardening" },
+  { "slug": "phases/13-production-hardening/execution-logs", "file": "phases/phase-13/EXECUTION_LOG_SHIPPING.md", "title": "Execution Log Shipping", "section": "Implementation Phases", "parent": "phases/13-production-hardening" },
+  { "slug": "phases/13-production-hardening/smoke-test", "file": "phases/phase-13/LIVE_STACK_SMOKE_TEST.md", "title": "Live Stack Smoke Test", "section": "Implementation Phases", "parent": "phases/13-production-hardening" }
 ]
