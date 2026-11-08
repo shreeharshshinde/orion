@@ -171,6 +171,14 @@ observability:
     additionalLabels: {}
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Authentication (Phase 13)
+# ─────────────────────────────────────────────────────────────────────────────
+auth:
+  # apiKey is the shared Bearer token required on all API requests.
+  # Empty string disables auth (not recommended for production).
+  apiKey: ""
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Kubernetes job namespace (for Phase 4 GPU pods)
 # ─────────────────────────────────────────────────────────────────────────────
 jobNamespace:
