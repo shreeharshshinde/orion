@@ -136,6 +136,14 @@ func main() {
 
 	grpcSrv := grpc.NewServer(
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		// Phase 13: Bearer token authentication on all unary and streaming RPCs.
+		// When cfg.Service.APIKey is empty, interceptors are no-ops.
+		grpc.ChainUnaryInterceptor(
+			handler.AuthUnaryInterceptor(cfg.Service.APIKey),
+		),
+		grpc.ChainStreamInterceptor(
+			handler.AuthStreamInterceptor(cfg.Service.APIKey),
+		),
 	)
 	grpcserver.RegisterGRPCServer(grpcSrv, grpcserver.NewServer(instrumentedStore, broadcaster, logger))
 
@@ -202,9 +210,21 @@ func main() {
 		_, _ = w.Write([]byte(`{"status":"ready"}`))
 	})
 
-	// ── 9. Observability middleware [Phase 6] ─────────────────────────────────
+	// ── 9. Observability + Auth middleware chain [Phase 6 / Phase 13] ────────
+	// Order (outermost → innermost):
+	//   TracingMiddleware   – creates the root OTel span covering the full request
+	//   AuthMiddleware      – validates Bearer token; returns 401 before any work
+	//   MetricsMiddleware   – records HTTP counters/histograms for authenticated requests
+	//   mux                 – routes to the appropriate handler
+	//
+	// Auth is placed inside TracingMiddleware so that failed auth attempts appear
+	// in Jaeger with their 401 status codes, making auth issues visible in traces.
+	// Auth is placed before MetricsMiddleware so the 401 counter is correctly
+	// attributed to the auth rejection rather than a handler path.
 	instrumentedHandler := handler.TracingMiddleware(
-		handler.MetricsMiddleware(metrics, mux),
+		handler.AuthMiddleware(cfg.Service.APIKey,
+			handler.MetricsMiddleware(metrics, mux),
+		),
 	)
 
 	// ── 10. HTTP server ───────────────────────────────────────────────────────
