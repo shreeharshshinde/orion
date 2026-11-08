@@ -28,6 +28,10 @@ type ServiceConfig struct {
 	LogLevel    string
 	HTTPPort    int
 	GRPCPort    int
+	// APIKey is the shared Bearer token required on all HTTP and gRPC requests.
+	// Set via ORION_API_KEY environment variable.
+	// Empty string disables authentication entirely (safe for local development).
+	APIKey string
 }
 
 type DatabaseConfig struct {
@@ -115,6 +119,9 @@ func Load() (*Config, error) {
 			LogLevel:    getEnv("ORION_LOG_LEVEL", "info"),
 			HTTPPort:    getEnvInt("ORION_HTTP_PORT", 8080),
 			GRPCPort:    getEnvInt("ORION_GRPC_PORT", 9090),
+			// APIKey is intentionally empty by default so local dev requires
+			// no configuration. Set ORION_API_KEY in production environments.
+			APIKey: getEnv("ORION_API_KEY", ""),
 		},
 		Database: DatabaseConfig{
 			DSN:             getEnv("ORION_DATABASE_DSN", "postgres://orion:orion@localhost:5432/orion?sslmode=disable"),
