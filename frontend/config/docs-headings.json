@@ -4885,6 +4885,21 @@
       "level": 2
     },
     {
+      "id": "0-what-was-implemented",
+      "text": "0. What was implemented",
+      "level": 2
+    },
+    {
+      "id": "files-created-modified",
+      "text": "Files created / modified",
+      "level": 3
+    },
+    {
+      "id": "security-additions-beyond-the-original-plan",
+      "text": "Security additions beyond the original plan",
+      "level": 3
+    },
+    {
       "id": "1-problem-statement",
       "text": "1. Problem statement",
       "level": 2
