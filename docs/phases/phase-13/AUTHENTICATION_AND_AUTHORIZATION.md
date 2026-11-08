@@ -1,25 +1,61 @@
 # Phase 13 — Authentication & Authorization
 
-> **Status:** Planned  
+> **Status:** ✅ Complete  
 > **Priority:** Critical — implement before any public or shared deployment  
-> **Estimated effort:** 3–4 hours  
+> **Completed:** 2026-11-08  
 > **Depends on:** Nothing (can be done in isolation)
 
 ---
 
 ## Table of Contents
 
-1. [Problem statement](#1-problem-statement)
-2. [Design decisions](#2-design-decisions)
-3. [Architecture](#3-architecture)
-4. [Files to create or modify](#4-files-to-create-or-modify)
-5. [Implementation plan](#5-implementation-plan)
-6. [Configuration](#6-configuration)
-7. [Exempt paths](#7-exempt-paths)
-8. [gRPC authentication](#8-grpc-authentication)
-9. [Tests](#9-tests)
-10. [How to verify](#10-how-to-verify)
-11. [Future extensions](#11-future-extensions)
+1. [What was implemented](#0-what-was-implemented)
+2. [Problem statement](#1-problem-statement)
+3. [Design decisions](#2-design-decisions)
+4. [Architecture](#3-architecture)
+5. [Files to create or modify](#4-files-to-create-or-modify)
+6. [Implementation plan](#5-implementation-plan)
+7. [Configuration](#6-configuration)
+8. [Exempt paths](#7-exempt-paths)
+9. [gRPC authentication](#8-grpc-authentication)
+10. [Tests](#9-tests)
+11. [How to verify](#10-how-to-verify)
+12. [Future extensions](#11-future-extensions)
+
+---
+
+## 0. What was implemented
+
+### Files created / modified
+
+| File | Change |
+|---|---|
+| `internal/api/handler/auth.go` | `AuthMiddleware`, `AuthUnaryInterceptor`, `AuthStreamInterceptor`, `validateGRPCToken` |
+| `internal/api/handler/auth_test.go` | 13 table-driven test cases covering all pass/fail paths |
+| `internal/config/config.go` | Added `APIKey string` to `ServiceConfig`; wired from `ORION_API_KEY` env var |
+| `cmd/api/main.go` | Wired `AuthMiddleware` into the HTTP chain; added `AuthUnaryInterceptor` and `AuthStreamInterceptor` to gRPC server |
+
+### Security additions beyond the original plan
+
+Three changes were made over the initial design for correctness and production safety:
+
+**1. Constant-time token comparison (`crypto/subtle`)**  
+The original design used `!=` string equality. Replaced with
+`crypto/subtle.ConstantTimeCompare` in both `AuthMiddleware` and
+`validateGRPCToken`. Without this, a timing-oracle attack can recover the
+secret byte-by-byte by measuring response latency differences.
+
+**2. CORS preflight exemption**  
+`OPTIONS` requests are exempt from token validation. Browsers issue a preflight
+`OPTIONS` request without `Authorization` headers before every cross-origin
+request. Without this exemption, the frontend dashboard would receive 401 on
+every page load in a cross-origin deployment.
+
+**3. `WWW-Authenticate` response header**  
+401 responses include `WWW-Authenticate: Bearer realm="orion"` as required by
+RFC 7235 §4.1. Without this header, HTTP clients and some SDKs treat the 401
+as a generic server error rather than an authentication challenge, making
+debugging much harder.
 
 ---
 

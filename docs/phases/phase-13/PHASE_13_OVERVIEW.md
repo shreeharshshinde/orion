@@ -188,15 +188,15 @@ infrastructure layer, not in Orion itself.
 
 ```
 Authentication & Authorization
-  □ internal/api/handler/auth.go created
-  □ HTTP middleware validates Bearer token
-  □ gRPC UnaryInterceptor validates Bearer token
-  □ gRPC StreamInterceptor validates Bearer token
-  □ /healthz, /readyz, /metrics are exempt
-  □ Empty ORION_API_KEY disables auth (local dev unchanged)
-  □ auth_test.go: all pass/fail cases covered
-  □ Helm secret includes ORION_API_KEY
-  □ .env.example documents ORION_API_KEY
+  ☑ internal/api/handler/auth.go created
+  ☑ HTTP middleware validates Bearer token
+  ☑ gRPC UnaryInterceptor validates Bearer token
+  ☑ gRPC StreamInterceptor validates Bearer token
+  ☑ /healthz, /readyz, /metrics are exempt
+  ☑ Empty ORION_API_KEY disables auth (local dev unchanged)
+  ☑ auth_test.go: all pass/fail cases covered
+  ☑ Helm secret includes ORION_API_KEY
+  ☑ .env.example documents ORION_API_KEY
 
 HTTP Body Size Limit
   □ MaxBodySizeMiddleware added to middleware.go
