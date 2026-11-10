@@ -124,7 +124,7 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
                                 )}
                                 onClick={onNavigate}
                               >
-                                <span className="leading-snug whitespace-normal break-words">{child.title}</span>
+                                <span className="leading-snug whitespace-normal break-words">{cleanHeadingTitle(child.title)}</span>
                               </Link>
                             </li>
                           );
