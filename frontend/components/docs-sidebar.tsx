@@ -8,6 +8,10 @@ import { docsNavigation } from "@/config/docs-navigation";
 import { cn } from "@/lib/utils";
 import { DocsSearch } from "./docs-search";
 
+function cleanHeadingTitle(text: string): string {
+  return text.replace(/^\d+[\.\)]\s*/, "").trim();
+}
+
 export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
@@ -93,7 +97,7 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
                               )}
                               onClick={onNavigate}
                             >
-                              <span className="block leading-snug whitespace-normal break-words">{heading.text}</span>
+                              <span className="block leading-snug whitespace-normal break-words">{cleanHeadingTitle(heading.text)}</span>
                             </Link>
                           </li>
                         ))}

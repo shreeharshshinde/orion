@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import type { DocHeading } from "@/lib/docs";
 import { cn } from "@/lib/utils";
 
+function cleanHeadingTitle(text: string): string {
+  return text.replace(/^\d+[\.\)]\s*/, "").trim();
+}
+
 export function TableOfContents({ headings }: { headings: DocHeading[] }) {
   const [activeId, setActiveId] = useState(headings[0]?.id ?? "");
 
@@ -37,7 +41,7 @@ export function TableOfContents({ headings }: { headings: DocHeading[] }) {
               href={`#${heading.id}`}
             >
               {activeId === heading.id && <span className="absolute -left-px inset-y-1.5 w-0.5 rounded-full bg-primary" />}
-              {heading.text}
+              {cleanHeadingTitle(heading.text)}
             </a>
           </li>
         ))}
