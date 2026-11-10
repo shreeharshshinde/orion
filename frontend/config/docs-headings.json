@@ -93,23 +93,28 @@
   ],
   "architecture-details": [
     {
+      "id": "1-system-thesis-component-topology",
+      "text": "1. System Thesis & Component Topology",
+      "level": 2
+    },
+    {
       "id": "system-thesis",
       "text": "System Thesis",
-      "level": 2
+      "level": 3
     },
     {
-      "id": "repository-map",
-      "text": "Repository Map",
-      "level": 2
+      "id": "physical-execution-topology",
+      "text": "Physical Execution Topology",
+      "level": 3
     },
     {
-      "id": "execution-topology",
-      "text": "Execution Topology",
-      "level": 2
+      "id": "repository-source-of-truth-map",
+      "text": "Repository Source-of-Truth Map",
+      "level": 3
     },
     {
-      "id": "request-and-work-flow",
-      "text": "Request And Work Flow",
+      "id": "2-end-to-end-execution-lifecycles",
+      "text": "2. End-to-End Execution Lifecycles",
       "level": 2
     },
     {
@@ -123,374 +128,164 @@
       "level": 3
     },
     {
-      "id": "domain-model",
-      "text": "Domain Model",
+      "id": "cross-process-job-cancellation-flow",
+      "text": "Cross-Process Job Cancellation Flow",
+      "level": 3
+    },
+    {
+      "id": "api-layer-transport-protocols",
+      "text": "API Layer & Transport Protocols",
+      "level": 3
+    },
+    {
+      "id": "3-storage-state-machine-queue-delivery",
+      "text": "3. Storage, State Machine & Queue Delivery",
       "level": 2
     },
     {
-      "id": "jobs",
-      "text": "Jobs",
+      "id": "domain-state-machine-lifecycle-transitions",
+      "text": "Domain State Machine & Lifecycle Transitions",
       "level": 3
     },
     {
-      "id": "workers",
-      "text": "Workers",
+      "id": "persistence-abstractions-store-contracts",
+      "text": "Persistence Abstractions & Store Contracts",
       "level": 3
     },
     {
-      "id": "pipelines-and-dags",
-      "text": "Pipelines And DAGs",
+      "id": "postgresql-implementation-atomic-cas-mechanics",
+      "text": "PostgreSQL Implementation & Atomic CAS Mechanics",
       "level": 3
     },
     {
-      "id": "persistence-layer",
-      "text": "Persistence Layer",
+      "id": "redis-queue-implementation-delivery-engine",
+      "text": "Redis Queue Implementation & Delivery Engine",
+      "level": 3
+    },
+    {
+      "id": "4-execution-engines-dag-pipeline-orchestration",
+      "text": "4. Execution Engines & DAG Pipeline Orchestration",
       "level": 2
     },
     {
-      "id": "interface-boundaries",
-      "text": "Interface Boundaries",
+      "id": "scheduler-engine-control-loop",
+      "text": "Scheduler Engine & Control Loop",
       "level": 3
     },
     {
-      "id": "typed-errors",
-      "text": "Typed Errors",
+      "id": "weighted-fair-queueing-token-bucket-rate-limiting",
+      "text": "Weighted Fair Queueing & Token-Bucket Rate Limiting",
       "level": 3
     },
     {
-      "id": "functional-options",
-      "text": "Functional Options",
+      "id": "pipeline-advancer-multi-stage-dag-workflows",
+      "text": "Pipeline Advancer & Multi-Stage DAG Workflows",
       "level": 3
     },
     {
-      "id": "postgresql-implementation",
-      "text": "PostgreSQL Implementation",
-      "level": 2
-    },
-    {
-      "id": "core-sql-schema",
-      "text": "Core SQL Schema",
+      "id": "bounded-worker-pool-goroutine-backpressure",
+      "text": "Bounded Worker Pool & Goroutine Backpressure",
       "level": 3
     },
     {
-      "id": "idempotent-job-creation",
-      "text": "Idempotent Job Creation",
+      "id": "inline-execution-engine",
+      "text": "Inline Execution Engine",
       "level": 3
     },
     {
-      "id": "compare-and-swap-state-transitions",
-      "text": "Compare-And-Swap State Transitions",
-      "level": 3
-    },
-    {
-      "id": "postgresql-listen-notify",
-      "text": "PostgreSQL LISTEN/NOTIFY",
-      "level": 3
-    },
-    {
-      "id": "claimpendingjobs",
-      "text": "ClaimPendingJobs",
-      "level": 3
-    },
-    {
-      "id": "orphan-reclamation",
-      "text": "Orphan Reclamation",
-      "level": 3
-    },
-    {
-      "id": "execution-audit",
-      "text": "Execution Audit",
-      "level": 3
-    },
-    {
-      "id": "jsonb-payloads",
-      "text": "JSONB Payloads",
-      "level": 3
-    },
-    {
-      "id": "redis-queue-implementation",
-      "text": "Redis Queue Implementation",
-      "level": 2
-    },
-    {
-      "id": "streams-and-consumer-groups",
-      "text": "Streams And Consumer Groups",
-      "level": 3
-    },
-    {
-      "id": "ack-function-semantics",
-      "text": "Ack Function Semantics",
-      "level": 3
-    },
-    {
-      "id": "pel-reclaim",
-      "text": "PEL Reclaim",
-      "level": 3
-    },
-    {
-      "id": "scheduled-jobs",
-      "text": "Scheduled Jobs",
-      "level": 3
-    },
-    {
-      "id": "queue-name-mapping",
-      "text": "Queue Name Mapping",
-      "level": 3
-    },
-    {
-      "id": "scheduler",
-      "text": "Scheduler",
-      "level": 2
-    },
-    {
-      "id": "leader-election",
-      "text": "Leader Election",
-      "level": 3
-    },
-    {
-      "id": "scheduler-tick-work",
-      "text": "Scheduler Tick Work",
-      "level": 3
-    },
-    {
-      "id": "weighted-fair-dispatch",
-      "text": "Weighted Fair Dispatch",
-      "level": 3
-    },
-    {
-      "id": "token-bucket-rate-limiter",
-      "text": "Token Bucket Rate Limiter",
-      "level": 3
-    },
-    {
-      "id": "retry-promotion",
-      "text": "Retry Promotion",
-      "level": 3
-    },
-    {
-      "id": "pipeline-advancer",
-      "text": "Pipeline Advancer",
-      "level": 2
-    },
-    {
-      "id": "worker-pool",
-      "text": "Worker Pool",
-      "level": 2
-    },
-    {
-      "id": "concurrency-shape",
-      "text": "Concurrency Shape",
-      "level": 3
-    },
-    {
-      "id": "shutdown",
-      "text": "Shutdown",
-      "level": 3
-    },
-    {
-      "id": "execution-state-machine",
-      "text": "Execution State Machine",
-      "level": 3
-    },
-    {
-      "id": "retry-accounting",
-      "text": "Retry Accounting",
-      "level": 3
-    },
-    {
-      "id": "inline-executor",
-      "text": "Inline Executor",
-      "level": 2
-    },
-    {
-      "id": "kubernetes-executor",
-      "text": "Kubernetes Executor",
-      "level": 2
-    },
-    {
-      "id": "client-construction",
-      "text": "Client Construction",
-      "level": 3
-    },
-    {
-      "id": "job-translation",
-      "text": "Job Translation",
-      "level": 3
-    },
-    {
-      "id": "watch-with-poll-fallback",
-      "text": "Watch With Poll Fallback",
-      "level": 3
-    },
-    {
-      "id": "cancellation-cleanup",
-      "text": "Cancellation Cleanup",
-      "level": 3
-    },
-    {
-      "id": "cancellation",
-      "text": "Cancellation",
-      "level": 2
-    },
-    {
-      "id": "api-layer",
-      "text": "API Layer",
-      "level": 2
-    },
-    {
-      "id": "rest-handlers",
-      "text": "REST Handlers",
-      "level": 3
-    },
-    {
-      "id": "validation",
-      "text": "Validation",
-      "level": 3
-    },
-    {
-      "id": "grpc",
-      "text": "gRPC",
-      "level": 3
-    },
-    {
-      "id": "broadcaster-pattern",
-      "text": "Broadcaster Pattern",
-      "level": 3
-    },
-    {
-      "id": "observability",
-      "text": "Observability",
-      "level": 2
-    },
-    {
-      "id": "metrics",
-      "text": "Metrics",
-      "level": 3
-    },
-    {
-      "id": "http-middleware",
-      "text": "HTTP Middleware",
-      "level": 3
-    },
-    {
-      "id": "logging",
-      "text": "Logging",
-      "level": 3
-    },
-    {
-      "id": "distributed-systems-principles",
-      "text": "Distributed Systems Principles",
-      "level": 2
-    },
-    {
-      "id": "source-of-truth",
-      "text": "Source Of Truth",
-      "level": 3
-    },
-    {
-      "id": "at-least-once-delivery",
-      "text": "At-Least-Once Delivery",
-      "level": 3
-    },
-    {
-      "id": "idempotency",
-      "text": "Idempotency",
-      "level": 3
-    },
-    {
-      "id": "fault-tolerance",
-      "text": "Fault Tolerance",
-      "level": 3
-    },
-    {
-      "id": "consistency-model",
-      "text": "Consistency Model",
-      "level": 3
-    },
-    {
-      "id": "backpressure",
-      "text": "Backpressure",
+      "id": "kubernetes-batch-job-engine-ml-workloads",
+      "text": "Kubernetes Batch Job Engine & ML Workloads",
       "level": 3
     },
     {
       "id": "kubernetes-concepts-present-and-absent",
       "text": "Kubernetes Concepts Present And Absent",
-      "level": 2
-    },
-    {
-      "id": "deployment-and-security",
-      "text": "Deployment And Security",
-      "level": 2
-    },
-    {
-      "id": "docker-compose",
-      "text": "Docker Compose",
       "level": 3
     },
     {
-      "id": "helm-chart",
-      "text": "Helm Chart",
+      "id": "5-distributed-systems-guarantees-observability",
+      "text": "5. Distributed Systems Guarantees & Observability",
+      "level": 2
+    },
+    {
+      "id": "source-of-truth-consistency-model",
+      "text": "Source Of Truth & Consistency Model",
       "level": 3
     },
     {
-      "id": "rbac",
-      "text": "RBAC",
+      "id": "idempotency-matrix",
+      "text": "Idempotency Matrix",
       "level": 3
     },
     {
-      "id": "network-policy",
-      "text": "Network Policy",
+      "id": "distributed-fault-tolerance-crash-recovery",
+      "text": "Distributed Fault Tolerance & Crash Recovery",
       "level": 3
     },
     {
-      "id": "frontend",
-      "text": "Frontend",
+      "id": "backpressure-architecture",
+      "text": "Backpressure Architecture",
+      "level": 3
+    },
+    {
+      "id": "full-observability-stack",
+      "text": "Full Observability Stack",
+      "level": 3
+    },
+    {
+      "id": "performance-profiling-scaling-characteristics",
+      "text": "Performance Profiling & Scaling Characteristics",
+      "level": 3
+    },
+    {
+      "id": "6-engineering-reference-system-playbook",
+      "text": "6. Engineering Reference & System Playbook",
       "level": 2
     },
     {
-      "id": "algorithms-and-data-structures",
-      "text": "Algorithms And Data Structures",
-      "level": 2
+      "id": "algorithms-data-structures-matrix",
+      "text": "Algorithms & Data Structures Matrix",
+      "level": 3
     },
     {
-      "id": "go-concepts-in-use",
-      "text": "Go Concepts In Use",
-      "level": 2
+      "id": "software-design-patterns-in-orion",
+      "text": "Software Design Patterns in Orion",
+      "level": 3
     },
     {
-      "id": "testing-strategy",
-      "text": "Testing Strategy",
-      "level": 2
+      "id": "advanced-go-concurrency-idioms",
+      "text": "Advanced Go Concurrency & Idioms",
+      "level": 3
     },
     {
-      "id": "performance-and-scaling",
-      "text": "Performance And Scaling",
-      "level": 2
+      "id": "comprehensive-testing-strategy",
+      "text": "Comprehensive Testing Strategy",
+      "level": 3
     },
     {
-      "id": "security-considerations",
-      "text": "Security Considerations",
-      "level": 2
+      "id": "deployment-security-baseline",
+      "text": "Deployment & Security Baseline",
+      "level": 3
     },
     {
-      "id": "design-patterns",
-      "text": "Design Patterns",
-      "level": 2
+      "id": "operational-dashboard-frontend-interface",
+      "text": "Operational Dashboard & Frontend Interface",
+      "level": 3
     },
     {
-      "id": "important-contributor-mental-model",
-      "text": "Important Contributor Mental Model",
-      "level": 2
+      "id": "contributor-mental-model-invariants",
+      "text": "Contributor Mental Model & Invariants",
+      "level": 3
     },
     {
       "id": "file-by-file-concept-index",
       "text": "File-By-File Concept Index",
-      "level": 2
+      "level": 3
     },
     {
       "id": "known-gaps-and-reimplementation-notes",
       "text": "Known Gaps And Reimplementation Notes",
-      "level": 2
+      "level": 3
     }
   ],
   "local-development": [
