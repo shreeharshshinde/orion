@@ -1,6 +1,12 @@
 [
   { "slug": "overview", "file": "architecture/overview.md", "title": "Orion Overview", "description": "How Orion reliably schedules, executes, retries, and observes distributed ML workloads.", "section": "Start Here" },
-  { "slug": "architecture-details", "file": "project_architecture_details.md", "title": "Architecture Deep Dive", "description": "Components, data flows, persistence, queues, and execution internals.", "section": "Start Here" },
+  { "slug": "architecture-details", "file": "architecture-deep-dive/00_overview.md", "title": "Architecture Deep Dive", "description": "Technical architecture of the Orion distributed orchestrator.", "section": "Start Here" },
+  { "slug": "architecture-details/topology", "file": "architecture-deep-dive/01_thesis_and_topology.md", "title": "Thesis & Topology", "section": "Start Here", "parent": "architecture-details" },
+  { "slug": "architecture-details/lifecycles", "file": "architecture-deep-dive/02_execution_lifecycles.md", "title": "Execution Lifecycles", "section": "Start Here", "parent": "architecture-details" },
+  { "slug": "architecture-details/storage-queues", "file": "architecture-deep-dive/03_storage_and_queues.md", "title": "Storage & Queues", "section": "Start Here", "parent": "architecture-details" },
+  { "slug": "architecture-details/engines-dag", "file": "architecture-deep-dive/04_execution_engines_and_dag.md", "title": "Engines & DAGs", "section": "Start Here", "parent": "architecture-details" },
+  { "slug": "architecture-details/distributed-systems", "file": "architecture-deep-dive/05_distributed_systems_and_observability.md", "title": "Distributed Systems & Observability", "section": "Start Here", "parent": "architecture-details" },
+  { "slug": "architecture-details/engineering-reference", "file": "architecture-deep-dive/06_engineering_reference.md", "title": "Engineering Reference", "section": "Start Here", "parent": "architecture-details" },
   { "slug": "local-development", "file": "LOCAL_EXECUTION_AND_END_PRODUCT.md", "title": "Local Development", "description": "Run the complete Orion stack locally and understand the finished system.", "section": "Start Here" },
   { "slug": "concepts/overview", "file": "concepts/overview.md", "title": "System Topology", "section": "Concepts" },
   { "slug": "concepts/domain-model", "file": "concepts/domain-model.md", "title": "Domain Model & DAGs", "section": "Concepts" },

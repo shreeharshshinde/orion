@@ -93,123 +93,333 @@
   ],
   "architecture-details": [
     {
-      "id": "1-system-thesis-component-topology",
-      "text": "1. System Thesis & Component Topology",
+      "id": "core-architecture-sections",
+      "text": "Core Architecture Sections",
       "level": 2
     },
     {
+      "id": "chapter-index",
+      "text": "Chapter Index",
+      "level": 2
+    },
+    {
+      "id": "repository-source-of-truth",
+      "text": "Repository Source-of-Truth",
+      "level": 2
+    }
+  ],
+  "architecture-details/topology": [
+    {
       "id": "system-thesis",
       "text": "System Thesis",
-      "level": 3
+      "level": 2
     },
     {
       "id": "physical-execution-topology",
       "text": "Physical Execution Topology",
-      "level": 3
+      "level": 2
     },
     {
       "id": "repository-source-of-truth-map",
       "text": "Repository Source-of-Truth Map",
-      "level": 3
-    },
-    {
-      "id": "2-end-to-end-execution-lifecycles",
-      "text": "2. End-to-End Execution Lifecycles",
       "level": 2
-    },
+    }
+  ],
+  "architecture-details/lifecycles": [
     {
       "id": "http-job-submission-to-completion",
       "text": "HTTP Job Submission To Completion",
+      "level": 2
+    },
+    {
+      "id": "critical-flow-characteristics",
+      "text": "Critical Flow Characteristics",
       "level": 3
     },
     {
-      "id": "grpc-watchjob-flow",
-      "text": "gRPC WatchJob Flow",
+      "id": "real-time-streaming-watchjob-flow",
+      "text": "Real-Time Streaming WatchJob Flow",
+      "level": 2
+    },
+    {
+      "id": "hybrid-notification-architecture",
+      "text": "Hybrid Notification Architecture",
       "level": 3
     },
     {
       "id": "cross-process-job-cancellation-flow",
       "text": "Cross-Process Job Cancellation Flow",
-      "level": 3
+      "level": 2
     },
     {
       "id": "api-layer-transport-protocols",
       "text": "API Layer & Transport Protocols",
-      "level": 3
-    },
-    {
-      "id": "3-storage-state-machine-queue-delivery",
-      "text": "3. Storage, State Machine & Queue Delivery",
       "level": 2
     },
     {
+      "id": "rest-handlers",
+      "text": "REST Handlers",
+      "level": 3
+    },
+    {
+      "id": "validation",
+      "text": "Validation",
+      "level": 3
+    },
+    {
+      "id": "grpc-service",
+      "text": "gRPC Service",
+      "level": 3
+    },
+    {
+      "id": "broadcaster-pattern",
+      "text": "Broadcaster Pattern",
+      "level": 3
+    }
+  ],
+  "architecture-details/storage-queues": [
+    {
       "id": "domain-state-machine-lifecycle-transitions",
       "text": "Domain State Machine & Lifecycle Transitions",
+      "level": 2
+    },
+    {
+      "id": "jobs",
+      "text": "Jobs",
+      "level": 3
+    },
+    {
+      "id": "workers",
+      "text": "Workers",
       "level": 3
     },
     {
       "id": "persistence-abstractions-store-contracts",
       "text": "Persistence Abstractions & Store Contracts",
+      "level": 2
+    },
+    {
+      "id": "typed-errors",
+      "text": "Typed Errors",
+      "level": 3
+    },
+    {
+      "id": "functional-options",
+      "text": "Functional Options",
       "level": 3
     },
     {
       "id": "postgresql-implementation-atomic-cas-mechanics",
       "text": "PostgreSQL Implementation & Atomic CAS Mechanics",
+      "level": 2
+    },
+    {
+      "id": "core-sql-schema",
+      "text": "Core SQL Schema",
+      "level": 3
+    },
+    {
+      "id": "important-indexes",
+      "text": "Important Indexes",
+      "level": 3
+    },
+    {
+      "id": "idempotent-job-creation",
+      "text": "Idempotent Job Creation",
+      "level": 3
+    },
+    {
+      "id": "compare-and-swap-state-transitions",
+      "text": "Compare-And-Swap State Transitions",
+      "level": 3
+    },
+    {
+      "id": "postgresql-listen-notify",
+      "text": "PostgreSQL LISTEN/NOTIFY",
+      "level": 3
+    },
+    {
+      "id": "claimpendingjobs-work-distribution-pattern",
+      "text": "ClaimPendingJobs (Work-Distribution Pattern)",
+      "level": 3
+    },
+    {
+      "id": "orphan-reclamation",
+      "text": "Orphan Reclamation",
+      "level": 3
+    },
+    {
+      "id": "execution-audit",
+      "text": "Execution Audit",
+      "level": 3
+    },
+    {
+      "id": "jsonb-payloads",
+      "text": "JSONB Payloads",
       "level": 3
     },
     {
       "id": "redis-queue-implementation-delivery-engine",
       "text": "Redis Queue Implementation & Delivery Engine",
-      "level": 3
-    },
-    {
-      "id": "4-execution-engines-dag-pipeline-orchestration",
-      "text": "4. Execution Engines & DAG Pipeline Orchestration",
       "level": 2
     },
     {
+      "id": "streams-and-consumer-groups",
+      "text": "Streams And Consumer Groups",
+      "level": 3
+    },
+    {
+      "id": "ack-function-semantics",
+      "text": "Ack Function Semantics",
+      "level": 3
+    },
+    {
+      "id": "pel-reclaim",
+      "text": "PEL Reclaim",
+      "level": 3
+    },
+    {
+      "id": "scheduled-jobs",
+      "text": "Scheduled Jobs",
+      "level": 3
+    },
+    {
+      "id": "queue-name-mapping",
+      "text": "Queue Name Mapping",
+      "level": 3
+    }
+  ],
+  "architecture-details/engines-dag": [
+    {
       "id": "scheduler-engine-control-loop",
       "text": "Scheduler Engine & Control Loop",
+      "level": 2
+    },
+    {
+      "id": "leader-election",
+      "text": "Leader Election",
+      "level": 3
+    },
+    {
+      "id": "scheduler-tick-work",
+      "text": "Scheduler Tick Work",
+      "level": 3
+    },
+    {
+      "id": "retry-promotion",
+      "text": "Retry Promotion",
       "level": 3
     },
     {
       "id": "weighted-fair-queueing-token-bucket-rate-limiting",
       "text": "Weighted Fair Queueing & Token-Bucket Rate Limiting",
+      "level": 2
+    },
+    {
+      "id": "weighted-fair-dispatch",
+      "text": "Weighted Fair Dispatch",
+      "level": 3
+    },
+    {
+      "id": "token-bucket-rate-limiter",
+      "text": "Token Bucket Rate Limiter",
       "level": 3
     },
     {
       "id": "pipeline-advancer-multi-stage-dag-workflows",
       "text": "Pipeline Advancer & Multi-Stage DAG Workflows",
+      "level": 2
+    },
+    {
+      "id": "graph-representation",
+      "text": "Graph Representation",
+      "level": 3
+    },
+    {
+      "id": "advancement-algorithm",
+      "text": "Advancement Algorithm",
       "level": 3
     },
     {
       "id": "bounded-worker-pool-goroutine-backpressure",
       "text": "Bounded Worker Pool & Goroutine Backpressure",
+      "level": 2
+    },
+    {
+      "id": "concurrency-shape",
+      "text": "Concurrency Shape",
+      "level": 3
+    },
+    {
+      "id": "shutdown",
+      "text": "Shutdown",
+      "level": 3
+    },
+    {
+      "id": "execution-state-machine",
+      "text": "Execution State Machine",
       "level": 3
     },
     {
       "id": "inline-execution-engine",
       "text": "Inline Execution Engine",
-      "level": 3
+      "level": 2
     },
     {
       "id": "kubernetes-batch-job-engine-ml-workloads",
       "text": "Kubernetes Batch Job Engine & ML Workloads",
+      "level": 2
+    },
+    {
+      "id": "client-construction",
+      "text": "Client Construction",
+      "level": 3
+    },
+    {
+      "id": "job-translation",
+      "text": "Job Translation",
+      "level": 3
+    },
+    {
+      "id": "watch-with-poll-fallback",
+      "text": "Watch With Poll Fallback",
+      "level": 3
+    },
+    {
+      "id": "cancellation-cleanup-code-note",
+      "text": "Cancellation Cleanup & Code Note",
       "level": 3
     },
     {
       "id": "kubernetes-concepts-present-and-absent",
       "text": "Kubernetes Concepts Present And Absent",
-      "level": 3
-    },
-    {
-      "id": "5-distributed-systems-guarantees-observability",
-      "text": "5. Distributed Systems Guarantees & Observability",
       "level": 2
     },
     {
+      "id": "present",
+      "text": "Present",
+      "level": 3
+    },
+    {
+      "id": "absent",
+      "text": "Absent",
+      "level": 3
+    }
+  ],
+  "architecture-details/distributed-systems": [
+    {
       "id": "source-of-truth-consistency-model",
       "text": "Source Of Truth & Consistency Model",
+      "level": 2
+    },
+    {
+      "id": "source-of-truth",
+      "text": "Source Of Truth",
+      "level": 3
+    },
+    {
+      "id": "at-least-once-delivery",
+      "text": "At-Least-Once Delivery",
       "level": 3
     },
     {
@@ -223,6 +433,11 @@
       "level": 3
     },
     {
+      "id": "consistency-model",
+      "text": "Consistency Model",
+      "level": 3
+    },
+    {
       "id": "backpressure-architecture",
       "text": "Backpressure Architecture",
       "level": 3
@@ -230,61 +445,133 @@
     {
       "id": "full-observability-stack",
       "text": "Full Observability Stack",
+      "level": 2
+    },
+    {
+      "id": "metrics",
+      "text": "Metrics",
+      "level": 3
+    },
+    {
+      "id": "http-middleware",
+      "text": "HTTP Middleware",
+      "level": 3
+    },
+    {
+      "id": "logging",
+      "text": "Logging",
       "level": 3
     },
     {
       "id": "performance-profiling-scaling-characteristics",
       "text": "Performance Profiling & Scaling Characteristics",
-      "level": 3
-    },
-    {
-      "id": "6-engineering-reference-system-playbook",
-      "text": "6. Engineering Reference & System Playbook",
       "level": 2
     },
     {
+      "id": "scaling-strengths",
+      "text": "Scaling Strengths",
+      "level": 3
+    },
+    {
+      "id": "potential-bottlenecks",
+      "text": "Potential Bottlenecks",
+      "level": 3
+    }
+  ],
+  "architecture-details/engineering-reference": [
+    {
       "id": "algorithms-data-structures-matrix",
       "text": "Algorithms & Data Structures Matrix",
-      "level": 3
+      "level": 2
     },
     {
       "id": "software-design-patterns-in-orion",
       "text": "Software Design Patterns in Orion",
-      "level": 3
+      "level": 2
     },
     {
-      "id": "advanced-go-concurrency-idioms",
-      "text": "Advanced Go Concurrency & Idioms",
-      "level": 3
+      "id": "go-language-idioms-concurrency-primitives",
+      "text": "Go Language Idioms & Concurrency Primitives",
+      "level": 2
     },
     {
       "id": "comprehensive-testing-strategy",
       "text": "Comprehensive Testing Strategy",
+      "level": 2
+    },
+    {
+      "id": "patterns",
+      "text": "Patterns",
       "level": 3
     },
     {
       "id": "deployment-security-baseline",
       "text": "Deployment & Security Baseline",
+      "level": 2
+    },
+    {
+      "id": "docker-compose",
+      "text": "Docker Compose",
       "level": 3
     },
     {
-      "id": "operational-dashboard-frontend-interface",
-      "text": "Operational Dashboard & Frontend Interface",
+      "id": "helm-chart",
+      "text": "Helm Chart",
       "level": 3
+    },
+    {
+      "id": "security-posture",
+      "text": "Security Posture",
+      "level": 3
+    },
+    {
+      "id": "rbac-matrix",
+      "text": "RBAC Matrix",
+      "level": 3
+    },
+    {
+      "id": "network-policy",
+      "text": "Network Policy",
+      "level": 3
+    },
+    {
+      "id": "security-considerations",
+      "text": "Security Considerations",
+      "level": 2
+    },
+    {
+      "id": "good-practices-present",
+      "text": "Good Practices Present",
+      "level": 3
+    },
+    {
+      "id": "areas-to-harden",
+      "text": "Areas to Harden",
+      "level": 3
+    },
+    {
+      "id": "frontend-architecture",
+      "text": "Frontend Architecture",
+      "level": 2
     },
     {
       "id": "contributor-mental-model-invariants",
       "text": "Contributor Mental Model & Invariants",
-      "level": 3
+      "level": 2
     },
     {
       "id": "file-by-file-concept-index",
       "text": "File-By-File Concept Index",
-      "level": 3
+      "level": 2
     },
     {
       "id": "known-gaps-and-reimplementation-notes",
       "text": "Known Gaps And Reimplementation Notes",
+      "level": 2
+    },
+    {
+      "id": "key-enhancements-to-prioritize",
+      "text": "Key Enhancements To Prioritize",
       "level": 3
     }
   ],
