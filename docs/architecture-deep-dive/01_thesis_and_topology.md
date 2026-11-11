@@ -1,9 +1,9 @@
 ---
-title: "Pillar 1: System Thesis & Topology"
+title: "System Thesis & Topology"
 description: "Core architectural philosophy, physical service boundaries of the 3 Go binaries, and repository source-of-truth mapping."
 ---
 
-# 1. System Thesis & Component Topology
+# System Thesis & Topology
 
 ## System Thesis
 

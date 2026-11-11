@@ -1,6 +1,6 @@
 ---
 title: "Architecture Deep Dive"
-description: "Comprehensive 6-pillar technical architecture, component interactions, and engineering invariants of the Orion distributed orchestrator."
+description: "Comprehensive technical architecture, component interactions, and engineering invariants of the Orion distributed orchestrator."
 ---
 
 # Architecture Deep Dive
@@ -11,39 +11,39 @@ Orion is a Go-based distributed job orchestrator designed for lightweight tasks 
 
 ---
 
-## The 6 Architectural Pillars
+## Core Architecture Sections
 
-The architecture is divided into **6 focused, deep-dive chapters**:
+The architecture is divided into **6 focused chapters**:
 
 ```mermaid
 flowchart TD
-  P1["1. System Thesis & Topology\nControl plane, Redis delivery, and 3 Go binaries"] --> P2["2. Execution Lifecycles & Data Flow\nHTTP submissions, gRPC WatchJob, and cancellation"]
-  P2 --> P3["3. Storage, State Machine & Queues\nPostgreSQL CAS, Redis Streams PEL, and store contracts"]
-  P3 --> P4["4. Execution Engines & DAG Orchestration\nWorker pool backpressure, inline registry, K8s Jobs, and DAGs"]
-  P4 --> P5["5. Distributed Systems & Observability\nAdvisory locks, crash recovery, Prometheus, and OTel"]
-  P5 --> P6["6. Engineering Reference & Playbook\nAlgorithms O(V+E), Go idioms, testing matrix, and gaps"]
+  P1["System Thesis & Topology\nControl plane, Redis delivery, and 3 Go binaries"] --> P2["Execution Lifecycles & Data Flow\nHTTP submissions, gRPC WatchJob, and cancellation"]
+  P2 --> P3["Storage, State Machine & Queues\nPostgreSQL CAS, Redis Streams PEL, and store contracts"]
+  P3 --> P4["Execution Engines & DAG Orchestration\nWorker pool backpressure, inline registry, K8s Jobs, and DAGs"]
+  P4 --> P5["Distributed Systems & Observability\nAdvisory locks, crash recovery, Prometheus, and OTel"]
+  P5 --> P6["Engineering Reference & Playbook\nAlgorithms O(V+E), Go idioms, testing matrix, and gaps"]
 ```
 
 ---
 
 ## Chapter Index
 
-1. **[1. System Thesis & Component Topology](/docs/architecture-details/topology)**  
+1. **[System Thesis & Component Topology](/docs/architecture-details/topology)**  
    The core philosophy separating durable state (PostgreSQL), delivery (Redis Streams), and compute (Workers/K8s). Physical service boundaries across the 3 production Go binaries (`orion-api`, `orion-scheduler`, `orion-worker`) and codebase ownership map.
 
-2. **[2. Execution Lifecycles & Data Flow](/docs/architecture-details/lifecycles)**  
+2. **[Execution Lifecycles & Data Flow](/docs/architecture-details/lifecycles)**  
    End-to-end message traversal across process boundaries: HTTP submission to worker completion sequence, real-time gRPC `WatchJob` event streaming with PostgreSQL `LISTEN/NOTIFY`, and cross-process cancellation through Redis pub/sub.
 
-3. **[3. Storage, State Machine & Queue Delivery](/docs/architecture-details/storage-queues)**  
+3. **[Storage, State Machine & Queue Delivery](/docs/architecture-details/storage-queues)**  
    Durable state machine, atomic Compare-And-Swap (`TransitionJobState`) transitions, PostgreSQL schema design, and Redis Streams delivery mechanics (consumer groups, Pending Entries List recovery, and scheduled jobs Lua pop).
 
-4. **[4. Execution Engines & DAG Pipeline Orchestration](/docs/architecture-details/engines-dag)**  
+4. **[Execution Engines & DAG Pipeline Orchestration](/docs/architecture-details/engines-dag)**  
    Scheduler control loop, weighted fair queueing, token-bucket rate limiting, pipeline DAG advancer with cascade cancellation, bounded worker pool with goroutine channel backpressure, inline handler registry, and Kubernetes batch executor.
 
-5. **[5. Distributed Systems Guarantees & Observability](/docs/architecture-details/distributed-systems)**  
+5. **[Distributed Systems Guarantees & Observability](/docs/architecture-details/distributed-systems)**  
    Active-passive leader election via dedicated PostgreSQL advisory locks, failure modes and crash recovery matrix, backpressure layers, Prometheus metrics family, OpenTelemetry distributed tracing, and structured JSON logging.
 
-6. **[6. Engineering Reference & System Playbook](/docs/architecture-details/engineering-reference)**  
+6. **[Engineering Reference & System Playbook](/docs/architecture-details/engineering-reference)**  
    Algorithms and Big-O complexity matrix, Go idioms and concurrency primitives, design patterns in Orion, testing strategy, deployment and security baseline, contributor mental models, and future roadmap gaps.
 
 ---
