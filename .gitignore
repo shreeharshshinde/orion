@@ -8,25 +8,39 @@
 coverage.out
 coverage.html
 
-# Environment
+# Environment & Local Secrets
 .env
 .env.local
+.env.*.local
+*.log
+tmp/
+scratch/
 
-# Editor
+# Editor & OS
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# OS
+*~
 .DS_Store
+Thumbs.db
 
 # Go
 vendor/
 
-# Node
+# Node & Frontend Build
 node_modules/
+frontend/.next/
+frontend/out/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Research & Drafts
+# AI Assistant & Tooling Metadata
+.kilo/
+.system_generated/
+
+# Internal Drafts, Roadmaps & Scratchpads (Not for GitHub / Docs Portal)
 RESEARCH.md
 
