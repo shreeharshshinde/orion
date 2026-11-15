@@ -1,9 +1,11 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -16,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/shreeharshshinde/orion/internal/domain"
+	"github.com/shreeharshshinde/orion/internal/logsink"
 	"github.com/shreeharshshinde/orion/internal/observability"
 	"github.com/shreeharshshinde/orion/internal/queue"
 	"github.com/shreeharshshinde/orion/internal/store"
@@ -28,7 +31,11 @@ import (
 //   - InlineExecutor  (Phase 3) — runs registered Go functions
 //   - KubernetesExecutor (Phase 4) — launches and waits for K8s Jobs
 type Executor interface {
-	Execute(ctx context.Context, job *domain.Job) error
+	// Execute runs the job and writes any output/logs to out.
+	// out is a per-execution writer provided by the pool (never nil).
+	// Executors SHOULD write structured progress messages to out so that
+	// they are captured by the LogSink and stored as logs_ref.
+	Execute(ctx context.Context, job *domain.Job, out io.Writer) error
 	// CanExecute returns true if this executor handles the given job type.
 	// The pool calls this to route each job to the correct executor.
 	CanExecute(jobType domain.JobType) bool
@@ -59,6 +66,7 @@ type Pool struct {
 	queue     queue.Queue
 	store     store.Store
 	executors []Executor
+	sink      logsink.LogSink       // Phase 13: captures and ships execution logs
 	metrics   *observability.Metrics // Phase 6: Prometheus metrics
 	logger    *slog.Logger
 
@@ -82,12 +90,14 @@ type jobTask struct {
 // NewPool creates a Pool. Call Start() to begin processing jobs.
 // m may be nil in tests — all metric calls are nil-guarded.
 // sig may be nil — cancel signals will only work within the same process.
+// sink may be nil — a NilSink will be used (logs discarded).
 func NewPool(cfg WorkerConfig, q queue.Queue, s store.Store, executors []Executor, m *observability.Metrics, logger *slog.Logger, sig ...cancel.Signaler) *Pool {
 	p := &Pool{
 		cfg:            cfg,
 		queue:          q,
 		store:          s,
 		executors:      executors,
+		sink:           logsink.NewNilSink(),
 		metrics:        m,
 		logger:         logger,
 		jobCh:          make(chan *jobTask, cfg.Concurrency),
@@ -95,6 +105,15 @@ func NewPool(cfg WorkerConfig, q queue.Queue, s store.Store, executors []Executo
 	}
 	if len(sig) > 0 {
 		p.cancelSignaler = sig[0]
+	}
+	return p
+}
+
+// WithLogSink sets the LogSink used to store execution logs.
+// Call this after NewPool and before Start.
+func (p *Pool) WithLogSink(sink logsink.LogSink) *Pool {
+	if sink != nil {
+		p.sink = sink
 	}
 	return p
 }
@@ -409,10 +428,30 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 		p.deregisterCancel(job.ID)
 	}()
 
+	// ── Set up log capture ────────────────────────────────────────────────────
+	// The sink provides a fresh writer (bytes.Buffer or io.Discard for NilSink).
+	// The executor writes progress and diagnostic lines to this writer.
+	// After Execute returns, we flush the buffer to the sink and get a URI.
+	execID := uuid.New() // stable across the RecordExecution calls below
+	logWriter := p.sink.Writer()
+
 	// ── Execute ───────────────────────────────────────────────────────────────
-	err := executor.Execute(execCtx, job)
+	err := executor.Execute(execCtx, job, logWriter)
 	finishedAt := time.Now()
 	elapsed := finishedAt.Sub(startedAt).Seconds()
+
+	// ── Flush logs ────────────────────────────────────────────────────────────
+	// Collect log bytes from the writer (only bytes.Buffer implements Bytes()).
+	var logData []byte
+	if buf, ok := logWriter.(*bytes.Buffer); ok {
+		logData = buf.Bytes()
+	}
+	logsRef := ""
+	if uri, flushErr := p.sink.Flush(ctx, job.ID, execID, logData); flushErr != nil {
+		logger.Warn("failed to flush execution logs", "job_id", job.ID, "err", flushErr)
+	} else {
+		logsRef = uri
+	}
 
 	// ── Handle result ─────────────────────────────────────────────────────────
 	if err != nil {
@@ -427,7 +466,7 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 			current, dbErr := p.store.GetJob(ctx, job.ID)
 			if dbErr == nil && current.Status == domain.JobStatusCancelled {
 				_ = p.store.RecordExecution(ctx, &domain.JobExecution{
-					ID:         uuid.New(),
+					ID:         execID,
 					JobID:      job.ID,
 					Attempt:    job.Attempt + 1,
 					WorkerID:   p.cfg.WorkerID,
@@ -435,6 +474,7 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 					StartedAt:  &startedAt,
 					FinishedAt: &finishedAt,
 					Error:      "cancelled",
+					LogsRef:    logsRef,
 				})
 				_ = task.ackFn(nil) // ACK: job is done, no redelivery needed
 				return
@@ -472,7 +512,7 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 		retryAt := p.nextRetryTime(job)
 		_ = p.store.MarkJobFailed(ctx, job.ID, err.Error(), retryAt)
 		_ = p.store.RecordExecution(ctx, &domain.JobExecution{
-			ID:         uuid.New(),
+			ID:         execID,
 			JobID:      job.ID,
 			Attempt:    job.Attempt + 1,
 			WorkerID:   p.cfg.WorkerID,
@@ -480,6 +520,7 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 			StartedAt:  &startedAt,
 			FinishedAt: &finishedAt,
 			Error:      err.Error(),
+			LogsRef:    logsRef,
 		})
 		_ = task.ackFn(err) // NACK: message stays in Redis PEL for redelivery
 		return
@@ -499,13 +540,14 @@ func (p *Pool) executeJob(ctx context.Context, task *jobTask, logger *slog.Logge
 
 	_ = p.store.MarkJobCompleted(ctx, job.ID)
 	_ = p.store.RecordExecution(ctx, &domain.JobExecution{
-		ID:         uuid.New(),
+		ID:         execID,
 		JobID:      job.ID,
 		Attempt:    job.Attempt + 1,
 		WorkerID:   p.cfg.WorkerID,
 		Status:     domain.JobStatusCompleted,
 		StartedAt:  &startedAt,
 		FinishedAt: &finishedAt,
+		LogsRef:    logsRef,
 	})
 	_ = task.ackFn(nil) // ACK: removes message from Redis PEL permanently ✓
 }
