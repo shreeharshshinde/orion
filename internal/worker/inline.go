@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"sort"
 	"sync"
@@ -15,12 +16,45 @@ import (
 // HandlerFunc
 // ─────────────────────────────────────────────────────────────────────────────
 
+// logWriterKey is the unexported context key used to pass the log writer to
+// inline job handlers. Using a private type prevents collisions with other
+// context values stored by third-party packages.
+type logWriterKey struct{}
+
+// LogWriter extracts the io.Writer injected by the pool from the context.
+// Inline job handlers can call this to write structured logs that will be
+// shipped to the configured LogSink and stored in executions.logs_ref.
+//
+// Returns io.Discard if no writer was injected (e.g., in tests that call
+// handler functions directly without going through the pool).
+//
+// Example:
+//
+//	func MyHandler(ctx context.Context, job *domain.Job) error {
+//	    out := worker.LogWriter(ctx)
+//	    fmt.Fprintf(out, "processing %d items\n", len(items))
+//	    ...
+//	}
+func LogWriter(ctx context.Context) io.Writer {
+	if w, ok := ctx.Value(logWriterKey{}).(io.Writer); ok && w != nil {
+		return w
+	}
+	return io.Discard
+}
+
+// withLogWriter returns a new context with the given writer attached.
+// Called by InlineExecutor before invoking the handler.
+func withLogWriter(ctx context.Context, w io.Writer) context.Context {
+	return context.WithValue(ctx, logWriterKey{}, w)
+}
+
 // HandlerFunc is the function signature every inline job handler must implement.
 //
 // Receive:
 //   - ctx  : may be cancelled on job deadline, worker shutdown, or SIGTERM.
 //     Always honour ctx.Done() in long-running loops — see Slow handler
 //     in handlers/handlers.go for the correct select pattern.
+//     Use worker.LogWriter(ctx) to write logs that are shipped to storage.
 //   - job  : full job record. Read job.Payload.Args for caller-supplied
 //     parameters. Read job.Attempt to know which retry this is.
 //
@@ -146,6 +180,10 @@ func (e *InlineExecutor) CanExecute(jobType domain.JobType) bool {
 
 // Execute resolves and calls the handler registered under job.Payload.HandlerName.
 //
+// The out writer is injected into the context so handlers can emit logs via
+// worker.LogWriter(ctx). This keeps the HandlerFunc signature stable while
+// enabling optional log capture.
+//
 // Error cases and their meanings:
 //
 //	empty handler_name  → programming error; job will retry then die
@@ -154,7 +192,7 @@ func (e *InlineExecutor) CanExecute(jobType domain.JobType) bool {
 //	handler returns err → transient or permanent failure; pool retries
 //	ctx cancelled       → deadline/shutdown; handler should have returned
 //	                      ctx.Err() which the pool treats as a retriable failure
-func (e *InlineExecutor) Execute(ctx context.Context, job *domain.Job) error {
+func (e *InlineExecutor) Execute(ctx context.Context, job *domain.Job, out io.Writer) error {
 	handlerName := job.Payload.HandlerName
 	if handlerName == "" {
 		return fmt.Errorf("inline job %s: payload.handler_name is empty", job.ID)
@@ -176,8 +214,12 @@ func (e *InlineExecutor) Execute(ctx context.Context, job *domain.Job) error {
 		"arg_keys", argKeys(job.Payload.Args),
 	)
 
+	// Inject the log writer into the context so handlers can write to it
+	// via worker.LogWriter(ctx). The pool created the writer; we don't own it.
+	handlerCtx := withLogWriter(ctx, out)
+
 	start := time.Now()
-	err := fn(ctx, job)
+	err := fn(handlerCtx, job)
 	elapsed := time.Since(start)
 
 	if err != nil {
