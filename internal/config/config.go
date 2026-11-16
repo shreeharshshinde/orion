@@ -32,6 +32,11 @@ type ServiceConfig struct {
 	// Set via ORION_API_KEY environment variable.
 	// Empty string disables authentication entirely (safe for local development).
 	APIKey string
+	// MaxRequestBodyBytes caps the size of incoming HTTP request bodies.
+	// Bodies exceeding this limit are rejected with 400 Bad Request before the
+	// handler reads them. 0 disables the restriction (local development default).
+	// Production default: 10 MiB (set via ORION_MAX_REQUEST_BODY_BYTES).
+	MaxRequestBodyBytes int64
 }
 
 type DatabaseConfig struct {
@@ -122,6 +127,9 @@ func Load() (*Config, error) {
 			// APIKey is intentionally empty by default so local dev requires
 			// no configuration. Set ORION_API_KEY in production environments.
 			APIKey: getEnv("ORION_API_KEY", ""),
+			// MaxRequestBodyBytes defaults to 10 MiB in all environments.
+			// Set ORION_MAX_REQUEST_BODY_BYTES=0 to disable for local testing.
+			MaxRequestBodyBytes: getEnvInt64("ORION_MAX_REQUEST_BODY_BYTES", 10*1024*1024),
 		},
 		Database: DatabaseConfig{
 			DSN:             getEnv("ORION_DATABASE_DSN", "postgres://orion:orion@localhost:5432/orion?sslmode=disable"),
@@ -210,6 +218,17 @@ func getEnv(key, def string) string {
 func getEnvInt(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
+}
+
+// getEnvInt64 reads an env var as a 64-bit integer.
+// Falls back to def if the variable is absent or cannot be parsed.
+func getEnvInt64(key string, def int64) int64 {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return n
 		}
 	}
