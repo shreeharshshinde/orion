@@ -139,6 +139,46 @@ func (r *statusRecorder) WriteHeader(code int) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MaxBodySizeMiddleware
+// ─────────────────────────────────────────────────────────────────────────────
+
+// MaxBodySizeMiddleware rejects HTTP request bodies that exceed limit bytes.
+//
+// It replaces r.Body with an http.MaxBytesReader before passing control
+// downstream. When json.Decode (or any other reader) hits the limit, it
+// returns an error that the existing handler error path surfaces as
+// 400 Bad Request — no handler changes are required.
+//
+// http.MaxBytesReader also signals http.Server to close the underlying TCP
+// connection after the response is written, preventing the oversized body
+// from being buffered in memory.
+//
+// A limit <= 0 disables the restriction entirely. Use this for local
+// development where no configuration should be required.
+//
+// Recommended production value: 10 * 1024 * 1024 (10 MiB). Legitimate
+// Orion job payloads are a few kilobytes; the 10 MiB headroom covers large
+// DAG specs without being permissive.
+//
+// Position in the middleware chain:
+//
+//	TracingMiddleware → AuthMiddleware → MaxBodySizeMiddleware → MetricsMiddleware → mux
+//
+// Placing it after AuthMiddleware means oversized requests from
+// unauthenticated callers are rejected with 401 before the body is touched.
+func MaxBodySizeMiddleware(limit int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if limit <= 0 {
+			return next // restriction disabled
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RequestLogger
 // ─────────────────────────────────────────────────────────────────────────────
 
